@@ -397,22 +397,35 @@ export function equalShares(
 
 /**
  * The Funding card's contributions (owner 2026-10-26, from the sample): each
- * core partner's equal share, what this cycle can draw for him, and whether
- * that covers what he still has to put in.
+ * core partner's share, what this cycle can draw for him, and whether that
+ * covers what he still has to put in.
  *
- * What the shares are of (GUESS 2026-10-26): the funding target in pounds
- * when one is set and it is not below the cost to fund; otherwise the cost to
- * fund (`CostingService.fundingFor`, the figure Split equally divides). Less
- * investors' money either way — theirs is their own (§8).
+ * **The partners' part** is what funds the cycle less investors' money —
+ * theirs is their own (§8). What funds the cycle (GUESS 2026-10-26): the
+ * funding target in pounds when one is set and it is not below the cost to
+ * fund; otherwise the cost to fund (`CostingService.fundingFor`, the figure
+ * Split equally divides).
  *
  * On a cycle a friend paid, once the partners have repaid him anything
  * (DECIDED 2026-10-26, owner: "it shows we paid 64,460.76, while its
- * 67,056.33"), the cost to fund is replaced by **what they repaid him in
- * pounds** (`repaidEgp`, `repaidOnCycleEgp`): that, not the cost at his
- * rate, is what they put in — the exchange difference included. Before any
- * repayment the cost to fund stands. A target still wins when it is set and
- * not below that figure (GUESS). Split by
- * `equalShares`, the last partner taking the odd piastre; nothing to split
+ * 67,056.33"), the cost to fund is replaced by what was put in, in pounds:
+ * **what was repaid him, or everything contributed to the cycle when that is
+ * more** (`REPAID` / `PUT_IN`, DECIDED 2026-10-27 — owner: "Each partner's
+ * share of the cycle? something looks off"). Repaid alone was wrong as soon
+ * as part of his loan stayed in as an investment: CYC-2026-0001's 60,000 of
+ * Ahmad Eraiby's was never part of the 141,168.92 repaid, yet came off it
+ * again as investors' money — 61,168.92 for partners who put in 121,168.99.
+ * Every contribution is capital the settlement hands back, so together they
+ * are the money funding the cycle; the repaid figure stays the floor while
+ * contributions are still being entered. A target still wins when it is set
+ * and not below that figure (GUESS).
+ *
+ * **Each share** (DECIDED 2026-10-27): when every core partner's contribution
+ * is entered (above zero) and together they make up the partners' part to the
+ * piastre, each share is what he contributed — **as agreed** (`agreed`), so
+ * 55,000 / 33,084.50 / 33,084.49 reads as covered, not as one over and two
+ * short of an equal third. Otherwise equal shares are the suggestion
+ * (`equalShares`, the last partner taking the odd piastre); nothing to split
  * gives every share zero rather than letting rounding pick (CLAUDE.md §10).
  *
  * What a partner still has to give is his share less what he has already
@@ -420,8 +433,8 @@ export function equalShares(
  * less that — covered, with that much left over, at zero or more; short by
  * its size below zero.
  */
-/** What the Funding card's equal shares are of. */
-export type ShareBasis = 'TARGET' | 'COST_TO_FUND' | 'REPAID';
+/** What the Funding card's partners' part is of. */
+export type ShareBasis = 'TARGET' | 'COST_TO_FUND' | 'REPAID' | 'PUT_IN';
 
 export function contributionShares(args: {
   targetEgp: Prisma.Decimal.Value | null;
@@ -437,6 +450,8 @@ export function contributionShares(args: {
   basis: ShareBasis;
   ofEgp: Prisma.Decimal;
   partnersEgp: Prisma.Decimal;
+  /** Each share is that partner's own contribution: all entered, and they make up the partners' part. */
+  agreed: boolean;
   lines: {
     share: Prisma.Decimal;
     stillToGive: Prisma.Decimal;
@@ -444,25 +459,50 @@ export function contributionShares(args: {
   }[];
 } {
   const zero = new Prisma.Decimal(0);
+  const investors = new Prisma.Decimal(args.investorsEgp);
+  const partnersIn = args.partners.reduce(
+    (s, p) => s.add(Prisma.Decimal.max(p.contributionEgp, 0)),
+    zero,
+  );
   const repaid = new Prisma.Decimal(args.repaidEgp ?? 0);
   const byRepaid = repaid.gt(0);
-  const toFund = byRepaid ? repaid : new Prisma.Decimal(args.toFundEgp);
+  // Everything put into the cycle: every participant's contribution.
+  const putIn = partnersIn.add(Prisma.Decimal.max(investors, 0));
+  const byPutIn = byRepaid && putIn.gt(repaid);
+  const toFund = byPutIn
+    ? putIn
+    : byRepaid
+      ? repaid
+      : new Prisma.Decimal(args.toFundEgp);
   const target =
     args.targetEgp === null ? null : new Prisma.Decimal(args.targetEgp);
   const byTarget = target !== null && target.gt(0) && target.gte(toFund);
   const ofEgp = byTarget ? target : toFund;
   const partnersEgp = Prisma.Decimal.max(
-    ofEgp.sub(args.investorsEgp).toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN),
+    ofEgp.sub(investors).toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN),
     0,
   );
-  const shares =
-    partnersEgp.gt(0) && args.partners.length > 0
+  const agreed =
+    partnersEgp.gt(0) &&
+    args.partners.length > 0 &&
+    args.partners.every((p) => new Prisma.Decimal(p.contributionEgp).gt(0)) &&
+    partnersIn.toDecimalPlaces(2).equals(partnersEgp);
+  const shares = agreed
+    ? args.partners.map((p) => new Prisma.Decimal(p.contributionEgp))
+    : partnersEgp.gt(0) && args.partners.length > 0
       ? equalShares(partnersEgp, args.partners.length)
       : args.partners.map(() => zero);
   return {
-    basis: byTarget ? 'TARGET' : byRepaid ? 'REPAID' : 'COST_TO_FUND',
+    basis: byTarget
+      ? 'TARGET'
+      : byPutIn
+        ? 'PUT_IN'
+        : byRepaid
+          ? 'REPAID'
+          : 'COST_TO_FUND',
     ofEgp,
     partnersEgp,
+    agreed,
     lines: args.partners.map((p, i) => {
       const share = shares[i];
       const stillToGive = Prisma.Decimal.max(share.sub(p.contributionEgp), 0);

@@ -351,6 +351,213 @@ describe('the Funding card on a cycle a friend paid (owner 2026-10-26)', () => {
   });
 });
 
+describe('the partners’ part and each share, once investors are in (owner 2026-10-27)', () => {
+  /**
+   * CYC-2026-0001 as corrected: Ahmad Eraiby repaid 141,168.92 in pounds;
+   * 60,000 of his loan stayed in as his investment, Mohammed Setta put in
+   * 20,000 (into repaying him), and the partners agreed 55,000 / 33,084.50 /
+   * 33,084.49 — 201,168.99 in all.
+   */
+  const cycleOne = (contributions = ['55000.00', '33084.50', '33084.49']) => ({
+    targetEgp: null,
+    toFundEgp: '193382.28',
+    repaidEgp: '141168.92',
+    investorsEgp: '80000.00',
+    partners: contributions.map((c) => ({
+      availableEgp: 0,
+      contributionEgp: c,
+    })),
+  });
+
+  it('production’s cycle 1: the partners’ part is 121,168.99 — what they put in — not 61,168.92; each share as agreed, all covered', () => {
+    const r = contributionShares(cycleOne());
+    expect(r.basis).toBe('PUT_IN');
+    expect(r.ofEgp.toFixed(2)).toBe('201168.99');
+    expect(r.partnersEgp.toFixed(2)).toBe('121168.99');
+    expect(r.agreed).toBe(true);
+    expect(r.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '55000.00',
+      '33084.50',
+      '33084.49',
+    ]);
+    expect(
+      r.lines.map((l) => [l.stillToGive.toFixed(2), l.cover.toFixed(2)]),
+    ).toEqual([0, 1, 2].map(() => ['0.00', '0.00']));
+  });
+
+  it('the second visit: the old equal thirds of 2026-10-26, then the corrected funding — both as agreed, never one over and two short', () => {
+    const before = contributionShares({
+      targetEgp: null,
+      toFundEgp: '193382.28',
+      repaidEgp: '201168.99',
+      investorsEgp: 0,
+      partners: [0, 1, 2].map(() => ({
+        availableEgp: 0,
+        contributionEgp: '67056.33',
+      })),
+    });
+    expect([before.basis, before.agreed]).toEqual(['REPAID', true]);
+    const after = contributionShares(cycleOne());
+    expect([after.basis, after.agreed]).toEqual(['PUT_IN', true]);
+    // Fares later lowered by 1,000: still everything put in, still as agreed.
+    const edited = contributionShares(
+      cycleOne(['55000.00', '33084.50', '32084.49']),
+    );
+    expect(edited.partnersEgp.toFixed(2)).toBe('120168.99');
+    expect(edited.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '55000.00',
+      '33084.50',
+      '32084.49',
+    ]);
+  });
+
+  it('a partner missing his contribution: equal shares stay the suggestion, and he reads short', () => {
+    const r = contributionShares(cycleOne(['55000.00', '33084.50', '0']));
+    // 168,084.50 put in, more than repaid: the partners' part is theirs, 88,084.50.
+    expect(r.partnersEgp.toFixed(2)).toBe('88084.50');
+    expect(r.agreed).toBe(false);
+    expect(r.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '29361.50',
+      '29361.50',
+      '29361.50',
+    ]);
+    expect(r.lines.map((l) => l.cover.toFixed(2))).toEqual([
+      '0.00',
+      '0.00',
+      '-29361.50',
+    ]);
+  });
+
+  it('investors only, the partners not entered yet: the repaid figure stays the floor (GUESS — whose investment repaid him is not recorded)', () => {
+    const r = contributionShares(cycleOne(['0', '0', '0']));
+    expect(r.basis).toBe('REPAID');
+    expect(r.partnersEgp.toFixed(2)).toBe('61168.92');
+    expect(r.agreed).toBe(false);
+  });
+
+  it('contributions that do not make up the partners’ part: equal shares, the short partner named', () => {
+    // Cost to fund 1,000; 300 each entered — 900, not 1,000.
+    const r = contributionShares({
+      targetEgp: null,
+      toFundEgp: '1000.00',
+      investorsEgp: 0,
+      partners: [0, 1, 2].map(() => ({
+        availableEgp: 0,
+        contributionEgp: '300.00',
+      })),
+    });
+    expect(r.agreed).toBe(false);
+    expect(r.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '333.33',
+      '333.33',
+      '333.34',
+    ]);
+    expect(r.lines.map((l) => l.stillToGive.toFixed(2))).toEqual([
+      '33.33',
+      '33.33',
+      '33.34',
+    ]);
+    // Off by one piastre is off: to the piastre or not at all.
+    const near = contributionShares({
+      targetEgp: null,
+      toFundEgp: '1000.00',
+      investorsEgp: 0,
+      partners: ['300.00', '300.00', '399.99'].map((c) => ({
+        availableEgp: 0,
+        contributionEgp: c,
+      })),
+    });
+    expect(near.agreed).toBe(false);
+    // More than the cost: not agreed either, and nobody is asked for more.
+    const over = contributionShares({
+      targetEgp: null,
+      toFundEgp: '1000.00',
+      investorsEgp: 0,
+      partners: [0, 1, 2].map(() => ({
+        availableEgp: 0,
+        contributionEgp: '500.00',
+      })),
+    });
+    expect(over.agreed).toBe(false);
+    expect(over.lines.every((l) => l.stillToGive.eq(0))).toBe(true);
+  });
+
+  it('a repaid friend and contributions short of it: of what was repaid, equal shares, each short his part', () => {
+    const r = contributionShares({
+      targetEgp: null,
+      toFundEgp: '900.00',
+      repaidEgp: '1200.00',
+      investorsEgp: 0,
+      partners: [0, 1, 2].map(() => ({
+        availableEgp: 0,
+        contributionEgp: '300.00',
+      })),
+    });
+    expect([r.basis, r.agreed]).toEqual(['REPAID', false]);
+    expect(r.lines.map((l) => l.cover.toFixed(2))).toEqual([
+      '-100.00',
+      '-100.00',
+      '-100.00',
+    ]);
+  });
+
+  it('30 / 30 / 40 of the cost to fund, as entered: as agreed on any basis, not equal thirds', () => {
+    const r = contributionShares({
+      targetEgp: null,
+      toFundEgp: '1000.00',
+      investorsEgp: 0,
+      partners: ['300.00', '300.00', '400.00'].map((c) => ({
+        availableEgp: 0,
+        contributionEgp: c,
+      })),
+    });
+    expect([r.basis, r.agreed]).toEqual(['COST_TO_FUND', true]);
+    expect(r.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '300.00',
+      '300.00',
+      '400.00',
+    ]);
+  });
+
+  it('the target basis is unaffected: it still wins when not below what was put in, and the shares are its thirds', () => {
+    const r = contributionShares({ ...cycleOne(), targetEgp: '250000.00' });
+    expect(r.basis).toBe('TARGET');
+    expect(r.partnersEgp.toFixed(2)).toBe('170000.00');
+    expect(r.agreed).toBe(false);
+    expect(r.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '56666.66',
+      '56666.66',
+      '56666.68',
+    ]);
+    // A target below everything put in gives way, as it gives way to the cost.
+    expect(
+      contributionShares({ ...cycleOne(), targetEgp: '150000.00' }).basis,
+    ).toBe('PUT_IN');
+  });
+
+  it('nothing contributed and nothing to fund: zero shares, never agreed', () => {
+    const r = contributionShares({
+      targetEgp: null,
+      toFundEgp: 0,
+      investorsEgp: 0,
+      partners: [0, 1, 2].map(() => ({ availableEgp: 0, contributionEgp: 0 })),
+    });
+    expect(r.agreed).toBe(false);
+    expect(r.lines.every((l) => l.share.eq(0))).toBe(true);
+    // Investors' money alone covering the whole cost: nothing for the partners, nothing agreed.
+    const covered = contributionShares({
+      targetEgp: null,
+      toFundEgp: '1000.00',
+      investorsEgp: '1000.00',
+      partners: [0, 1].map(() => ({ availableEgp: 0, contributionEgp: 0 })),
+    });
+    expect([covered.partnersEgp.toFixed(2), covered.agreed]).toEqual([
+      '0.00',
+      false,
+    ]);
+  });
+});
+
 describe('put in so far — contribution + undrawn advances, never counting a drawn advance twice', () => {
   it('a contribution entered directly (repaying a friend) is all of it', () => {
     const r = putInSoFar({

@@ -18,6 +18,13 @@ in Vercel; without them it says it is not set up. State of the product and of pr
 `docs/where-things-stand.md`.
 **Branches' 31 broken dev tests — fixed 2026-10-26:** New Order looked for the shop's default branch before the walk-in and samples checks, so a walk-in (which has no branches) made a lookup the fakes did not answer and a refusal came after it. The lookup now comes after those checks and is skipped for a walk-in (a branch named for one is still refused); the assistant spec's in-memory database has the branches table and expects `record_sale`'s new `branch` field. A real-Postgres test now sells to the walk-in with no branch (PAID, owes 0, no branch). Full run after the fix: API 2,392 passed; the 15 that failed in the parallel run were two workers on one database moving each other's totals, `references.db` appending `?connection_limit` to a URL that already has `?schema=public`, and 5-second timeouts on whole-database dashboard figures — each passes alone (37/37 with a 30 s limit). Web 1,474 passed; `pnl-weeks` times out as before.
 
+2026-10-27 — Live-pending: **the Funding card with investors** (owner: "they should be added to funding as well
+right? … something looks off", BUSINESS_LOGIC §8 "Investors in the funding"): put in so far counts investors
+("invested"; cycle 1 201,168.99); the partners' part on a repaid cycle is repaid or everything put in, whichever is more,
+less investors (no more double subtraction); shares as agreed when the partners' contributions make up their part; the
+share-of-the-cycle box lists everyone at the profit split's percentages, now by largest remainder. "Contribute equal thirds" hidden when shares are as agreed or all given; both lists head "Name". No migration.
+Verified by api unit + Postgres partner-accounts tests, web component tests, lint, tsc, `next build`; no e2e.
+
 2026-10-27 — Live-pending: **CYC-2026-0001's real funding** (owner's facts, BUSINESS_LOGIC §18 "Part of a friend's
 loan staying in the cycle as his investment"): one-off `apps/api/prisma/one-off/2026-10-27-cyc-0001-funding.ts` —
 Eraiby's loan 13,905.69 → 9,878.84 AED, repayments re-recorded (last 9,064.86), contributions 55,000 / 33,084.50 /

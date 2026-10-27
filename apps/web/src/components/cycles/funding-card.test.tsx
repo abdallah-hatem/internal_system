@@ -221,7 +221,7 @@ function cycleOne(exchange = '7788.12', split: string[] | null = ['2596.04', '25
     toFundEgp: '193382.28',
     partnersContributedEgp: '201168.99',
     stillToContributeEgp: '0.00',
-    shares: { basis: 'REPAID', ofEgp: '201168.99', partnersEgp: '201168.99', stillEgp: '0.00' },
+    shares: { basis: 'REPAID', ofEgp: '201168.99', partnersEgp: '201168.99', stillEgp: '0.00', agreed: true },
     participants: two.participants.map((p, i) => ({ ...p, contributionEgp: '67056.33', profitPct: i === 2 ? '33.34' : '33.33' })),
     profitSplit: { basis: 'CONTRIBUTIONS', equal: true, problem: null },
   };
@@ -396,6 +396,11 @@ describe('no target, a friend paid, an investor', () => {
   it('a friend paid and the partners entered their shares: each one’s share of repaying him', async () => {
     totals = { ...totals, profitBasis: 'CONTRIBUTIONS', lenderFinancedEgp: '95000.00' };
     cycleParticipants = [person('a', 'Abdallah', '28500'), person('s', 'Shady', '28500'), person('f', 'Fares', '38000')];
+    state.funding.participants = state.funding.participants.map((p, i) => ({
+      ...p,
+      contributionEgp: ['28500.00', '28500.00', '38000.00'][i],
+      profitPct: ['30.00', '30.00', '40.00'][i],
+    }));
     wrap('en', { lenders: ['Ahmad Eraiby'] });
     expect(screen.queryByTestId('funding-note')).toBeNull();
     const shares = await screen.findByTestId('repay-shares');
@@ -431,13 +436,11 @@ describe('production’s cycle 1: a friend paid, the partners repaid him (owner 
     expect(text(within(rows[0]).getByTestId('paid-into-capital'))).toContain('67,056.33 EGP');
   });
 
-  it('shares are thirds of what was repaid him — 67,056.33 each, every one covered with nothing left over', async () => {
+  it('shares are what each repaid him, as agreed — 67,056.33 each, every one covered with nothing left over', async () => {
     asCycleOne();
     wrap('en', { lenders: ['Ahmad Eraiby'] });
     const contributions = await screen.findByTestId('funding-contributions');
-    expect(text(contributions.querySelector('h3'))).toBe(
-      'Contributions — equal thirds of what was repaid to Ahmad Eraiby, 201,168.99 EGP',
-    );
+    expect(text(contributions.querySelector('h3'))).toBe('Contributions — as the partners agreed, 201,168.99 EGP between them');
     const rows = within(contributions).getAllByTestId('share-row');
     expect(rows.map((r) => text(within(r).getByTestId('share-amount')))).toEqual(['67,056.33 EGP', '67,056.33 EGP', '67,056.33 EGP']);
     const pills = rows.map((r) => within(r).getByTestId('share-status'));
@@ -514,6 +517,232 @@ describe('production’s cycle 1: a friend paid, the partners repaid him (owner 
     expect(text(line)).toContain('لكل منهم');
     for (const m of line.querySelectorAll('[data-slot="money"]')) expect(m.getAttribute('dir')).toBe('ltr');
     expect(text(screen.getByTestId('paid-so-far'))).toContain('201,168.99');
+  });
+});
+
+/**
+ * CYC-2026-0001 as corrected 2026-10-27 (BUSINESS_LOGIC §18): Abdallah
+ * 55,000, Shady 33,084.50, Fares 33,084.49 — the partners' 121,168.99 —
+ * and two investors, Ahmad Eraiby 60,000 (his loan that stayed in) and
+ * Mohammed Setta 20,000. Repaid 141,168.92; 201,168.99 put in. What the
+ * server answers for it, with the profit split's percentages.
+ */
+function cycleOneCorrected(): AccountFunding {
+  const one = cycleOne('3787.84', null);
+  const core = [
+    ['a', 'Abdallah', '55000.00', '27.34'],
+    ['s', 'Shady', '33084.50', '16.45'],
+    ['f', 'Fares', '33084.49', '16.45'],
+  ] as const;
+  const investors = [
+    ['e', 'Ahmad Eraiby', '60000.00', '29.82'],
+    ['m', 'Mohammed Setta', '20000.00', '9.94'],
+  ] as const;
+  return {
+    ...one,
+    putIn: {
+      totalEgp: '201168.99',
+      inTargetCurrency: null,
+      byPartner: [
+        ...core.map(([id, name, c]) => ({ ...putInRow(id, name, { total: c, entered: c }), participantType: 'CORE_PARTNER' as const })),
+        ...investors.map(([id, name, c]) => ({ ...putInRow(id, name, { total: c, entered: c }), participantType: 'TEMP_INVESTOR' as const })),
+      ],
+    },
+    friends: { ...one.friends!, financedEgp: '137381.08', repaidEgp: '141168.92' },
+    partners: core.map(([id, name, c]) => ({ ...partnerRow(id, name, c, '0.00', '0.00', c), stillToGiveEgp: '0.00' })),
+    investorsEgp: '80000.00',
+    partnersContributedEgp: '121168.99',
+    shares: { basis: 'PUT_IN', ofEgp: '201168.99', partnersEgp: '121168.99', stillEgp: '0.00', agreed: true },
+    participants: [
+      ...core.map(([id, name, c, pct]) => ({
+        participantId: `p-${id}`, participantType: 'CORE_PARTNER', name, contributionEgp: c, customProfitPct: null, investorFeePct: null, profitPct: pct,
+      })),
+      ...investors.map(([id, name, c, pct]) => ({
+        participantId: `p-${id}`, participantType: 'TEMP_INVESTOR', name, contributionEgp: c, customProfitPct: null, investorFeePct: null, profitPct: pct,
+      })),
+    ],
+    profitSplit: { basis: 'CONTRIBUTIONS', equal: false, problem: null },
+  };
+}
+
+function asCycleOneCorrected() {
+  asCycleOne();
+  state.funding = cycleOneCorrected();
+  cycleParticipants = [
+    person('a', 'Abdallah', '55000'),
+    person('s', 'Shady', '33084.50'),
+    person('f', 'Fares', '33084.49'),
+    person('e', 'Ahmad Eraiby', '60000', 'TEMP_INVESTOR'),
+    person('m', 'Mohammed Setta', '20000', 'TEMP_INVESTOR'),
+  ];
+}
+
+describe('production’s cycle 1 as corrected: investors in the funding (owner 2026-10-27)', () => {
+  it('reads 201,168.99 put in, not 121,168.99: the partners first, repaying him, then the investors, “invested”', async () => {
+    asCycleOneCorrected();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    expect(text(await screen.findByTestId('paid-so-far'))).toBe('201,168.99 EGP put in so far');
+    const rows = rowsOf('paid-row');
+    expect(rows.map((r) => text(r.querySelector('bdi')))).toEqual(['Abdallah', 'Shady', 'Fares', 'Ahmad Eraiby', 'Mohammed Setta']);
+    expect(rows.map((r) => text(within(r).getByTestId('paid-amount')))).toEqual([
+      '55,000.00 EGP',
+      '33,084.50 EGP',
+      '33,084.49 EGP',
+      '60,000.00 EGP',
+      '20,000.00 EGP',
+    ]);
+    // An investor's money is his investment — never "repaid Ahmad Eraiby", least of all Eraiby's own.
+    expect(rows.map((r) => text(within(r).getByTestId('paid-how')))).toEqual([
+      'repaid Ahmad Eraiby',
+      'repaid Ahmad Eraiby',
+      'repaid Ahmad Eraiby',
+      'invested',
+      'invested',
+    ]);
+    expect(text(within(rows[3]).getByTestId('paid-into-capital'))).toContain('60,000.00 EGP');
+  });
+
+  it('each partner’s share is what he put in, as agreed — 55,000 / 33,084.50 / 33,084.49, all covered — under a heading that is true', async () => {
+    asCycleOneCorrected();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const contributions = await screen.findByTestId('funding-contributions');
+    const heading = text(contributions.querySelector('h3'));
+    expect(heading).toBe('Contributions — as the partners agreed, 121,168.99 EGP between them');
+    expect(heading).not.toContain('equal thirds');
+    const rows = within(contributions).getAllByTestId('share-row');
+    expect(rows.map((r) => text(within(r).getByTestId('share-amount')))).toEqual(['55,000.00 EGP', '33,084.50 EGP', '33,084.49 EGP']);
+    expect(rows.map((r) => text(within(r).getByTestId('share-status')))).toEqual(['covered', 'covered', 'covered']);
+    expect(text(contributions)).not.toContain('20,389.64');
+  });
+
+  it('the share of the cycle names all five at the profit split’s percentages, summing to 100 — not Abdallah 45.39% of the partners', async () => {
+    asCycleOneCorrected();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const box = await screen.findByTestId('repay-shares');
+    expect(text(box.querySelector('p'))).toBe("Each one's share of the cycle, repaying Ahmad Eraiby included:");
+    const items = [...box.querySelectorAll('li')].map(text);
+    expect(items).toEqual([
+      'Abdallah 55,000.00 EGP (27.34%)',
+      'Shady 33,084.50 EGP (16.45%)',
+      'Fares 33,084.49 EGP (16.45%)',
+      'Ahmad Eraiby 60,000.00 EGP (29.82%)',
+      'Mohammed Setta 20,000.00 EGP (9.94%)',
+    ]);
+    expect(text(box)).not.toContain('45.39');
+    // The same figures as the profit split line under it.
+    expect(text(screen.getByTestId('profit-split-line'))).toBe('By contribution (27.34 / 16.45 / 16.45 / 29.82 / 9.94)');
+  });
+
+  it('a split with no basis shows amounts without percentages, never a figure the settlement would not use', async () => {
+    asCycleOneCorrected();
+    state.funding.participants = state.funding.participants.map((p) => ({ ...p, profitPct: null }));
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const box = await screen.findByTestId('repay-shares');
+    expect(text(box)).not.toContain('%');
+    expect(box.querySelectorAll('li')).toHaveLength(5);
+  });
+
+  it('contributions that do not make up the partners’ part: equal thirds of everything put in, the short partner named', async () => {
+    asCycleOneCorrected();
+    state.funding.shares = { basis: 'PUT_IN', ofEgp: '201168.99', partnersEgp: '121168.99', stillEgp: '7305.14', agreed: false };
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const contributions = await screen.findByTestId('funding-contributions');
+    expect(text(contributions.querySelector('h3'))).toBe(
+      'Contributions — equal thirds of everything put into the cycle, 201,168.99 EGP',
+    );
+  });
+
+  it('the second visit: an investor added after the card first loaded shows in the funding once it refreshes', async () => {
+    asCycleOne();
+    const { client } = wrap('en', { lenders: ['Ahmad Eraiby'] });
+    expect(await screen.findAllByTestId('paid-row')).toHaveLength(3);
+    state.funding = cycleOneCorrected();
+    await client.invalidateQueries({ queryKey: ['account-funding'] });
+    await waitFor(() => expect(screen.getAllByTestId('paid-row')).toHaveLength(5));
+    expect(text(screen.getByTestId('paid-so-far'))).toBe('201,168.99 EGP put in so far');
+    expect(text(screen.getAllByTestId('paid-how')[4])).toBe('invested');
+  });
+
+  it('reads in Arabic: invested, each one’s share of the cycle, as agreed — no key left, figures left-to-right', async () => {
+    asCycleOneCorrected();
+    wrap('ar', { lenders: ['Ahmad Eraiby'] });
+    const card = await screen.findByTestId('funding-card');
+    expect(card.textContent).not.toMatch(/(fundingCard|accounts|cycles)\.[a-zA-Z]/);
+    expect(text(screen.getAllByTestId('paid-how')[3])).toBe('استثمر');
+    expect(text(screen.getByTestId('repay-shares').querySelector('p'))).toBe('حصة كل مشارك من الدورة، بما فيها سداد Ahmad Eraiby:');
+    expect(text(screen.getByTestId('funding-contributions').querySelector('h3'))).toContain('كما اتفق الشركاء');
+    for (const m of screen.getByTestId('repay-shares').querySelectorAll('[data-slot="money"]')) expect(m.getAttribute('dir')).toBe('ltr');
+  });
+});
+
+describe('“Contribute equal thirds” only when there is something for it to do (owner 2026-10-27)', () => {
+  it('as agreed: no Contribute button; Enter amounts and Split equally stay, as secondary buttons', async () => {
+    asCycleOneCorrected();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    await screen.findByTestId('funding-contributions');
+    expect(screen.queryByTestId('contribute-thirds')).toBeNull();
+    for (const id of ['enter-amounts', 'split-equally']) {
+      const b = screen.getByTestId(id) as HTMLButtonElement;
+      expect(b.disabled).toBe(false);
+      expect(b.className).not.toContain('bg-primary-600');
+    }
+  });
+
+  it('not agreed, but every partner has already given his share: no Contribute button either', async () => {
+    asCycleOne();
+    state.funding.shares = { ...state.funding.shares, agreed: false, stillEgp: '0.00' };
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    await screen.findByTestId('funding-contributions');
+    expect(screen.queryByTestId('contribute-thirds')).toBeNull();
+  });
+
+  it('still shown where it has work: shares still to give, and nothing to share yet (advances can be drawn in)', async () => {
+    // Cycle 2: 120,000 still to give.
+    wrap();
+    expect((await screen.findByTestId('contribute-thirds')).className).toContain('bg-primary-600');
+    cleanup();
+    state.funding.shares = { basis: 'COST_TO_FUND', ofEgp: '0.00', partnersEgp: '0.00', stillEgp: '0.00', agreed: false };
+    wrap();
+    expect(await screen.findByTestId('contribute-thirds')).toBeTruthy();
+  });
+
+  it('the second visit: contributions entered and agreed after the card loaded — the button goes once it refreshes', async () => {
+    asCycleOneCorrected();
+    state.funding.shares = { ...state.funding.shares, agreed: false, stillEgp: '7305.14' };
+    const { client } = wrap('en', { lenders: ['Ahmad Eraiby'] });
+    expect(await screen.findByTestId('contribute-thirds')).toBeTruthy();
+    state.funding = cycleOneCorrected();
+    await client.invalidateQueries({ queryKey: ['account-funding'] });
+    await waitFor(() => expect(screen.queryByTestId('contribute-thirds')).toBeNull());
+  });
+});
+
+describe('a neutral first column where investors are listed (owner 2026-10-27)', () => {
+  it('both lists head their first column “Name”, not “Partner”, in English and Arabic', async () => {
+    asCycleOneCorrected();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const firstHeads = async () =>
+      ['funding-paid', 'funding-contributions'].map((id) => {
+        const heads = screen.getByTestId(id).querySelector('[aria-hidden="true"].hidden');
+        return text(heads?.firstElementChild);
+      });
+    await screen.findByTestId('funding-card');
+    expect(await firstHeads()).toEqual(['Name', 'Name']);
+    cleanup();
+    wrap('ar', { lenders: ['Ahmad Eraiby'] });
+    await screen.findByTestId('funding-card');
+    expect(await firstHeads()).toEqual(['الاسم', 'الاسم']);
+  });
+});
+
+describe('equal shares stay the suggestion (owner 2026-10-27)', () => {
+  it('on a repaid cycle whose contributions are not all in: equal thirds of what was repaid', async () => {
+    asCycleOne();
+    state.funding.shares = { basis: 'REPAID', ofEgp: '201168.99', partnersEgp: '201168.99', stillEgp: '67056.33', agreed: false };
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    expect(text((await screen.findByTestId('funding-contributions')).querySelector('h3'))).toBe(
+      'Contributions — equal thirds of what was repaid to Ahmad Eraiby, 201,168.99 EGP',
+    );
   });
 });
 
