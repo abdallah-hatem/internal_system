@@ -11,9 +11,8 @@ in production". Production's migrations end at `20261025120000_customer_branches
 - **Edit order** (on a confirmed order) is not shipped: saved on `feature/edit-order` (`4bdbf1e`) with its migration
   `20261026100000_sale_order_edits`, which must not be applied to production until that branch ships. Master's
   history holds no Edit order commit, so the branch can still be merged later.
-- **`dev`** still points at `4bdbf1e` — the same commit as `feature/edit-order` (master's work plus Edit order,
-  without the release merge `d87b68b`). Bring it level with master before building on it. Nothing is held on
-  another machine as far as git shows.
+- **`dev`** = `master` (reset 2026-10-27, owner: "push dev as well"); Edit order lives only on `feature/edit-order`.
+  Nothing is held on another machine as far as git shows.
 - Tests at the release: API, web and unit suites green (counts in History, "Stage on 2026-10-26/27"); e2e not run
   (owner, 2026-10-25: unit and database tests only).
 - The office chat runs on the API's `AI_PROVIDER`/`AI_API_KEY` (the owner set Groq on Vercel).

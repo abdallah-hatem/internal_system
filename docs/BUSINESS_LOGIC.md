@@ -3452,7 +3452,7 @@ replace their funding. This replaces the 2026-10-11 equal split, the "Partners' 
 CYC-2026-0001; applied to production 2026-10-27 (`apps/api/prisma/one-off/2026-10-27-cyc-0001-funding.ts`).** The owner: the cycle's 201,168.99 EGP was funded by "Abdallah 55,000; Ahmad Eraiby as a temporary
 investor 60,000; Mohammed Setta (temporary investor) 20,000; Shady and Fares the rest equally" (33,084.50 and
 33,084.49, Fares last, absorbing the piastre). Eraiby's 60,000 "is part of his loan that stayed in the cycle as his
-investment": he was repaid 141,168.99 EGP, not 201,168.99; Abdallah's and Setta's money went into repaying him.
+investment": he was repaid 141,168.92 EGP (141,168.99 less the 0.07 the pay-off rounding gives), not 201,168.99; Abdallah's and Setta's money went into repaying him.
 
 | Question | Answer | Status |
 |---|---|---|

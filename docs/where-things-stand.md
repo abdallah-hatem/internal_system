@@ -229,8 +229,8 @@ npm run db:reset                    # rebuild the local database; restart the AP
 scripts/check-data.sh               # records the business could not have produced; every count should be zero
 ```
 
-Branches: `master` is production. `dev` still points at `4bdbf1e`, the same commit as `feature/edit-order` (master's
-work plus Edit order, without the 2026-10-27 release merge); bring it level with master before building on it.
+Branches: `master` is production, and `dev` was reset to it on 2026-10-27. Edit order lives only on
+`feature/edit-order` (`4bdbf1e`); its migration must not reach production unless it ships.
 
 Agents get their own database and ports: `scripts/agent-env.sh <name>` and
 `scripts/agent-servers.sh <name> start` (BUILD_LOG "How to run things here").
