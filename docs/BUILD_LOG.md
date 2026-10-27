@@ -390,6 +390,13 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- Next (2026-10-28, owner: "in the Profit and loss analytics chart, maybe clicking on a day or a month should open a
+  popup or show me the details of loss"): **click a bar in Analytics' profit and loss to see what made it** — a day,
+  week or month opens a popup with that period's figures broken down: revenue by order (returns and price cuts
+  shown), cost of goods by order, each expense (with Paid by once that ships), the exchange difference by repayment, so
+  a loss can be traced to the lines that caused it; each row links to its order, expense or cycle. Built from the same
+  server-side P&L definition the chart uses (one rule, one definition), asked for by period; a skeleton while it
+  loads, an empty period says so. Tests: totals in the popup equal the bar, a loss day, an empty day, paging.
 - Next (2026-10-28, owner: "in Sales Orders tab, make the default filter confirmed and partially paid (pre selected or
   whatever)"): **Sales opens on Confirmed + Partially paid** — the orders still being paid for. Opening Sales with no
   status in the URL selects both (shown as chosen in the status filter, so it is clear and one click clears it); the
