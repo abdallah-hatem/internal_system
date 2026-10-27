@@ -53,6 +53,12 @@ State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-27 — production data, **CYC-2026-0002's Alibaba receipt** (#320154802001024016, Shenzhen Yixi): **PO-2026-0002**,
+  ordered 23 Oct, 9,854.71 AED — SU8 headset ×100, Y50 headset ×100, Q08 headset ×50, Y06 headset ×50, Q30 PRO headset ×20
+  (new, Bluetooth headsets, PRD-000015…19), Q58 Max ×60, Y20 (PRD-000004) ×20; **leg 1** China → Ajman, Alibaba's shipping
+  2,767.02 + card fee 377.40 = 3,144.42 AED (as cycle 1's fee). Rate 14.8026 = USD 3,476.43 × 55.35 / AED 12,999.13
+  (owner: "we bought them for 55.35"); 192,420.92 EGP in all. Paid with AED the partners bought with their own pounds,
+  through a friend's card — not a loan; whose money it was is left for later (owner: "skip the card for now").
 - 2026-10-27 — production data: Ahmad Zogmar's samples order **ORD-2026-00006** (5 units, left 18 Oct, before branches
   existed) moved from the owner to his **Mokattam** branch, at the owner's word
   (`apps/api/prisma/one-off/2026-10-27-ord-00006-to-mokattam.ts`: starting facts checked, audit row written). His branches
@@ -320,6 +326,9 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- Next (2026-10-27, owner: "product names we just want it simple … maybe with category showing beside it in sale order
+  product dropdown"): **New Order's product picker shows each product's category** beside its name (and the search
+  matches the category too), so short names like "Y20 headset" stay clear.
 - (1) and (3) **live 2026-10-27 (evening)**.
 - (2) **Live 2026-10-27 (evening)** (migration `20261027120000_samples_into_order` applied). Was: built 2026-10-27, merged into `dev` at the owner's word ("merge samples into dev and push"); production needed the migration first; migration `20261027120000_samples_into_order`; e2e written, not run; its guesses in that branch's BUSINESS_LOGIC §4).** (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
   order, and auto handle the rest … a shop can also have 3 samples of 3 different products, but he decides to make an order
