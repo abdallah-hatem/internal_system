@@ -51,6 +51,37 @@ State of the product and of production's data: `docs/where-things-stand.md`.
   - Totals at the commit: API `jest --runInBand` 130 suites / 2,601 tests passed (database suites included); web
     `vitest` 116 files / 1,537 tests passed; `node --test unit` 128/128.
 
+## Built on `feature/preparing-status` — not on `dev`, waiting for the owner
+- 2026-10-27 — **a Preparing cycle status** between Purchasing and In transit (owner 2026-10-27: "it now should be in
+  preparation (a new status its where the website or factory prepares your order, then next its in transit to uae)";
+  BUSINESS_LOGIC §1 "a Preparing status", §15). Migration `20261028100000_cycle_status_preparing` (one enum value,
+  after PURCHASING; additive). **e2e written, not run** (owner: unit and database tests only for now).
+  - Purchasing → Preparing is the only way on from Purchasing (and the move that confirms the drafts, §15); Preparing →
+    In transit / Arrived UAE (UAE direct) / back to Purchasing (only while nothing has departed, `CYCLE_HAS_DEPARTED`) /
+    Cancelled. Into Preparing needs an order line (`CYCLE_HAS_NO_ORDER`). A departure on a cycle in Purchasing walks it
+    through Preparing (L3); the first departure still moves it on to In transit. Undoing the shipment's last departure
+    returns the cycle to Preparing (the panel says so first, the toast after; `undoReturnsTo` on each departure).
+  - One definition: `apps/api/src/common/cycle-statuses.ts` — every status in order and `BEFORE_SHIPPING`; the walk
+    (`forwardPath`), the assistant's filters and targets read it; the office app's copy `src/lib/cycle-statuses.ts`
+    and the stranded-drafts scripts are pinned to it by tests.
+  - Where the status was added: the schema enum; the transition table (API and web copy); the shipment walk; the
+    assistant's `list_cycles` filter, `transition_cycle` targets, its description and instructions (office chat);
+    en/ar `codes.cycleStatus` and two `errors`; the cycles list's filter chips and badge colour; the wizard's walk;
+    the Shipment panel's undo dialog and toast; `confirm-stranded-orders.sh`, `ship-prod.sh stranded`,
+    `stock-products.mjs`. Analytics, settlements, receiving and funding read statuses by exclusion or by later
+    statuses and needed no change; the server's status filter reads the enum. The cycles list now also shows a
+    Cancelled chip (it was missing from the chip order).
+  - Tests: `cycles/preparing-status.db.spec.ts` (30, real Postgres: every transition by hand and by itself, illegal
+    jumps, no order, two orders one a draft, undo, parts, cancelled, twice, an old B1 leg),
+    `common/cycle-statuses.spec.ts` (every enum value in every API map, the scripts' lists),
+    `web src/lib/cycle-statuses.test.ts` (reads schema.prisma's enum: en/ar names, badge, chip, transition table, the
+    wizard), `departures.test.tsx` (the undo dialog and toast); existing walk/transition specs updated for the new
+    step. Each new test broken and seen to fail. e2e: `tests/106-preparing-status.spec.ts`, TC-INV-89…91 in
+    `34-business-invariants`, and the hand-walked status lists of ~20 specs given the Preparing step — not run.
+  - Totals at the commit: API `jest --runInBand` 135 suites / 2,714 tests passed (database suites included, against
+    the agent database); web `vitest` 120 files / 1,616 tests passed; `node --test unit` 128/128;
+    `scripts/check-data.sh` on a fresh agent database: 76 checks, all zero.
+
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
 - 2026-10-27 — production data, **CYC-2026-0002's Alibaba receipt** (#320154802001024016, Shenzhen Yixi): **PO-2026-0002**,
@@ -332,11 +363,6 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
-- Next (2026-10-27, owner: "it now should be in preparation (a new status its where the website or factory prepares your
-  order, then next its in transit to uae)"): **a Preparing cycle status** between Purchasing and In transit — set by
-  itself when the cycle's order is confirmed and nothing has departed (the status already follows the shipment, L3),
-  and by hand from the cycle page; the first departure moves it on to In transit as today. Migration (one enum value);
-  every place statuses show (filters, badges, cycles list, the office chat) in en + ar.
 - Next (2026-10-27, owner: "product names we just want it simple … maybe with category showing beside it in sale order
   product dropdown"): **New Order's product picker shows each product's category** beside its name (and the search
   matches the category too), so short names like "Y20 headset" stay clear.

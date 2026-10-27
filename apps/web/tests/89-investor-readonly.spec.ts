@@ -73,14 +73,14 @@ async function theInvestorsCycles(request: APIRequestContext) {
   // On the way: departed, nothing delivered.
   const moving = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP', participants });
   await buy(moving.id, true);
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
     await mk(`cycles/${moving.id}/transition`, { status });
   }
 
   // Received and settled to a draft.
   const settled = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP', participants });
   await buy(settled.id, true);
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
     await mk(`cycles/${settled.id}/transition`, { status });
   }
   const full = await (await request.get(`${API}/cycles/${settled.id}/shipment`, { headers })).json();

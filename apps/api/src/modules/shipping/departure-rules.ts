@@ -181,13 +181,39 @@ export function departureLines(
 }
 
 /**
+ * Whether undoing this departure takes the cycle back to Preparing (§1, GUESS
+ * 2026-10-27): it is the only departure the whole shipment has, nothing it
+ * carried has been delivered or marked lost, and the cycle stands where only
+ * a departure could have put it (In transit; In transit to Egypt on a UAE-
+ * direct cycle). Afterwards nothing has left and the order is still confirmed
+ * — orders never go back to drafts — which is what Preparing means.
+ */
+export function undoReturnsToPreparing(
+  cycle: LoadedShipment,
+  position: ShipmentPosition,
+  departureId: string,
+): boolean {
+  const all = position.legs.flatMap((l) => l.departures);
+  const departure = all.find((d) => d.id === departureId);
+  if (!departure || departure.inUse || all.length !== 1) return false;
+  // Nothing has arrived or been lost anywhere: an old leg backfilled with
+  // deliveries and no departure (B1) proves its goods left, so a cycle
+  // holding one is never "nothing has left".
+  if (position.legs.some((l) => l.deliveries.length > 0 || l.lost > 0)) {
+    return false;
+  }
+  return legsThatMustHaveDeparted(cycle.originType, cycle.status).length > 0;
+}
+
+/**
  * Why a departure cannot be undone, or null when it can (L8). Mirrors deleting
  * a delivery: refused once anything depends on it.
  * - `used` — something it carried has been delivered or marked lost (the
  *   position matches departures to what came off the way, first in, first out).
  * - `status` — it is the leg's only departure and the cycle's status says the
  *   leg has left (§1, L3): undoing it would leave the cycle somewhere its goods
- *   never got to. The cycle is not moved back by itself.
+ *   never got to. The one exception is the shipment's last departure, which
+ *   takes the cycle back to Preparing (`undoReturnsToPreparing`).
  */
 export function departureUndoBlock(
   cycle: LoadedShipment,
@@ -212,6 +238,7 @@ export function departureUndoBlock(
   const need = legsThatMustHaveDeparted(cycle.originType, cycle.status);
   if (
     legPos.departures.length === 1 &&
+    !undoReturnsToPreparing(cycle, position, departureId) &&
     ((isFirst && need.includes('first')) || (isLast && need.includes('last')))
   ) {
     return {

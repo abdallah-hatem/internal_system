@@ -178,7 +178,7 @@ describe('finishing the wizard', () => {
     });
     renderWizard('cyc-1');
     await finish();
-    expect(transitions()).toEqual(['FUNDING', 'PURCHASING', 'IN_TRANSIT']);
+    expect(transitions()).toEqual(['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT']);
   });
 
   it('with deliveries on both legs: Arrived Egypt at most — never Verification or Selling', async () => {
@@ -192,6 +192,7 @@ describe('finishing the wizard', () => {
     renderWizard('cyc-1');
     await finish();
     expect(transitions()).toEqual([
+      'PREPARING',
       'IN_TRANSIT',
       'ARRIVED_UAE',
       'IN_TRANSIT_TO_EGYPT',
@@ -253,7 +254,7 @@ describe('finishing the wizard', () => {
     fireEvent.click(await finishButton());
 
     await waitFor(() => expect(screen.getByText(/has not departed/i)).toBeTruthy());
-    expect(transitions()).toEqual(['FUNDING', 'PURCHASING', 'IN_TRANSIT']);
+    expect(transitions()).toEqual(['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT']);
     expect(push).not.toHaveBeenCalled();
     expect((await finishButton()).hasAttribute('disabled')).toBe(false);
   });
@@ -335,7 +336,7 @@ describe('statusesToWalk', () => {
   it('UAE direct departed → in transit to Egypt; delivered → Arrived Egypt', () => {
     expect(
       statusesToWalk('UAE_DIRECT', 'PURCHASING', [{ sequence: 1, departedOn: '2026-10-01' }]),
-    ).toEqual(['ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']);
+    ).toEqual(['PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']);
     expect(
       statusesToWalk('UAE_DIRECT', 'IN_TRANSIT_TO_EGYPT', [
         { sequence: 1, departedOn: '2026-10-01', status: 'ARRIVED' },

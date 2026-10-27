@@ -211,6 +211,15 @@ function fakePrisma() {
             .filter((d) => d.legId === where.legId)
             .map((d) => ({ id: d.id })),
         ),
+      // The read going back from Preparing makes (§1): the cycle's departures.
+      count: ({ where }: Row) =>
+        Promise.resolve(
+          db.departures.filter(
+            (d) =>
+              db.legs.find((l) => l.id === d.legId)?.cycleId ===
+              where.leg.cycleId,
+          ).length,
+        ),
     },
     shipmentDelivery: {
       create: ({ data }: Row) => {
@@ -258,6 +267,17 @@ function fakePrisma() {
       },
     },
     purchaseOrderItem: {
+      // The read moving into Preparing makes (§1): the cycle's lines.
+      count: ({ where }: Row) =>
+        Promise.resolve(
+          db.items.filter((i) =>
+            db.orders.some(
+              (o) =>
+                o.id === i.purchaseOrderId &&
+                o.cycleId === where.purchaseOrder.cycleId,
+            ),
+          ).length,
+        ),
       findUnique: ({ where }: Row) => {
         const i = db.items.find((x) => x.id === where.id);
         if (!i) return Promise.resolve(null);
@@ -737,7 +757,7 @@ describe('transition_cycle', () => {
     const args = {
       cycleId: c.id,
       fromStatus: 'PURCHASING',
-      status: 'ARRIVED_UAE',
+      status: 'PREPARING',
     };
     const preview = await call('transition_cycle', args);
     const text = textOf(preview);
@@ -759,7 +779,7 @@ describe('transition_cycle', () => {
       confirmationToken: structured(preview).confirmationToken,
     });
     expect(commit.isError).toBeFalsy();
-    expect(c.status).toBe('ARRIVED_UAE');
+    expect(c.status).toBe('PREPARING');
     expect(
       db.orders.filter((o) => o.cycleId === c.id).map((o) => o.status),
     ).toEqual(['CONFIRMED', 'CONFIRMED']);
@@ -809,7 +829,7 @@ describe('transition_cycle', () => {
     const r = await call('transition_cycle', {
       cycleId: c.id,
       fromStatus: 'PURCHASING',
-      status: 'ARRIVED_UAE',
+      status: 'PREPARING',
     });
     expect(codeOf(r)).toBe('PO_HAS_NO_ITEMS');
     expect(db.orders.map((o) => o.status)).toEqual(['DRAFT', 'DRAFT']);
@@ -844,7 +864,7 @@ describe('transition_cycle', () => {
     const args = {
       cycleId: c.id,
       fromStatus: 'PURCHASING',
-      status: 'ARRIVED_UAE',
+      status: 'PREPARING',
     };
     const preview = await call('transition_cycle', args);
     expect(textOf(preview)).not.toContain('PO-2026-0002');
@@ -879,7 +899,7 @@ describe('transition_cycle', () => {
     const args = {
       cycleId: c.id,
       fromStatus: 'PURCHASING',
-      status: 'ARRIVED_UAE',
+      status: 'PREPARING',
     };
     const preview = await call('transition_cycle', args);
 

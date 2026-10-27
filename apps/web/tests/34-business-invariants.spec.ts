@@ -75,7 +75,7 @@ async function ctx(request: APIRequestContext) {
       // dates are what make the stock exist at all.
       departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-5),
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -411,7 +411,7 @@ test.describe('Goods cannot be counted twice on the way (§1, §3 — 2026-10-10
     await mk(`shipping/legs/${leg.id}/deliveries`, {
       arrivedOn: dayFromNow(-5), lines: [{ purchaseOrderItemId: item.id, qty: 10 }],
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     await mk('receipts/verify', {
@@ -453,7 +453,7 @@ test.describe('A line costs what it cost, once; a cycle settles only when accoun
     const delivery = await mk(`shipping/legs/${leg.id}/deliveries`, {
       arrivedOn: dayFromNow(-5), lines: [{ purchaseOrderItemId: item.id, qty }],
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     return delivery;
@@ -834,7 +834,7 @@ test.describe('One sale across two cycles: FIFO, each batch at its own cost (§3
     });
     const full = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data;
     const item = full.purchaseOrders[0].items[0];
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     const delivery = await mk(`shipping/legs/${leg.id}/deliveries`, {
@@ -1007,7 +1007,7 @@ async function friendCycle(
     costBasis: 'FLAT', amount: freight, currency: 'EGP', fxRateToEgp: 1,
     departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-10),
   });
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
   }
   const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -2162,7 +2162,7 @@ test.describe('A corrected leg cost re-costs the cycle, and nothing disagrees af
       costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
       departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-5),
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -2289,7 +2289,7 @@ async function shelfCycle(request: APIRequestContext, label: string, qty = 10) {
     costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
     departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-5),
   });
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
   }
   const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -2693,5 +2693,55 @@ test.describe('A partner’s running account (§8, owner 2026-10-25: "equal thir
       expect(res.status()).toBe(403);
       expect(await errCode(res)).toBe('ROLE_NOT_ALLOWED');
     }
+  });
+});
+
+// Preparing (BUSINESS_LOGIC §1, owner 2026-10-27): the order is confirmed and
+// the supplier prepares it, before anything leaves. Unit and database tests:
+// apps/api/src/modules/cycles/preparing-status.db.spec.ts.
+test.describe('Preparing', () => {
+  async function purchasingCycle(request: APIRequestContext, withOrder: boolean) {
+    const { headers, mk } = await apiCtx(request);
+    const tag = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const cycle = await mk('cycles', { originType: 'CHINA', currency: 'EGP' });
+    for (const status of ['FUNDING', 'PURCHASING']) await mk(`cycles/${cycle.id}/transition`, { status });
+    if (withOrder) {
+      const supplier = await mk('suppliers', { name: `Prep ${tag} Supplier`, country: 'CN' });
+      const product = await mk('products', { name: `Prep ${tag} Part`, minStock: 0 });
+      await mk(`cycles/${cycle.id}/purchases`, {
+        supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: dayFromNow(-10),
+        items: [{ productId: product.id, orderedQty: 5, unitPrice: 10 }],
+      });
+    }
+    return { headers, cycle };
+  }
+  const move = (request: APIRequestContext, headers: Record<string, string>, id: string, status: string) =>
+    request.post(`${API}/cycles/${id}/transition`, { headers, data: { status } });
+
+  test('TC-INV-89: a cycle with nothing ordered cannot be preparing an order', async ({ request }) => {
+    const { headers, cycle } = await purchasingCycle(request, false);
+    expect(await errCode(await move(request, headers, cycle.id, 'PREPARING'))).toBe('CYCLE_HAS_NO_ORDER');
+  });
+
+  test('TC-INV-90: Purchasing cannot skip Preparing to In transit, nor Preparing jump to Arrived Egypt', async ({ request }) => {
+    const { headers, cycle } = await purchasingCycle(request, true);
+    expect(await errCode(await move(request, headers, cycle.id, 'IN_TRANSIT'))).toBe('BAD_STATUS_TRANSITION');
+    expect((await move(request, headers, cycle.id, 'PREPARING')).ok()).toBeTruthy();
+    expect(await errCode(await move(request, headers, cycle.id, 'ARRIVED_EGYPT'))).toBe('BAD_STATUS_TRANSITION');
+    // Nothing has left, so In transit is refused too — by the shipment.
+    expect(await errCode(await move(request, headers, cycle.id, 'IN_TRANSIT'))).toBe('LEG_NOT_DEPARTED');
+  });
+
+  test('TC-INV-91: Preparing confirms the order — no line can be added to it afterwards, even back in Purchasing', async ({ request }) => {
+    const { headers, cycle } = await purchasingCycle(request, true);
+    expect((await move(request, headers, cycle.id, 'PREPARING')).ok()).toBeTruthy();
+    expect((await move(request, headers, cycle.id, 'PURCHASING')).ok()).toBeTruthy();
+    const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+    const po = (full.data ?? full).purchaseOrders[0];
+    expect(po.status).toBe('CONFIRMED');
+    const add = await request.post(`${API}/purchases/items`, {
+      headers, data: { purchaseOrderId: po.id, productId: po.items[0].productId, orderedQty: 1, unitPrice: 1 },
+    });
+    expect(add.ok()).toBeFalsy();
   });
 });

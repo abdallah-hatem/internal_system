@@ -223,7 +223,7 @@ test.describe('transition_cycle', () => {
   }) => {
     const { headers, mk } = await apiCtx(request);
     const { cycle, po, supplier } = await purchasingCycle(mk);
-    const args = { cycleId: cycle.id, fromStatus: 'PURCHASING', status: 'ARRIVED_UAE' };
+    const args = { cycleId: cycle.id, fromStatus: 'PURCHASING', status: 'PREPARING' };
 
     const preview = await tool(request, 'transition_cycle', args);
 
@@ -239,7 +239,7 @@ test.describe('transition_cycle', () => {
       confirmationToken: preview.structuredContent!.confirmationToken,
     });
     now = await cycleOf(request, headers, cycle.id);
-    expect(now.status).toBe('ARRIVED_UAE');
+    expect(now.status).toBe('PREPARING');
     expect(now.purchaseOrders[0].status).toBe('CONFIRMED');
   });
 

@@ -3,9 +3,9 @@
 import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useApiError } from '@/lib/api-error';
-import { useToast } from '@/components/ui/toast';
 import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
 import { useRefreshShipment } from './ShipmentDialog';
+import { useAnnounceStatusMove } from './status-move';
 
 /**
  * "Are you sure?" for a shipment write that removes something — deleting a
@@ -33,7 +33,7 @@ export function ConfirmActionDialog({
 }) {
   const tc = useTranslations('common');
   const apiError = useApiError();
-  const toast = useToast();
+  const announce = useAnnounceStatusMove();
   const refresh = useRefreshShipment();
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -44,8 +44,9 @@ export function ConfirmActionDialog({
     running.current = true;
     setPending(true);
     setRefusal(null);
+    let res: unknown;
     try {
-      await action();
+      res = await action();
     } catch (err) {
       setRefusal(apiError(err, failMessage));
       running.current = false;
@@ -53,7 +54,9 @@ export function ConfirmActionDialog({
       return;
     }
     refresh();
-    toast.success(successMessage);
+    // Undoing the shipment's last departure moves the cycle back to Preparing
+    // (§1, 2026-10-27); the toast says so as a forward move does.
+    announce(successMessage, res);
     onClose();
   };
 

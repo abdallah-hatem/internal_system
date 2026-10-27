@@ -390,7 +390,7 @@ test.describe('FX rates reach the forms', () => {
     });
 
     // Walk it through to VERIFICATION and receive the stock.
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       const res = await request.post(`${API}/cycles/${cycleId}/transition`, {
         headers, data: { status },
       });

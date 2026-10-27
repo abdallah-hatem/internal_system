@@ -10,7 +10,8 @@
  * stops at the first step the dates do not support:
  *
  *   no departure on leg 1        → PURCHASING; its orders stay DRAFT (§15)
- *   leg 1 departed               → IN_TRANSIT; leaving PURCHASING confirms the orders
+ *   leg 1 departed               → IN_TRANSIT, through PREPARING (2026-10-27),
+ *                                  where leaving PURCHASING confirms the orders
  *   leg 1 has a delivery         → ARRIVED_UAE (China)
  *   last leg departed            → IN_TRANSIT_TO_EGYPT
  *   last leg has a delivery      → ARRIVED_EGYPT, and never further
@@ -27,7 +28,9 @@
  * DECIDED 2026-10-12 (owner): the wizard is for setting a cycle up, and it
  * stops when the goods leave. From In transit on, departures, deliveries,
  * another leg and its cost are recorded on the cycle page (BUSINESS_LOGIC §1),
- * and a resumed wizard sends the cycle there.
+ * and a resumed wizard sends the cycle there. Preparing (2026-10-27) is not
+ * one of them: its orders are confirmed and gain no lines (GUESS); sent back
+ * to Purchasing, the cycle is set up again.
  */
 export const WIZARD_STATUSES = ['PLANNING', 'FUNDING', 'PURCHASING'];
 
@@ -58,6 +61,9 @@ const PATHS: Record<string, [string, Check][]> = {
   CHINA: [
     ['FUNDING', always],
     ['PURCHASING', always],
+    // Preparing is passed through on the way, never stopped at: finishing
+    // the wizard is not confirming the order (GUESS, §1 2026-10-27).
+    ['PREPARING', departed(1)],
     ['IN_TRANSIT', departed(1)],
     ['ARRIVED_UAE', delivered(1)],
     ['IN_TRANSIT_TO_EGYPT', departed(2)],
@@ -70,6 +76,7 @@ const PATHS: Record<string, [string, Check][]> = {
   UAE_DIRECT: [
     ['FUNDING', always],
     ['PURCHASING', always],
+    ['PREPARING', departed(1)],
     ['ARRIVED_UAE', departed(1)],
     ['IN_TRANSIT_TO_EGYPT', departed(1)],
     ['ARRIVED_EGYPT', delivered(1)],

@@ -70,7 +70,7 @@ case "$step" in
     FIX=$([[ "${2:-}" == --fix ]] && echo 1 || echo 0) node -e '
       const { PrismaClient } = require("@prisma/client");
       const db = new PrismaClient();
-      const PAST = `(${["IN_TRANSIT","ARRIVED_UAE","IN_TRANSIT_TO_EGYPT","ARRIVED_EGYPT",
+      const PAST = `(${["PREPARING","IN_TRANSIT","ARRIVED_UAE","IN_TRANSIT_TO_EGYPT","ARRIVED_EGYPT",
         "VERIFICATION","SELLING","SETTLEMENT","CLOSED"].map((s) => `'"'"'${s}'"'"'`).join(",")})`;
       const find = () => db.$queryRawUnsafe(`SELECT c.code, c.status::text, po.reference
         FROM purchase_orders po JOIN import_cycles c ON c.id = po.cycle_id

@@ -45,7 +45,7 @@ async function cycleWithALoss(request: APIRequestContext) {
     providerId: provider.id, provider: provider.name,
     costBasis: 'FLAT', amount: 400, currency: 'EGP', fxRateToEgp: 1, departedOn: daysAgo(20),
   });
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
   }
   const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
