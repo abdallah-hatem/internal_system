@@ -102,6 +102,11 @@ State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-28 — production data: **1 Y30 Headset back from Ahmad Zogmar's samples** (ORD-2026-00006 held 2; owner: "just
+  return one in prod"). Partial returns are not built yet (Next up), so a one-off did it with the samples code "They're
+  buying" uses — `takeFromSamples`, `sampleBack` (SAMPLE_BACK to the batch it left), `settleSamplesLeft`
+  (`apps/api/prisma/one-off/2026-10-28-ord-00006-return-one-y30.ts`), rehearsed on a production copy (check-data all 0).
+  The order stays open with 4 units (1 each of Y30, Y20, Y20 MAX 2, Q58 Max), left 19 Oct, reminder 2 Nov.
 - 2026-10-27 — production data, **CYC-2026-0002's Alibaba receipt** (#320154802001024016, Shenzhen Yixi): **PO-2026-0002**,
   ordered 23 Oct, 9,854.71 AED — SU8 headset ×100, Y50 headset ×100, Q08 headset ×50, Y06 headset ×50, Q30 PRO headset ×20
   (new, Bluetooth headsets, PRD-000015…19), Q58 Max ×60, Y20 (PRD-000004) ×20; **leg 1** China → Ajman, Alibaba's shipping

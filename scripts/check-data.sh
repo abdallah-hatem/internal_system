@@ -597,7 +597,7 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
             GROUP BY partner_user_id
          ) c USING (partner_user_id)
    WHERE u.untied - coalesce(c.beyond, 0) < 0
-  -- "Paid by" on an expense (section 9, 2026-10-27): a partner's credit for an
+  -- "Paid by" on an expense (section 9, 2026-10-27): the credit of a partner for an
   -- expense he paid stands exactly while that expense does — same partner,
   -- same pounds, an expense row that is not itself an undo — and every
   -- expense named as paid by a partner has its credit.
