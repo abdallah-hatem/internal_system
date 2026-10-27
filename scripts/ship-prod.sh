@@ -100,6 +100,8 @@ case "$step" in
     docker run --rm postgres:18-alpine pg_dump "$DATABASE_URL" --no-owner >"$out" 2>/dev/null
     grep -q "PostgreSQL database dump complete" "$out" || { echo "  Backup incomplete: $out"; exit 1; }
     echo "  Backed up to ${out#$ROOT/} ($(du -h "$out" | cut -f1))"
+    # Keep two days of backups (owner 2026-10-27: "keep maybe 2 days worth of backups then delete").
+    find "$ROOT/.backups" -type f -mmin +2880 -delete 2>/dev/null || true
     ;;
 
   smoke)

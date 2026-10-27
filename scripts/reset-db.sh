@@ -29,6 +29,8 @@ if ! docker exec "$CONTAINER" pg_isready -U postgres -d postgres >/dev/null 2>&1
 fi
 
 mkdir -p "$ROOT/.backups"
+# Keep two days of backups (owner 2026-10-27: "keep maybe 2 days worth of backups then delete").
+find "$ROOT/.backups" -type f -mmin +2880 -delete 2>/dev/null || true
 STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP="$ROOT/.backups/before-reset-$STAMP.sql"
 say "Backing up to $(basename "$BACKUP")"

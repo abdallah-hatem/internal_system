@@ -151,7 +151,8 @@ The reference level is the one for manual testing: everything needed before a
 cycle can be started, and nothing that a test would be about. No cycles,
 orders or payments — those you create yourself.
 
-It backs up first, and runs the consistency check afterwards. Every seed is
+It backs up first, and runs the consistency check afterwards. Backups in `.backups/` (this and
+`scripts/ship-prod.sh backup`) are kept for two days; each new backup deletes older ones (owner 2026-10-27). Every seed is
 idempotent, so running one twice changes nothing.
 
 The API caches its database connection, so restart it (`npm run dev`) after a
