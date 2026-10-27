@@ -22,7 +22,18 @@ const state = vi.hoisted(() => ({
   get: 'ok' as 'ok' | 'never' | 'fail',
   posts: [] as Array<{ url: string; body: unknown }>,
   puts: [] as Array<{ url: string; body: unknown }>,
+  /** The people `GET /users` lists; `POST /users/investors` adds to it. */
+  users: [] as Array<{ id: string; email: string; role: string; status: string; partner: { displayName: string } }>,
+  /** Times `GET /users` was asked. */
+  userReads: 0,
+  /** A coded refusal the next `POST /users/investors` answers with. */
+  investorRefusal: null as null | { code: string; message: string; params?: Record<string, unknown> },
+  /** A coded refusal the next `PUT /cycles/:id/split` answers with. */
+  splitRefusal: null as null | { code: string; message: string; params?: Record<string, unknown> },
 }));
+
+const refused = (error: { code: string; message: string; params?: Record<string, unknown> }) =>
+  Promise.reject(Object.assign(new Error(error.message), { isAxiosError: true, response: { status: 400, data: { error } } }));
 
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ user: { id: 'u-a', email: 'abdallah@motoparts.com', role: 'CORE_PARTNER' }, isLoading: false }),
@@ -36,14 +47,34 @@ vi.mock('@/lib/api', () => ({
         return Promise.resolve({ data: { data: state.funding } });
       }
       if (url === '/currency-rates/map') return Promise.resolve({ data: { data: { USD: 50 } } });
+      if (url === '/users') {
+        state.userReads += 1;
+        return Promise.resolve({ data: { data: [...state.users], meta: { nextCursor: null } } });
+      }
       return Promise.resolve({ data: { data: [] } });
     },
     post: (url: string, body: unknown) => {
       state.posts.push({ url, body });
+      if (url === '/users/investors') {
+        if (state.investorRefusal) {
+          const error = state.investorRefusal;
+          state.investorRefusal = null;
+          return refused(error);
+        }
+        const name = String((body as { displayName?: unknown }).displayName);
+        const user = { id: `u-new-${state.users.length}`, email: `investor-${state.users.length}@investors.invalid`, role: 'TEMP_INVESTOR', status: 'ACTIVE', partner: { displayName: name } };
+        state.users = [user, ...state.users];
+        return Promise.resolve({ data: { data: user } });
+      }
       return Promise.resolve({ data: { data: { totalEgp: String((body as { totalEgp?: number }).totalEgp ?? 0), lines: [] } } });
     },
     put: (url: string, body: unknown) => {
       state.puts.push({ url, body });
+      if (url.endsWith('/split') && state.splitRefusal) {
+        const error = state.splitRefusal;
+        state.splitRefusal = null;
+        return refused(error);
+      }
       return Promise.resolve({ data: { data: {} } });
     },
   },
@@ -55,6 +86,8 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver;
+  // The pickers' list scrolls its active option into view; jsdom has no layout.
+  Element.prototype.scrollIntoView ??= () => {};
 });
 
 const advance = (id: string, amountEgp: string, occurredOn = '2026-10-20') => ({
@@ -245,7 +278,13 @@ beforeEach(() => {
   state.get = 'ok';
   state.posts = [];
   state.puts = [];
-  cycleParticipants = [person('a', 'Abdallah'), person('s', 'Shady'), person('f', 'Fares')];
+  state.users = [
+    { id: 'u-a', email: 'abdallah@motoparts.com', role: 'CORE_PARTNER', status: 'ACTIVE', partner: { displayName: 'Abdallah' } },
+  ];
+  state.userReads = 0;
+  state.investorRefusal = null;
+  state.splitRefusal = null;
+  cycleParticipants =[person('a', 'Abdallah'), person('s', 'Shady'), person('f', 'Fares')];
   totals = { profitBasis: 'NONE', cycleCostEgp: '95000.00', landedEgp: '95000.00', transferredInEgp: '0.00', toFundEgp: '95000.00', lenderFinancedEgp: '0.00' };
 });
 afterEach(() => cleanup());
@@ -858,12 +897,37 @@ describe('the forms it opens', () => {
     typeInto(field('p-f'), '40');
     expect(save().disabled).toBe(false);
     fireEvent.click(save());
-    await waitFor(() => expect(state.puts).toHaveLength(3));
+    // One request for the whole split, checked and saved together on the
+    // server (2026-10-27) — never a participant's own PUT.
+    await waitFor(() => expect(state.puts).toHaveLength(1));
     expect(state.puts).toEqual([
-      { url: '/cycles/participants/p-a', body: { customProfitPct: 30 } },
-      { url: '/cycles/participants/p-s', body: { customProfitPct: 30 } },
-      { url: '/cycles/participants/p-f', body: { customProfitPct: 40 } },
+      {
+        url: '/cycles/c-2/split',
+        body: {
+          split: [
+            { participantId: 'p-a', customProfitPct: 30 },
+            { participantId: 'p-s', customProfitPct: 30 },
+            { participantId: 'p-f', customProfitPct: 40 },
+          ],
+        },
+      },
     ]);
+  });
+
+  it('Change split refused by the server: its reason is said, the dialog stays open with what was typed', async () => {
+    state.splitRefusal = { code: 'FUNDING_LOCKED_AFTER_SETTLEMENT', message: 'locked', params: { cycle: 'CYC-2026-0002', reason: 'SETTLEMENT_APPROVED' } };
+    wrap();
+    fireEvent.click(await screen.findByTestId('change-split'));
+    const dialog = await screen.findByTestId('split-dialog');
+    const field = (id: string) => dialog.querySelector<HTMLInputElement>(`input[data-field="split-${id}"]`)!;
+    typeInto(field('p-a'), '50');
+    typeInto(field('p-s'), '30');
+    typeInto(field('p-f'), '20');
+    fireEvent.click(within(dialog).getByRole('button', { name: en.common.save }));
+    await waitFor(() => expect(document.body.textContent).toContain('The funding of CYC-2026-0002 can no longer change'));
+    expect(screen.getByTestId('split-dialog')).toBeTruthy();
+    expect(['p-a', 'p-s', 'p-f'].map((id) => field(id).value)).toEqual(['50', '30', '20']);
+    expect(state.puts.filter((p) => p.url.startsWith('/cycles/participants/'))).toEqual([]);
   });
 
   it('Split by contribution clears an agreed split: each percentage written back as none', async () => {
@@ -875,8 +939,11 @@ describe('the forms it opens', () => {
     const dialog = await screen.findByTestId('split-dialog');
     fireEvent.click(within(dialog).getByTestId('split-clear'));
     fireEvent.click(within(dialog).getByRole('button', { name: en.common.save }));
-    await waitFor(() => expect(state.puts).toHaveLength(3));
-    expect(state.puts.map((p) => p.body)).toEqual([{ customProfitPct: null }, { customProfitPct: null }, { customProfitPct: null }]);
+    await waitFor(() => expect(state.puts).toHaveLength(1));
+    expect(state.puts[0]).toEqual({
+      url: '/cycles/c-2/split',
+      body: { split: ['p-a', 'p-s', 'p-f'].map((participantId) => ({ participantId, customProfitPct: null })) },
+    });
   });
 
   it('Add investor opens the participant form on the investor type; Cancel closes it', async () => {
@@ -886,6 +953,122 @@ describe('the forms it opens', () => {
     expect(document.querySelector<HTMLInputElement>('input[type="hidden"][name="participantType"]')!.value).toBe('TEMP_INVESTOR');
     fireEvent.click(within(form).getByRole('button', { name: en.common.cancel }));
     expect(screen.queryByTestId('add-participant-form')).toBeNull();
+  });
+});
+
+/**
+ * A new temporary investor from the `+` beside the person picker (§8, owner
+ * 2026-10-26): the first investor met an empty list. The investor's own form
+ * from the registry (CLAUDE.md §13) — a name alone — then the list refreshed
+ * and him selected, the participant form underneath untouched.
+ */
+describe('a new investor from the + beside the person picker', () => {
+  const personValue = () => document.querySelector<HTMLInputElement>('input[type="hidden"][name="userId"]')!.value;
+  const plus = () => document.querySelector<HTMLButtonElement>('[data-quick-create="investor"]');
+  async function openAddInvestor() {
+    fireEvent.click(await screen.findByTestId('add-investor'));
+    return screen.findByTestId('add-participant-form');
+  }
+  async function makeInvestor(name: string) {
+    fireEvent.click(plus()!);
+    const dialog = await waitFor(() => {
+      const d = document.querySelector<HTMLElement>('[data-quick-create-dialog="investor"]');
+      expect(d).toBeTruthy();
+      return d!;
+    });
+    const input = dialog.querySelector<HTMLInputElement>('input[name="displayName"]')!;
+    fireEvent.change(input, { target: { value: name } });
+    fireEvent.click(within(dialog).getByRole('button', { name: en.common.create }));
+    return dialog;
+  }
+
+  it('creates him from a name alone, refreshes the list and selects him — the form underneath untouched', async () => {
+    wrap();
+    const form = await openAddInvestor();
+    typeInto(form.querySelector<HTMLInputElement>('input[data-field="contributionAmount"]')!, '20000');
+    const readsBefore = state.userReads;
+    const dialog = await makeInvestor('Mohammed Setta');
+    // The `+`'s button says its type: a bare one would submit the participant form.
+    expect(plus()!.getAttribute('type')).toBe('button');
+    // Portalled out of the participant form, never a form inside a form.
+    expect(form.contains(dialog)).toBe(false);
+    await waitFor(() => expect(personValue()).toBe('u-new-1'));
+    expect(state.userReads).toBeGreaterThan(readsBefore);
+    expect(state.posts.filter((p) => p.url === '/users/investors')).toEqual([
+      { url: '/users/investors', body: { displayName: 'Mohammed Setta' } },
+    ]);
+    // Only a name went: no role, email or password from the browser.
+    expect(Object.keys(state.posts[0].body as object)).toEqual(['displayName']);
+    // Nothing joined the cycle behind his back.
+    expect(state.posts.filter((p) => p.url.endsWith('/participants'))).toEqual([]);
+    // What was typed before reaching for the + is still there.
+    expect(form.querySelector<HTMLInputElement>('input[type="hidden"][name="contributionAmount"]')!.value).toBe('20000');
+    // The picker shows him by name — selected, not a blank field.
+    expect(text(form)).toContain('Mohammed Setta');
+  });
+
+  it('the second visit: Cancel after making one, and Add investor opens with nobody chosen', async () => {
+    wrap();
+    let form = await openAddInvestor();
+    await makeInvestor('Mohammed Setta');
+    await waitFor(() => expect(personValue()).toBe('u-new-1'));
+    fireEvent.click(within(form).getByRole('button', { name: en.common.cancel }));
+    expect(screen.queryByTestId('add-participant-form')).toBeNull();
+    form = await openAddInvestor();
+    expect(personValue()).toBe('');
+    // He is in the list now, to be chosen — not chosen for you.
+    expect(state.users.some((u) => u.partner.displayName === 'Mohammed Setta')).toBe(true);
+  });
+
+  it('cancelling the new-investor form makes nobody and changes no choice; opening it again starts empty', async () => {
+    wrap();
+    await openAddInvestor();
+    fireEvent.click(plus()!);
+    let dialog = await waitFor(() => document.querySelector<HTMLElement>('[data-quick-create-dialog="investor"]')!);
+    fireEvent.change(dialog.querySelector<HTMLInputElement>('input[name="displayName"]')!, { target: { value: 'Half typed' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: en.common.cancel }));
+    await waitFor(() => expect(document.querySelector('[data-quick-create-dialog="investor"]')).toBeNull());
+    expect(state.posts).toEqual([]);
+    expect(personValue()).toBe('');
+    fireEvent.click(plus()!);
+    dialog = await waitFor(() => document.querySelector<HTMLElement>('[data-quick-create-dialog="investor"]')!);
+    expect(dialog.querySelector<HTMLInputElement>('input[name="displayName"]')!.value).toBe('');
+  });
+
+  it('a name the server refuses (taken) is said in words; the dialog stays, nobody is selected', async () => {
+    state.investorRefusal = { code: 'INVESTOR_NAME_TAKEN', message: 'taken', params: { name: 'Ahmad Eraiby' } };
+    wrap();
+    await openAddInvestor();
+    await makeInvestor('ahmad eraiby');
+    await waitFor(() => expect(document.body.textContent).toContain('Someone called Ahmad Eraiby already exists'));
+    expect(document.querySelector('[data-quick-create-dialog="investor"]')).toBeTruthy();
+    expect(personValue()).toBe('');
+  });
+
+  it('never a partner: the + is there for an investor only, gone when the type is Core partner', async () => {
+    wrap();
+    await openAddInvestor();
+    expect(plus()).toBeTruthy();
+    const typePicker = document.querySelector<HTMLInputElement>('input[type="hidden"][name="participantType"]')!;
+    // The type picker's own control, by its visible label.
+    const trigger = typePicker.parentElement!.querySelector<HTMLElement>('button, [role="combobox"]')!;
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByText(en.cycles.corePartner));
+    await waitFor(() => expect(typePicker.value).toBe('CORE_PARTNER'));
+    expect(plus()).toBeNull();
+  });
+
+  it('the name field is required and as long as the API allows, in English and Arabic', async () => {
+    wrap();
+    await openAddInvestor();
+    fireEvent.click(plus()!);
+    const dialog = await waitFor(() => document.querySelector<HTMLElement>('[data-quick-create-dialog="investor"]')!);
+    const input = dialog.querySelector<HTMLInputElement>('input[name="displayName"]')!;
+    expect(input.required).toBe(true);
+    expect(input.maxLength).toBe(80);
+    expect(text(dialog)).toContain(en.fundingCard.newInvestor);
+    expect(ar.fundingCard.newInvestor).toBeTruthy();
+    expect(ar.errors.INVESTOR_NAME_TAKEN).toContain('{name}');
   });
 });
 

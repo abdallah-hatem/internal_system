@@ -7,6 +7,8 @@ import { Select } from '@/components/ui/select';
 import { MoneyInput } from '@/components/ui/money-input';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { selectOnFocus } from '@/lib/select-on-focus';
+import { FieldWithQuickCreate } from '@/components/ui/quick-create';
+import { useCan } from '@/lib/can';
 
 /**
  * Someone joining a cycle: a temporary investor, or a core partner (the
@@ -36,6 +38,36 @@ export function AddParticipantForm({
   const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const [type, setType] = useState('TEMP_INVESTOR');
+  const canCreateInvestor = useCan('users.createInvestor');
+  // Controlled, so an investor made by the `+` is selected the moment he
+  // exists (a `defaultValue` is read once). The form unmounts on Cancel and on
+  // Save, so the next visit always starts with nobody chosen.
+  const [userId, setUserId] = useState('');
+
+  const personPicker = (
+    <Select
+      name="userId"
+      required
+      value={userId}
+      onChange={setUserId}
+      placeholder={tph('choosePerson')}
+      searchPlaceholder={tph('searchPeople')}
+      /* Only people who can actually hold a share — the same rule as
+       * `assertCanParticipate`, stated where the choice is made. A
+       * storefront login on a cycle would take a share of the profit. */
+      options={users
+        .filter(
+          (u) =>
+            u.status === 'ACTIVE' &&
+            (u.role === 'CORE_PARTNER' || u.role === 'TEMP_INVESTOR'),
+        )
+        .map((u) => ({
+          value: u.id,
+          label: u.partner?.displayName ?? u.email,
+          hint: u.email,
+        }))}
+    />
+  );
 
   return (
     <ValidatedForm
@@ -73,26 +105,16 @@ export function AddParticipantForm({
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-foreground">{t('person')}</label>
-          <Select
-            name="userId"
-            required
-            placeholder={tph('choosePerson')}
-            searchPlaceholder={tph('searchPeople')}
-            /* Only people who can actually hold a share — the same rule as
-             * `assertCanParticipate`, stated where the choice is made. A
-             * storefront login on a cycle would take a share of the profit. */
-            options={users
-              .filter(
-                (u) =>
-                  u.status === 'ACTIVE' &&
-                  (u.role === 'CORE_PARTNER' || u.role === 'TEMP_INVESTOR'),
-              )
-              .map((u) => ({
-                value: u.id,
-                label: u.partner?.displayName ?? u.email,
-                hint: u.email,
-              }))}
-          />
+          {/* A new investor from a name alone (§8, owner 2026-10-26): the
+              first one met an empty list. Only beside an investor — the `+`
+              never makes a partner, and the server holds to that too. */}
+          {type === 'TEMP_INVESTOR' && canCreateInvestor ? (
+            <FieldWithQuickCreate entity="investor" onCreated={(u) => setUserId(u.id)}>
+              {personPicker}
+            </FieldWithQuickCreate>
+          ) : (
+            personPicker
+          )}
         </div>
       </div>
 

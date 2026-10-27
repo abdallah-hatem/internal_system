@@ -1826,7 +1826,13 @@
     "LIST_PAGE_SIZE_INVALID": "A page can show from 1 to {max} rows (asked for {value}).",
     "LIST_SORT_UNKNOWN": "This list cannot be sorted by \"{sort}\".",
     "LIST_FILTER_INVALID": "The filter {field} cannot be \"{value}\".",
-    "LIST_SEARCH_TOO_LONG": "A search can be at most {max} characters (this one has {length})."
+    "LIST_SEARCH_TOO_LONG": "A search can be at most {max} characters (this one has {length}).",
+    "INVESTOR_NAME_REQUIRED": "An investor needs a name.",
+    "INVESTOR_NAME_TOO_LONG": "An investor's name can be at most {max} characters.",
+    "INVESTOR_NAME_TAKEN": "Someone called {name} already exists — choose him from the list.",
+    "SPLIT_PARTICIPANT_NOT_ON_CYCLE": "That participant is not on this cycle.",
+    "SPLIT_PARTICIPANT_TWICE": "A participant is named twice in the split.",
+    "SPLIT_PCT_INVALID": "A profit share must be a percentage from 0 to 100, with at most four decimals."
   },
   "requests": {
     "tabs": {
@@ -2636,7 +2642,8 @@
     "allCustomers": "All customers",
     "branchName": "Nasr City",
     "branchAddress": "12 Street 9, Mokattam, Cairo",
-    "chooseBranch": "Choose a branch"
+    "chooseBranch": "Choose a branch",
+    "investorName": "Ahmad Mahmoud"
   },
   "fxRates": {
     "title": "Exchange rates",
@@ -2881,6 +2888,9 @@
     "splitTotal": "Adds up to {total}% — it must be 100%.",
     "splitWillFollow": "No agreed split: the profit follows what each put in.",
     "splitSaved": "Profit split saved",
-    "splitFailed": "Could not save the profit split"
+    "splitFailed": "Could not save the profit split",
+    "newInvestor": "New investor",
+    "investorName": "Name",
+    "newInvestorHint": "Investors do not sign in, so a name is all that is needed."
   }
 }

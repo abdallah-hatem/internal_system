@@ -21,6 +21,30 @@ in production". Production's migrations end at `20261025120000_customer_branches
   (§8, OPEN); the Rules Review answers; the small UAE costs for CYC-2026-0001.
 State of the product and of production's data: `docs/where-things-stand.md`.
 
+## On `dev`, not yet in production
+- 2026-10-27 — built on `agent-funding` (no migration), Next-up (1) and (3), **e2e written, not run** (owner:
+  unit and database tests only for now):
+  - **A new temporary investor from the Funding card** (BUSINESS_LOGIC §8 "A new temporary investor from the Funding
+    card"): a `+` beside "+ Add investor"'s person picker (`FieldWithQuickCreate`, the registry's `investor` entry)
+    makes an investor from a name alone, refreshes the list and selects him. `POST /users/investors` (core partners
+    only): role always `TEMP_INVESTOR` whatever is sent, a made-up `@investors.invalid` address and a random password
+    nobody is told; refusals `INVESTOR_NAME_REQUIRED` / `INVESTOR_NAME_TOO_LONG` (80) / `INVESTOR_NAME_TAKEN` (a
+    duplicate name, GUESS). `POST /users` is unchanged and still unused by the office.
+  - **Change split saved and checked on the server in one go** (§8 "Change split saved and checked on the server"):
+    `PUT /cycles/:id/split` saves the whole split in one transaction — all or none, exactly 100, coded refusals
+    `PARTIAL_CUSTOM_SPLIT` / `SPLIT_NOT_100` at save time, plus `SPLIT_PCT_INVALID`, `SPLIT_PARTICIPANT_NOT_ON_CYCLE`,
+    `SPLIT_PARTICIPANT_TWICE`; the funding lock; only changed rows written. The rule is one function,
+    `customSplitProblem` (settlement-math.ts), which settling and the card's split line now use too. The dialog sends
+    it once instead of a PUT per participant.
+  - Tests: `users/new-investor.spec.ts`, `users/new-investor.db.spec.ts`, `cycles/profit-split.db.spec.ts`,
+    `funding-card.test.tsx` (the `+`, the second visit, the dialog's one request and a refusal), `unit/can-roles`
+    (two new actions); e2e `tests/99-funding-investor-and-split.spec.ts` (written, not run). Each new test break-verified.
+  - Also: the Funding card's Contribute total and Change split fields had no locale placeholder, which failed
+    `unit/placeholders` on `dev`; fixed. Windows: `scripts/lib/agent-common.sh` read git's `D:/…` common dir as
+    relative; it accepts a drive path now.
+  - Totals at the commit: API `jest --runInBand` 130 suites / 2,601 tests passed (database suites included); web
+    `vitest` 116 files / 1,537 tests passed; `node --test unit` 128/128.
+
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
 - 2026-10-27 — shipped (`d87b68b`; migration `20261025120000_customer_branches` applied first): **a customer with
@@ -278,12 +302,7 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
-- (1) (2026-10-26, owner: "add the fix to next up"): **A new temporary investor from the Funding card** — "+ Add
-  investor" picks only existing `TEMP_INVESTOR` accounts and no screen creates one (`POST /users` exists, nothing calls
-  it), so the first investor meets an empty list. Put a `+` beside the person picker (`FieldWithQuickCreate`, CLAUDE.md
-  §13) that creates an investor from a name alone — no office login (investors do not sign in), the email and password
-  made up and never used — refreshes the list and selects him. Server-side: role fixed to TEMP_INVESTOR, a coded
-  refusal for an empty name; tests for the second visit (cancel clears it) and that it never makes a partner.
+- (1) and (3) built 2026-10-27, on `dev` (above, "On `dev`, not yet in production").
 - (2) (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
   order, and auto handle the rest … a shop can also have 3 samples of 3 different products, but he decides to make an order
   that includes buying 2 of them while one still remains as a sample"): **Samples into the current order** —
@@ -295,10 +314,6 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   popup gets the same per-line choice for a removed line: **Keep as sample** (default) or **Returned**. Tests: more /
   less / all / none of a sample, two samples orders at once, another shop's sample (refused), a returned or written-off
   sample (refused), doing it twice, stock and the settlement gate correct after. Build on its own branch.
-- (3) (2026-10-26): **Change split saved and checked on the server in one go** — the Funding card's Change split
-  writes each participant's % through separate participant PUTs and only the dialog checks they add to 100 (the server
-  checks at settlement). Add one endpoint that saves the whole split (all or none, adding to 100, coded refusals
-  `PARTIAL_CUSTOM_SPLIT` / `SPLIT_NOT_100` at save time) and have the dialog use it (CLAUDE.md §3).
 - (4) **Known bugs — fixed 2026-10-27, on `dev`:** the order popup's Allocations name a batch by its cycle and check-in day ("CYC-2026-0001 · checked in 9 Sep 2026", as the product page does) instead of `#` and eight characters of its id; `POST /ledger/<not-a-uuid>/reverse` is a coded 404 (`NOT_FOUND`), not a 500; return references take a lock on their series, so two returns at once never share a number; `apps/web/package-lock.json` carries the optional Tailwind WebAssembly entries `npm ci` wanted (no version moved); CI hands the e2e setup the Postgres service's container id (`DB_CONTAINER`) — **not yet seen running on GitHub**: CI runs on a push to master or a pull request. Tests: `ledger-entry.spec` (the not-a-uuid reverse), `references.db.spec` (six returns at once), `order-popup-history.test.tsx` (the batch named, never `#…`); each fails with its fix undone.
 Later — queued, not to be built until the owner says:
 - Later (2026-10-27, owner: "in sales order we need a confirm and paid button for easier access, add to do later"):

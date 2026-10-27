@@ -176,6 +176,51 @@ export function profitShareOf(
 }
 
 /**
+ * What is wrong with an agreed profit split, or null when nothing is (§8).
+ * `pcts` is each participant's agreed percentage, null where none is set.
+ * The one rule for it — settling (`resolveShares`), the Funding card's split
+ * line (`profitSplitView`) and saving a split (`CyclesService.saveSplit`, at
+ * save time since 2026-10-27) all ask here, so they cannot disagree
+ * (CLAUDE.md §11):
+ *
+ * - all set, or none: a partial split is `PARTIAL_CUSTOM_SPLIT`;
+ * - when set, exactly 100 between them: otherwise `SPLIT_NOT_100`.
+ *
+ * None set is no problem — profit then follows the contributions.
+ */
+export function customSplitProblem(
+  pcts: (Prisma.Decimal | null)[],
+):
+  | { code: 'PARTIAL_CUSTOM_SPLIT' }
+  | { code: 'SPLIT_NOT_100'; total: string }
+  | null {
+  const set = pcts.filter((p): p is Prisma.Decimal => p !== null);
+  if (set.length === 0) return null;
+  if (set.length !== pcts.length) return { code: 'PARTIAL_CUSTOM_SPLIT' };
+  const total = set.reduce((s, p) => s.add(p), ZERO);
+  if (!total.equals(HUNDRED))
+    return { code: 'SPLIT_NOT_100', total: total.toFixed(2) };
+  return null;
+}
+
+/** `customSplitProblem`, refused with its code. */
+export function assertCustomSplit(pcts: (Prisma.Decimal | null)[]): void {
+  const problem = customSplitProblem(pcts);
+  if (!problem) return;
+  if (problem.code === 'PARTIAL_CUSTOM_SPLIT') {
+    throw badRequest(
+      'PARTIAL_CUSTOM_SPLIT',
+      'A custom profit split must be set for every participant in the cycle, or for none of them',
+    );
+  }
+  throw badRequest(
+    'SPLIT_NOT_100',
+    `Custom profit percentages must add up to 100 (currently ${problem.total})`,
+    { total: problem.total },
+  );
+}
+
+/**
  * What a cycle's profit would be split on (§8), or `NONE` when settlement
  * would refuse it as `CYCLE_NOT_FUNDED`. The one reading for the split itself
  * and for the cycle page's "Funding not entered yet" note (owner 2026-10-18),
@@ -232,17 +277,12 @@ export function profitSplitView(
 } {
   const basis = profitBasisOf(participants);
   if (basis === 'CUSTOM_SPLIT') {
-    const set = participants.filter((p) => p.customProfitPct !== null);
-    const total = set.reduce((s, p) => s.add(p.customProfitPct!), ZERO);
     return {
       basis,
       equal: false,
       problem:
-        set.length !== participants.length
-          ? 'PARTIAL_CUSTOM_SPLIT'
-          : !total.equals(HUNDRED)
-            ? 'SPLIT_NOT_100'
-            : null,
+        customSplitProblem(participants.map((p) => p.customProfitPct))?.code ??
+        null,
       pcts: participants.map((p) =>
         p.customProfitPct === null ? null : p.customProfitPct.toFixed(2),
       ),
@@ -307,23 +347,9 @@ export function percentagesOf(
 /** Fractional share (0-1) per participant, from an agreed split or capital. */
 function resolveShares(participants: ParticipantInput[]): Prisma.Decimal[] {
   const basis = profitBasisOf(participants);
-  const withCustom = participants.filter((p) => p.customProfitPct !== null);
 
   if (basis === 'CUSTOM_SPLIT') {
-    if (withCustom.length !== participants.length) {
-      throw badRequest(
-        'PARTIAL_CUSTOM_SPLIT',
-        'A custom profit split must be set for every participant in the cycle, or for none of them',
-      );
-    }
-    const total = withCustom.reduce((s, p) => s.add(p.customProfitPct!), ZERO);
-    if (!total.equals(HUNDRED)) {
-      throw badRequest(
-        'SPLIT_NOT_100',
-        `Custom profit percentages must add up to 100 (currently ${total.toFixed(2)})`,
-        { total: total.toFixed(2) },
-      );
-    }
+    assertCustomSplit(participants.map((p) => p.customProfitPct));
     return participants.map((p) => p.customProfitPct!.div(HUNDRED));
   }
 

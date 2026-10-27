@@ -12,6 +12,11 @@ import {
 
 import { conflict, notFound } from '../../common/api-error';
 import { assertStrongPassword } from '../../common/assert-password';
+import {
+  investorName,
+  madeUpInvestorEmail,
+  madeUpInvestorPassword,
+} from './new-investor';
 /** How many cycle projections the Partners page runs at once. */
 const PROJECTION_CONCURRENCY = 4;
 
@@ -349,6 +354,48 @@ export class UsersService {
           : undefined,
       },
       include: { partner: true },
+    });
+    const { passwordHash: _, ...result } = user;
+    return { data: result };
+  }
+
+  /**
+   * A temporary investor from a name alone (§8 "A new temporary investor from
+   * the Funding card", owner 2026-10-26). Not `create`: that takes the role
+   * from the caller, and the `+` beside a picker must not be a way to make a
+   * partner (CLAUDE.md §12). The role is fixed here; the email and password
+   * are made up and never used — an investor does not sign in (§12).
+   *
+   * A name already held by a partner or investor is refused (GUESS,
+   * 2026-10-27): the picker lists people by name, and two "Ahmad"s there
+   * cannot be told apart, so the second would be picked by chance.
+   */
+  async createInvestor(rawName: unknown) {
+    const displayName = investorName(rawName);
+    const passwordHash = await bcrypt.hash(madeUpInvestorPassword(), 12);
+    const user = await this.prisma.$transaction(async (tx) => {
+      // Two at once with the same name would both pass the check below.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'new-investor-name'}))`;
+      const taken = await tx.partner.findFirst({
+        where: { displayName: { equals: displayName, mode: 'insensitive' } },
+        select: { displayName: true },
+      });
+      if (taken) {
+        throw conflict(
+          'INVESTOR_NAME_TAKEN',
+          `Someone called ${taken.displayName} already exists.`,
+          { name: taken.displayName },
+        );
+      }
+      return tx.user.create({
+        data: {
+          email: madeUpInvestorEmail(),
+          passwordHash,
+          role: 'TEMP_INVESTOR',
+          partner: { create: { displayName } },
+        },
+        include: { partner: true },
+      });
     });
     const { passwordHash: _, ...result } = user;
     return { data: result };

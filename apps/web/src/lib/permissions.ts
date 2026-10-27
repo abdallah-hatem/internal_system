@@ -19,6 +19,7 @@ export const ACTION_ROLES = {
   'cycle.transition': PARTNERS, //        POST /cycles/:id/transition
   'cycle.addParticipant': PARTNERS, //    POST /cycles/:id/participants
   'cycle.editParticipant': PARTNERS, //   PUT  /cycles/participants/:id (contributions)
+  'cycle.saveSplit': PARTNERS, //         PUT  /cycles/:id/split (Change split, 2026-10-27)
   // Shipment panel — ShippingController, PurchasesController
   'shipment.recordDeparture': PARTNERS, // POST  /shipping/legs/:id/departures (L8)
   'shipment.undoDeparture': PARTNERS, //  DELETE /shipping/departures/:id (L8)
@@ -93,6 +94,7 @@ export const ACTION_ROLES = {
   'assistant.chat': PARTNERS, //         POST /assistant/chat
   // Reads a page makes on the side — UsersController
   'users.list': BOOKS_READERS, //         GET /users (the participant picker)
+  'users.createInvestor': PARTNERS, //    POST /users/investors (the + beside it, 2026-10-27)
 } as const satisfies Record<string, readonly string[]>;
 
 export type Action = keyof typeof ACTION_ROLES;

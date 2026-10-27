@@ -1826,7 +1826,13 @@
     "LIST_PAGE_SIZE_INVALID": "يمكن أن تعرض الصفحة من 1 إلى {max} صفًا (المطلوب {value}).",
     "LIST_SORT_UNKNOWN": "لا يمكن ترتيب هذه القائمة حسب \"{sort}\".",
     "LIST_FILTER_INVALID": "لا يمكن أن يكون عامل التصفية {field} \"{value}\".",
-    "LIST_SEARCH_TOO_LONG": "يمكن أن يكون البحث {max} حرفًا على الأكثر (هذا البحث {length} حرفًا)."
+    "LIST_SEARCH_TOO_LONG": "يمكن أن يكون البحث {max} حرفًا على الأكثر (هذا البحث {length} حرفًا).",
+    "INVESTOR_NAME_REQUIRED": "المستثمر يحتاج إلى اسم.",
+    "INVESTOR_NAME_TOO_LONG": "اسم المستثمر لا يزيد عن {max} حرفاً.",
+    "INVESTOR_NAME_TAKEN": "يوجد بالفعل شخص باسم {name} — اختره من القائمة.",
+    "SPLIT_PARTICIPANT_NOT_ON_CYCLE": "هذا المشارك ليس في هذه الدورة.",
+    "SPLIT_PARTICIPANT_TWICE": "تكرر أحد المشاركين في التقسيم.",
+    "SPLIT_PCT_INVALID": "يجب أن تكون حصة الربح نسبة من 0 إلى 100، بأربعة أرقام عشرية على الأكثر."
   },
   "requests": {
     "tabs": {
@@ -2636,7 +2642,8 @@
     "allCustomers": "كل العملاء",
     "branchName": "مدينة نصر",
     "branchAddress": "12 شارع 9، المقطم، القاهرة",
-    "chooseBranch": "اختر فرعاً"
+    "chooseBranch": "اختر فرعاً",
+    "investorName": "أحمد محمود"
   },
   "fxRates": {
     "title": "أسعار الصرف",
@@ -2881,6 +2888,9 @@
     "splitTotal": "المجموع {total}% — يجب أن يكون 100%.",
     "splitWillFollow": "لا يوجد تقسيم متفق عليه: يتبع الربح ما ساهم به كل منهم.",
     "splitSaved": "تم حفظ تقسيم الربح",
-    "splitFailed": "تعذّر حفظ تقسيم الربح"
+    "splitFailed": "تعذّر حفظ تقسيم الربح",
+    "newInvestor": "مستثمر جديد",
+    "investorName": "الاسم",
+    "newInvestorHint": "المستثمرون لا يسجّلون الدخول، فالاسم وحده يكفي."
   }
 }
