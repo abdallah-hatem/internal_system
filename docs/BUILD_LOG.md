@@ -58,7 +58,13 @@ Older history: "History" at the foot of this file, and `git log`.
   (new, Bluetooth headsets, PRD-000015…19), Q58 Max ×60, Y20 (PRD-000004) ×20; **leg 1** China → Ajman, Alibaba's shipping
   2,767.02 + card fee 377.40 = 3,144.42 AED (as cycle 1's fee). Rate 14.8026 = USD 3,476.43 × 55.35 / AED 12,999.13
   (owner: "we bought them for 55.35"); 192,420.92 EGP in all. Paid with AED the partners bought with their own pounds,
-  through a friend's card — not a loan; whose money it was is left for later (owner: "skip the card for now").
+  through a friend's card. **Corrected the same day** (owner: "we bought 6500 aed at 15.20, and 1100 usd at 55.25,
+  and 681 usd that are not payed till now"): order and leg 1 at **15.20** (`update_leg_cost`; the order by
+  `apps/api/prisma/one-off/2026-10-27-po-0002-rate.ts`, checked, audited) = 197,586.77 EGP. The friend's card payment
+  is recorded as a lender financing on PO-2026-0002 (12,999.13 AED on 25 Oct at 15.20) with two repayments dated
+  27 Oct: 98,800 EGP (6,500 AED at 15.20) and 60,775 EGP (1,100 USD at 55.25, i.e. 15.0443 per dirham). 2,459.40 AED
+  is still owed (the 681 USD, recorded when paid at that day's rate); exchange difference so far −628.90 EGP. The
+  owner set the cycle's funding target at about 197,800. PO-2026-0002 is still a DRAFT — to confirm in the office.
 - 2026-10-27 — production data: Ahmad Zogmar's samples order **ORD-2026-00006** (5 units, left 18 Oct, before branches
   existed) moved from the owner to his **Mokattam** branch, at the owner's word
   (`apps/api/prisma/one-off/2026-10-27-ord-00006-to-mokattam.ts`: starting facts checked, audit row written). His branches
