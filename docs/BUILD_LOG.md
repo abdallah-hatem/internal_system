@@ -415,6 +415,8 @@ Standing items:
 - [Backfill rehearsal](build-log/notes/backfill-rehearsal.md) — old-shape data → migrate → backfill twice → check-data zero.
 
 ## How to run things here
+- **Branches (owner 2026-10-27, CLAUDE.md §14):** build on `feature/<name>` cut from `dev`; merge into `dev` what
+  ships next; the owner tests `dev`; ship = all of `dev` into `master`. The main checkout sits on `dev`.
 - Postgres runs in Docker: `open -a Docker`, then `docker compose up -d postgres`. Quit both afterwards.
 - Port 3000 may belong to another project. Start directly: API `cd apps/api && WEB_ORIGIN=http://localhost:3003
   CRON_SECRET=local-cron-secret npm run start:dev` (specs 27/34 call the daily overdue job with that secret); web `cd apps/web && npm run dev -- -p 3003`; storefront `PORT=3002` (specs 54/59).

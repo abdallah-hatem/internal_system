@@ -275,3 +275,22 @@ Four things that are easy to get wrong, and all of them were:
 Not every picker should have one. A cycle is built by a four-step wizard and has
 no honest minimal form; a category's own parent picker is already inside the
 category form. A `+` that creates a half-formed record is worse than the detour.
+
+## 14. Branches: work on `dev`, ship all of `dev`
+
+Decided by the owner 2026-10-27 ("default development should be on dev, then we
+merge to master what we need"), after a day spent splitting work apart: server-side
+lists, customer branches and Edit order sat on `dev` together, and shipping only some
+of them took two careful rebuilds.
+
+- `master` is production; Vercel deploys every push to it. `dev` is what ships next.
+- Each feature is built on its own branch cut from `dev` (`feature/<name>`), and is
+  merged into `dev` only when the owner wants it in the next release — after he has
+  seen it (screenshots) or tested it. Unsure work stays on its own branch.
+- The owner tests `dev` locally. Shipping merges **all of `dev`** into `master`:
+  backup, migrations on their own, status, push, smoke. Then `master` and `dev` match.
+- Never ship part of `dev`. Something on `dev` that should not ship is first taken off
+  `dev` (or parked on its own branch, as `feature/edit-order` was).
+- An urgent production fix may go straight to `master`; merge it back into `dev` the
+  same day.
+- The main checkout sits on `dev` by default.
