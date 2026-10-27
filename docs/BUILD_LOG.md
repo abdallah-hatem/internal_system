@@ -303,7 +303,7 @@ _(none)_
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
 - (1) and (3) built 2026-10-27, on `dev` (above, "On `dev`, not yet in production").
-- (2) (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
+- (2) **Built 2026-10-27 on `feature/samples-into-order` (`0a17745`, pushed; not on dev or master — it goes in at the owner's word; migration `20261027120000_samples_into_order`; e2e written, not run; its guesses in that branch's BUSINESS_LOGIC §4).** (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
   order, and auto handle the rest … a shop can also have 3 samples of 3 different products, but he decides to make an order
   that includes buying 2 of them while one still remains as a sample"): **Samples into the current order** —
   New Order's samples hint becomes a list per product with **Add to order** (and **Add all**); the line is tagged
