@@ -227,6 +227,7 @@ export function FundingCard({
   const canContribute = useCan('partnerAccount.contribute');
   const canTarget = useCan('partnerAccount.target');
   const canEdit = useCan('cycle.editParticipant');
+  const canSaveSplit = useCan('cycle.saveSplit');
   const canAdd = useCan('cycle.addParticipant');
   const canListUsers = useCan('users.list');
 
@@ -714,7 +715,7 @@ export function FundingCard({
         <SectionHeading first>{t('profitHeading')}</SectionHeading>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <p data-testid="profit-split-line" className="text-sm text-foreground">{splitLine}</p>
-          {canEdit && data.participants.length > 0 && (
+          {canSaveSplit && data.participants.length > 0 && (
             <button
               type="button"
               onClick={() => setChangingSplit(true)}
@@ -804,6 +805,7 @@ export function FundingCard({
       )}
       {changingSplit && (
         <SplitDialog
+          cycleId={data.cycleId}
           code={data.code}
           participants={data.participants}
           onClose={() => setChangingSplit(false)}
@@ -914,6 +916,7 @@ function ContributeDialog({ data, onClose, onDone }: { data: AccountFunding; onC
   const t = useTranslations('fundingCard');
   const ta = useTranslations('accounts');
   const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const { formatNumber, formatMoney } = useNumberFormat();
   const apiError = useApiError();
   const { addToast } = useToast();
@@ -967,6 +970,7 @@ function ContributeDialog({ data, onClose, onDone }: { data: AccountFunding; onC
             id="contribute-total"
             name="totalEgp"
             value={total}
+            placeholder={tph('money')}
             onChange={setTypedTotal}
             className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
@@ -1012,14 +1016,17 @@ function ContributeDialog({ data, onClose, onDone }: { data: AccountFunding; onC
  * up to 100, or none — then profit follows the contributions. Settling
  * refuses a partial one or one off 100 (`PARTIAL_CUSTOM_SPLIT`,
  * `SPLIT_NOT_100`), so Save waits for one of the two. It opens on what is
- * recorded; written through each participant's own PUT, only what changed.
+ * recorded; saved whole through `PUT /cycles/:id/split`, which refuses the
+ * same two at save time and writes all of it or none (2026-10-27).
  */
 function SplitDialog({
+  cycleId,
   code,
   participants,
   onClose,
   onSaved,
 }: {
+  cycleId: string;
   code: string;
   participants: AccountFunding['participants'];
   onClose: () => void;
@@ -1027,6 +1034,7 @@ function SplitDialog({
 }) {
   const t = useTranslations('fundingCard');
   const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const codeLabel = useCodeLabel();
   const { formatNumber } = useNumberFormat();
   const apiError = useApiError();
@@ -1040,15 +1048,15 @@ function SplitDialog({
   const valid = cleared || (filled.length === participants.length && totalCents === 10000);
 
   const save = useMutation({
-    mutationFn: async () => {
-      for (const p of participants) {
-        const raw = values[p.participantId]?.trim() ?? '';
-        const next = raw === '' ? null : num(raw);
-        const before = p.customProfitPct === null ? null : num(p.customProfitPct);
-        if (next === before) continue;
-        await api.put(`/cycles/participants/${p.participantId}`, { customProfitPct: next });
-      }
-    },
+    // The whole split in one request (§8, 2026-10-27): the server checks it
+    // adds to 100, or is none, and saves all of it or nothing.
+    mutationFn: () =>
+      api.put(`/cycles/${cycleId}/split`, {
+        split: participants.map((p) => {
+          const raw = values[p.participantId]?.trim() ?? '';
+          return { participantId: p.participantId, customProfitPct: raw === '' ? null : num(raw) };
+        }),
+      }),
     onSuccess: () => {
       addToast(t('splitSaved'), 'success');
       onSaved();
@@ -1095,7 +1103,7 @@ function SplitDialog({
                 id={`split-${p.participantId}`}
                 data-field={`split-${p.participantId}`}
                 value={values[p.participantId] ?? ''}
-                placeholder={p.profitPct === null ? '' : formatNumber(num(p.profitPct), { maximumFractionDigits: 2 })}
+                placeholder={p.profitPct === null ? tph('percent') : formatNumber(num(p.profitPct), { maximumFractionDigits: 2 })}
                 onChange={(raw) => setValues((prev) => (prev[p.participantId] === raw ? prev : { ...prev, [p.participantId]: raw }))}
                 className="w-24 rounded-lg border border-border px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />

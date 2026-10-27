@@ -279,6 +279,30 @@ function LenderFields({ record }: { record?: { name?: string; phone?: string | n
   );
 }
 
+// ─── Temporary investor ───────────────────────────────────────────────
+// Someone who puts money into a cycle for a share of its profit (§8). He
+// never signs in (§12), so a name is the whole form: the API makes up the
+// email and password and fixes the role (`POST /users/investors`). Rendered by
+// the `+` beside the Funding card's person picker.
+const INVESTOR_NAME_MAX = 80; // the API's limit (users/new-investor.ts)
+
+function InvestorFields() {
+  const t = useTranslations('fundingCard');
+  const tph = useTranslations('placeholders');
+  return (
+    <>
+      <InputField
+        label={t('investorName')}
+        name="displayName"
+        required
+        maxLength={INVESTOR_NAME_MAX}
+        placeholder={tph('investorName')}
+      />
+      <p className="text-xs text-muted-foreground">{t('newInvestorHint')}</p>
+    </>
+  );
+}
+
 // ─── The registry ─────────────────────────────────────────────────────
 export const ENTITY_FORMS = {
   category: {
@@ -365,6 +389,15 @@ export const ENTITY_FORMS = {
       phone: str(fd, 'phone'),
       notes: str(fd, 'notes'),
     }),
+  },
+  investor: {
+    endpoint: '/users/investors',
+    // The list the Funding card's person picker reads (`useAllRecords(['users'], …)`).
+    queryKey: ['users'],
+    namespace: 'fundingCard',
+    titleKey: 'newInvestor',
+    Fields: InvestorFields,
+    toPayload: (fd) => ({ displayName: fd.get('displayName') }),
   },
 } satisfies Record<string, EntityForm>;
 

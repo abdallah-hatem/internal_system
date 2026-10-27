@@ -48,6 +48,8 @@ import {
 type Db = Prisma.TransactionClient;
 import { expectedLegs, isCycleRoute } from '../../common/cycle-routes';
 import { assertCanParticipate } from './participant-eligibility';
+import { splitEntries } from './profit-split';
+import { assertCustomSplit } from '../settlements/settlement-math';
 import { VALID_TRANSITIONS } from '../../common/cycle-transitions';
 import {
   statusProvenByShipment,
@@ -1157,6 +1159,90 @@ export class CyclesService {
     });
 
     return { data: updated };
+  }
+
+  /**
+   * The cycle's whole agreed profit split, saved in one go (§8 "Change split
+   * saved and checked on the server", 2026-10-27). The Funding card's Change
+   * split wrote each participant's % through its own PUT and only the dialog
+   * checked they added up, so the API took a partial split or one off 100 and
+   * nothing said so until settlement (CLAUDE.md §3).
+   *
+   * `split` names each participant of the cycle with a percentage, or null to
+   * have none. A participant not named has none. All or nothing: every
+   * participant a percentage adding to exactly 100, or none at all (profit
+   * then follows the contributions) — `customSplitProblem`, the rule settling
+   * applies. One transaction under the cycle's lock: a refusal or a failure
+   * anywhere leaves every participant as it was. Only rows whose percentage
+   * changes are written, so saving the same split twice changes nothing and
+   * does not make a calculated settlement stale.
+   */
+  async saveSplit(cycleId: string, body: unknown, actorId: string) {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    const entries = splitEntries(body);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, cycleId);
+      const cycle = await tx.importCycle.findUnique({
+        where: { id: cycleId },
+        select: { id: true },
+      });
+      if (!cycle) throw notFound('cycle');
+      await assertFundingOpen(tx, cycleId);
+
+      const rows = await tx.cycleParticipant.findMany({
+        where: { cycleId },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      });
+      const onCycle = new Set(rows.map((r) => r.id));
+      for (const id of entries.keys()) {
+        if (!onCycle.has(id)) {
+          throw badRequest(
+            'SPLIT_PARTICIPANT_NOT_ON_CYCLE',
+            `Participant ${id} is not on this cycle.`,
+          );
+        }
+      }
+      const next = rows.map((r) => entries.get(r.id) ?? null);
+      assertCustomSplit(next);
+
+      const changed = rows.filter((r, i) => {
+        const before = r.customProfitPct;
+        const after = next[i];
+        return before === null || after === null
+          ? before !== after
+          : !before.equals(after);
+      });
+      for (const r of changed) {
+        await tx.cycleParticipant.update({
+          where: { id: r.id },
+          data: { customProfitPct: next[rows.indexOf(r)] },
+        });
+      }
+      return {
+        changed,
+        before: rows.map((r) => ({
+          participantId: r.id,
+          customProfitPct: r.customProfitPct?.toString() ?? null,
+        })),
+        after: rows.map((r, i) => ({
+          participantId: r.id,
+          customProfitPct: next[i]?.toString() ?? null,
+        })),
+      };
+    });
+
+    if (result.changed.length > 0) {
+      await this.audit.log({
+        actorUserId: actorId,
+        action: 'UPDATE_PROFIT_SPLIT',
+        entityType: 'ImportCycle',
+        entityId: cycleId,
+        beforeJson: result.before,
+        afterJson: result.after,
+      });
+    }
+    return { data: { participants: result.after } };
   }
 
   async getParticipants(cycleId: string, viewer: ScopeViewer = 'internal') {

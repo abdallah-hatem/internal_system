@@ -28,6 +28,21 @@ export class UsersController {
     return this.usersService.participation();
   }
 
+  /**
+   * A temporary investor from a name alone — the `+` beside the Funding
+   * card's person picker (§8, owner 2026-10-26). Only `displayName` is read:
+   * the role is always TEMP_INVESTOR whatever else is sent, so this is never
+   * a way to make a partner (CLAUDE.md §12). The body is not a DTO class on
+   * purpose — the global pipe would refuse an extra `role` outright, where
+   * the rule is that it is ignored.
+   */
+  @Post('investors')
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Create a temporary investor from a name' })
+  createInvestor(@Body() body: { displayName?: unknown }) {
+    return this.usersService.createInvestor(body?.displayName);
+  }
+
   @Get(':id')
   @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'Get user by ID' })

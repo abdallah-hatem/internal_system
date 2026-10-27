@@ -98,6 +98,24 @@ export class CyclesController {
     return this.cyclesService.addParticipant(id, body, user.id);
   }
 
+  /**
+   * The whole agreed profit split in one go: every participant a % adding to
+   * 100, or none (§8, 2026-10-27). Coded refusals at save time, not first at
+   * settlement. The body is checked in the service, so each refusal has its
+   * own code rather than the pipe's generic one.
+   */
+  @Put(':id/split')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: "Save a cycle's whole profit split" })
+  saveSplit(
+    @Param('id') id: string,
+    @Body() body: { split?: unknown },
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.cyclesService.saveSplit(id, body, user.id);
+  }
+
   @Put('participants/:id')
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')

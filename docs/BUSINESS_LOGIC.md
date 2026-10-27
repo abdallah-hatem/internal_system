@@ -2101,7 +2101,7 @@ not locked: the accounts' controls (record, contribute, target) off with the acc
 | "Into capital" | Of what he paid **on this cycle**, how much his contributions **to this cycle** drew from it: min(advances, contributions from the account) — the pots' own split (`potsOf` → `intoCapital`). A contribution entered by hand (Split equally, Enter amounts) draws no advance, so counts nothing here. *Superseded later on 2026-10-26: section 1 is "Put in so far" and into capital is his whole contribution (below, "Put in so far, shares of what was repaid").* | One definition with the pots. |
 | "Contribute equal thirds" default | What the partners still have to give of their shares (`shares.stillEgp`), split equally by the server; a typed total is never overwritten. | The sample's button; the server's split is equal. |
 | The profit-split line | `profitSplitView` (settlement-math.ts, beside `profitBasisOf`): a split by contribution shown to two places, the last line taking the rounding so it reads 100; a custom split as stored, with the refusal settling would give (partial / not 100). Display only — the settlement's own maths is unchanged. | One reading with the settlement. |
-| "Change split" | Every participant's agreed %, adding up to 100, or none ("Split by contribution" clears them); Save waits for one of the two, since settling refuses anything else. Written through each participant's PUT. The server still checks only at settlement (unchanged). | There was no way to edit a custom % after adding a participant. |
+| "Change split" | Every participant's agreed %, adding up to 100, or none ("Split by contribution" clears them); Save waits for one of the two, since settling refuses anything else. Written through each participant's PUT. The server still checks only at settlement (unchanged). *Superseded 2026-10-27: saved whole through `PUT /cycles/:id/split`, checked at save time (below, "Change split saved and checked on the server").* | There was no way to edit a custom % after adding a participant. |
 | Who sees the card | Core partners (`partnerAccount.read`), as the panel was; nobody else signs in to the office (LEARNINGS). | — |
 
 ### Put in so far, shares of what was repaid, the exchange difference — DECIDED 2026-10-26 (owner), details GUESSED, live 2026-10-26 (`42d2272`)
@@ -2143,6 +2143,41 @@ settlement figure moves.
 | "Contribute equal thirds" | Hidden when it has nothing to do: the shares are as agreed, or there is a share to give and every partner has already given it (`shares.stillEgp` 0). Still shown while shares are still to give, and while there is nothing to share yet (advances can be drawn in before a cost exists). "Enter amounts" and "Split equally" stay as the secondary buttons. | DECIDED (owner, 2026-10-27); the nothing-to-share case a GUESS |
 | First column of both lists | "Name" / "الاسم" instead of "Partner": investors are listed there too. | DECIDED (owner, 2026-10-27) |
 | Percentage rounding | `percentagesOf` (settlement-math.ts), used by `profitSplitView`: **largest remainder** at two places — every row starts at its share rounded down, the missing hundredths go to the rows that lost most, ties to the later row (thirds still read 33.33 / 33.33 / 33.34). They always sum to 100.00 and every row is within a hundredth of its true share. Before, rows were truncated and the last absorbed the rest (Setta read 9.96 for a true 9.9419; 80k/100k/120k read 26.66 / 33.33 / 40.01, now 26.67 / 33.33 / 40.00). Cycle 1 reads **27.34 / 16.45 / 16.45 / 29.82 / 9.94**: each rounded on its own they come to 100.01, so one row gives a hundredth — Eraiby, whose .57 is the smallest rounding-up of the three (Shady and Fares .61). Money lines (`distributeCycleProfit`, 4-place `sharePct`) unchanged. | DECIDED (owner: largest remainder); cycle 1's 29.82 rather than 29.83 follows from it |
+
+### A new temporary investor from the Funding card — DECIDED 2026-10-26 (owner: "add the fix to next up"), built 2026-10-27 on `dev`, details GUESSED
+"+ Add investor" picked only existing `TEMP_INVESTOR` accounts and no screen made one, so the first investor met an
+empty list. A `+` beside the person picker (`FieldWithQuickCreate`, the registry's `investor` entry in
+`components/entities/entity-forms.tsx`) opens a form with a name alone; saving makes the investor, refreshes the
+people list and selects him. The participant form underneath keeps what was typed; Cancel on either form leaves
+nothing chosen, and the next visit starts empty.
+
+| Rule | Built | Status |
+|---|---|---|
+| The endpoint | `POST /users/investors`, a name alone (`displayName`), **not** `POST /users`: that one takes the role from the caller, so a `+` reusing it would be a way to make a partner (CLAUDE.md §12). Only core partners may call it (`@Roles('CORE_PARTNER')`; ADMIN_SUPPORT may list users but not create them). | DECIDED (owner: role fixed); the separate endpoint is the agent's choice |
+| The role | Always `TEMP_INVESTOR`. Anything else sent (`role`, `email`, `password`) is ignored, not refused — only `displayName` is read. | DECIDED (owner: "role fixed to TEMP_INVESTOR") |
+| No office login | The email is made up and never used: `investor-<uuid>@investors.invalid` (`.invalid` is reserved never to exist, so nothing is ever sent there and it is nobody's address). The password is 32 random bytes, stored only as its bcrypt hash and shown to nobody. An investor is refused at login anyway (`OFFICE_NOT_FOR_INVESTORS`, §12). | DECIDED (owner); the address's shape a GUESS |
+| The name | Trimmed, inner runs of spaces made one. Empty: `INVESTOR_NAME_REQUIRED`. Longer than **80** characters: `INVESTOR_NAME_TOO_LONG` (`{max}`) — the same limit as a branch name; the form stops at 80 too (`users/new-investor.ts`). | DECIDED (a coded refusal); 80 a GUESS |
+| A name already used | **Refused**, `INVESTOR_NAME_TAKEN` (409, `{name}`), when any partner or investor already has it, ignoring case — the picker lists people by name, and two "Ahmad Eraiby"s there cannot be told apart, so the second would be picked by chance. Choose him from the list instead. Two of the same name at once: one is made, the other refused (an advisory lock around the check). | GUESS (2026-10-27) — the owner may prefer two people with one name allowed |
+| Arabic | The new strings ("مستثمر جديد", the hint and the refusals) are the agent's wording, for the owner to correct. | GUESS |
+
+### Change split saved and checked on the server — DECIDED 2026-10-26 (owner), built 2026-10-27 on `dev`, details GUESSED
+The Funding card's Change split wrote each participant's % through its own participant PUT and only the dialog checked
+they added up to 100; the server refused a partial or off-100 split only at settlement, weeks later (CLAUDE.md §3). One
+endpoint now saves the whole split: `PUT /cycles/:id/split` with `{ split: [{ participantId, customProfitPct }] }`
+(`customProfitPct` null for none). The dialog sends it once; a refusal is said in the dialog's toast and the dialog
+stays open with what was typed.
+
+| Rule | Built | Status |
+|---|---|---|
+| All or none | Every participant of the cycle a percentage, or none (profit then follows the contributions). A participant not named in the list has none — so leaving one out of a split is `PARTIAL_CUSTOM_SPLIT`, and an empty list clears the split. | DECIDED (owner) |
+| Adding to 100 | Exactly 100.0000 between them, else `SPLIT_NOT_100` with `{total}` (99.99 and 100.01 are both refused). One definition: `customSplitProblem` / `assertCustomSplit` (settlement-math.ts), which settling (`resolveShares`) and the card's split line (`profitSplitView`) now ask too (CLAUDE.md §11). | DECIDED (owner) |
+| Each percentage | A number from 0 to 100 with at most **four** decimals (what `custom_profit_pct` holds, so nothing is rounded between the check and the store), else `SPLIT_PCT_INVALID`. 0 is allowed (a participant agreed to take no profit). A negative one is refused even when the total is 100. | 0–100 DECIDED; four places and 0 allowed GUESS |
+| Wrong participants | One not on this cycle — another cycle's, nobody's, or not an id — `SPLIT_PARTICIPANT_NOT_ON_CYCLE`; the same one twice `SPLIT_PARTICIPANT_TWICE`. A cycle that does not exist is a 404. | DECIDED (coded, never a 500) |
+| Locked | Under the cycle's lock, refused once the settlement is approved or paid or the cycle closed (`FUNDING_LOCKED_AFTER_SETTLEMENT`, `assertFundingOpen`). | DECIDED (owner 2026-10-18) |
+| All or nothing | One transaction: a refusal, or a failure halfway through the writes, leaves every participant as it was. | DECIDED (owner: "all or none") |
+| Saving the same split again | Only rows whose percentage changes are written, so the second save changes nothing — and a draft settlement calculated in between stays approvable (`fundingChangedSince` reads the rows' `updatedAt`). One audit row (`UPDATE_PROFIT_SPLIT`, before/after) per save that changed anything. | GUESS |
+| Who | Core partners (`@Roles('CORE_PARTNER')`, `cycle.saveSplit` in the office's permissions). | DECIDED |
+| The participant PUT | `PUT /cycles/participants/:id` still accepts one participant's `customProfitPct` (an e2e invariant and older callers use it); settling still refuses what it leaves partial. The office no longer calls it for the split. | OPEN — narrow it once nothing else sends a % |
 
 ## 9. The ledger
 
