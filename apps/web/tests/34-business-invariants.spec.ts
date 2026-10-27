@@ -2365,6 +2365,42 @@ test.describe('Samples are not on the shelf and not sold (§4, samples at shops,
     expect(s.shelf + s.atShops + c.sold()).toBe(10);
   });
 
+  // Samples into the current order (§4, owner 2026-10-27). Written, not run.
+  test('TC-INV-75b: a sale that buys samples into it moves their units, never a second time and never from another shop — shelf + at shops + sold = received throughout', async ({ request }) => {
+    const c = await shelfCycle(request, 'Inv Smp Into');
+    const samples = await c.leave(3);
+    const sale = async (quantity: number, customerId = c.customer.id) => {
+      const res = await request.post(`${API}/sales/orders`, {
+        headers: c.headers,
+        data: {
+          customerId, channel: 'B2B', currency: 'EGP', confirm: true,
+          items: [{ productId: c.product.id, quantity, unitPrice: 50, discount: 0, fromSamplesOrderId: samples.id }],
+        },
+      });
+      return { status: res.status(), code: res.ok() ? null : await errCode(res) };
+    };
+    // Another shop cannot buy this shop's samples.
+    const other = await c.mk('customers', { displayName: `Inv Smp Into Other ${Date.now()}`, type: 'B2B' });
+    const theirs = await sale(1, other.id);
+    expect(theirs.status).toBe(400);
+    expect(theirs.code).toBe('SAMPLES_OTHER_SHOP');
+    // Two of the three: no second draw from the shelf.
+    expect((await sale(2)).status).toBe(201);
+    let s = await c.stock();
+    expect(s).toEqual({ shelf: 7, atShops: 1, all: 8 });
+    expect(c.sold()).toBe(2);
+    // The last one and one more: the more comes from the shelf, the order closes.
+    expect((await sale(2)).status).toBe(201);
+    s = await c.stock();
+    expect(s).toEqual({ shelf: 6, atShops: 0, all: 6 });
+    expect(c.sold()).toBe(4);
+    expect(s.shelf + s.atShops + c.sold()).toBe(10);
+    // Nothing left to buy from it.
+    const again = await sale(1);
+    expect(again.status).toBe(400);
+    expect(again.code).toBe('SAMPLES_ALREADY_DECIDED');
+  });
+
   test('TC-INV-76: samples written off cost their own cycle exactly their landed cost — in its settlement and in the P&L — and write no ledger row', async ({ request }) => {
     const c = await shelfCycle(request, 'Inv Smp WO');
     const other = await shelfCycle(request, 'Inv Smp WO Other');

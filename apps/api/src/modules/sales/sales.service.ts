@@ -67,7 +67,11 @@ import {
 import {
   daysAtShop,
   isSamplesStatus,
+  planSampleLines,
   planSamplesConversion,
+  type SaleLineSource,
+  type SampleDraw,
+  SAMPLES_BOUGHT_STATUS,
   samplesReminderDay,
   samplesRemindersDue,
   SAMPLES_OPEN_STATUS,
@@ -95,6 +99,14 @@ export interface CreateSaleOrderInput {
     quantity: number;
     unitPrice: number;
     discount?: number;
+    /**
+     * Bought from samples this shop holds (BUSINESS_LOGIC §4, "Samples into
+     * the current order", owner 2026-10-27): the open samples order the
+     * units are at. On confirm they move into this line at the cost they left
+     * at; more than the sample is drawn from the shelf, fewer leaves the rest
+     * a sample. Must be this shop's, still open, and hold the product.
+     */
+    fromSamplesOrderId?: string | null;
   }[];
   /** Create and confirm in one transaction (BUSINESS_LOGIC §4, 2026-10-10). */
   confirm?: boolean;
@@ -138,6 +150,14 @@ export interface SamplesConversionInput {
   currency?: string;
   orderedOn?: string;
   items: CreateSaleOrderInput['items'];
+  /**
+   * The products whose units the shop is not buying but keeps on trial (§4,
+   * owner 2026-10-27: "Keep as sample", the popup's default for a removed or
+   * lowered line). Their units not on the sale stay at the shop on this
+   * samples order; every other unit not on the sale goes back to the shelf,
+   * as before. Left out, nothing stays.
+   */
+  keepAsSample?: string[];
 }
 
 /** What the price check is asked: the lines as they stand on a form. */
@@ -290,6 +310,7 @@ function saleLines(items: CreateSaleOrderInput['items']) {
       unitPrice: item.unitPrice,
       discount: centsToDecimalString(line.discountCents),
       lineTotal: centsToDecimalString(line.lineTotalCents),
+      fromSamplesOrderId: item.fromSamplesOrderId ?? null,
     };
   });
   return { itemsData, subtotal: centsToDecimalString(totals.subtotalCents) };
@@ -313,6 +334,8 @@ export function samplesSummary(
     items?: { quantity: Prisma.Decimal.Value }[];
   },
   now = new Date(),
+  /** The sales its units went into, when the caller read them (§4, owner 2026-10-27). */
+  soldInto: { id: string; orderNo: string }[] = [],
 ) {
   if (!order.samplesLeftAt) return null;
   const open = order.status === SAMPLES_OPEN_STATUS;
@@ -328,6 +351,7 @@ export function samplesSummary(
     reminderOn: samplesReminderDay(order.samplesLeftAt),
     remindedAt: order.samplesRemindedAt ?? null,
     decidedAt: order.samplesDecidedAt ?? null,
+    soldInto,
   };
 }
 
@@ -360,6 +384,61 @@ function notOpenSamples(order: {
     { order: order.orderNo },
   );
 }
+
+/** A sale from samples is to the shop they were left with (§4). */
+function samplesOtherShop(orderNo: string, shop: string) {
+  return badRequest(
+    'SAMPLES_OTHER_SHOP',
+    `The samples on ${orderNo} were left with ${shop}; the sale from them is to ${shop}.`,
+    { order: orderNo, shop },
+  );
+}
+
+/** A sale from samples cannot be dated before they were left (§4). */
+function samplesSaleBeforeLeft(orderNo: string, leftOn: string, day: string) {
+  return badRequest(
+    'SAMPLES_SALE_BEFORE_LEFT',
+    `The samples on ${orderNo} were left on ${leftOn}, so the sale cannot be dated ${day}.`,
+    { order: orderNo, left: leftOn, day },
+  );
+}
+
+/**
+ * An open samples order's draws, oldest batch first within each product
+ * across every line of it — the order FIFO drew them in, and the order the
+ * units are taken in when the shop buys (§4).
+ */
+function sampleDrawsOf(order: {
+  items: {
+    productId: string;
+    allocations: {
+      inventoryBatchId: string;
+      qty: Prisma.Decimal.Value;
+      unitCostEgp: Prisma.Decimal.Value;
+      inventoryBatch: { createdAt: Date };
+    }[];
+  }[];
+}): SampleDraw[] {
+  return order.items
+    .flatMap((i) =>
+      i.allocations.map((a) => ({
+        productId: i.productId,
+        batchId: a.inventoryBatchId,
+        qty: a.qty,
+        unitCostEgp: a.unitCostEgp,
+        receivedAt: a.inventoryBatch.createdAt.getTime(),
+      })),
+    )
+    .filter((d) => new Prisma.Decimal(d.qty).gt(0))
+    .sort(
+      (a, b) =>
+        a.receivedAt - b.receivedAt || a.batchId.localeCompare(b.batchId),
+    )
+    .map(({ receivedAt: _receivedAt, ...d }) => d);
+}
+
+/** What an audit row is written from. */
+type AuditEntry = Parameters<AuditService['log']>[0];
 
 @Injectable()
 export class SalesService {
@@ -535,6 +614,8 @@ export class SalesService {
                 },
               },
             },
+            // The line's "from sample ORD-…" tag (§4, owner 2026-10-27).
+            fromSamplesOrder: { select: { id: true, orderNo: true } },
             ...VALUE_NOW_ITEM_INCLUDE,
           },
         },
@@ -543,6 +624,18 @@ export class SalesService {
       },
     });
     if (!order) throw notFound('saleOrder');
+    // The sales that bought units of a samples order (§4, owner 2026-10-27):
+    // a draft has taken nothing yet, a cancelled sale never happened.
+    const soldInto = order.samplesLeftAt
+      ? await this.prisma.saleOrder.findMany({
+          where: {
+            items: { some: { fromSamplesOrderId: order.id } },
+            status: { notIn: ['DRAFT', 'CANCELLED'] },
+          },
+          select: { id: true, orderNo: true },
+          orderBy: { orderNo: 'asc' },
+        })
+      : [];
     // Whether the sale has its instalment plan (§7, 2026-10-16), so the
     // popup's Contract button opens the contract instead of a new plan. A
     // cancelled plan has let go of the sale.
@@ -553,7 +646,7 @@ export class SalesService {
       data: {
         ...withValueNow(rest),
         contractPlan,
-        samples: samplesSummary(order),
+        samples: samplesSummary(order, new Date(), soldInto),
       },
     };
   }
@@ -893,7 +986,7 @@ export class SalesService {
       entityId: outcome.order.id,
       afterJson: outcome.order,
     });
-    await this.audit.log(outcome.confirmed.audit);
+    await this.logConfirmed(outcome.confirmed);
     await notifyLowStock(
       this.prisma,
       this.notifications,
@@ -1040,7 +1133,7 @@ export class SalesService {
       entityId: outcome.order.id,
       afterJson: { ...outcome.order, walkIn: true },
     });
-    await this.audit.log(outcome.confirmed.audit);
+    await this.logConfirmed(outcome.confirmed);
     if (outcome.paid) await this.payments.logRecorded(outcome.paid, actorId);
     await notifyLowStock(
       this.prisma,
@@ -1170,10 +1263,21 @@ export class SalesService {
 
     await this.checkLines(db, data.items);
 
+    // Lines bought from samples the shop holds (§4, owner 2026-10-27): each
+    // checked against its samples order now — a draft is checked too — and
+    // only what they need beyond the samples is asked of the shelf.
+    const fromSamples = await this.sampleSources(db, data.items, {
+      customerId: customer.id,
+      day,
+      samples,
+      lock: false,
+    });
+
     // You cannot sell what is not there — and you should be told now, not at
     // the end. Only confirming checked this, so an order for 600 against 60 in
     // stock was built, priced and saved before anything objected.
-    for (const [productId, wanted] of wantedPerProduct) {
+    for (const [productId, wanted] of fromSamples?.plan.shelf ??
+      wantedPerProduct) {
       const available = await availableFor(productId);
       if (wanted.gt(available)) {
         const product = await db.product.findUnique({
@@ -1401,12 +1505,21 @@ export class SalesService {
     // connection there is — an audit write from inside waits for one that
     // cannot arrive until the transaction ends, and the transaction cannot
     // end until it returns. P2028 at exactly the ceiling, every time.
-    await this.audit.log(outcome.audit);
+    await this.logConfirmed(outcome);
     // Likewise after the commit: an alert for stock that never left would
     // send somebody to reorder what is still on the shelf.
     await notifyLowStock(this.prisma, this.notifications, outcome.lowStock);
     await this.announceSale(id, actorId);
     return { data: outcome.data };
+  }
+
+  /** A confirm's audit rows, after the commit: the sale's, and each samples order's it took from. */
+  private async logConfirmed(confirmed: {
+    audit: AuditEntry;
+    samplesAudits: AuditEntry[];
+  }) {
+    await this.audit.log(confirmed.audit);
+    for (const row of confirmed.samplesAudits) await this.audit.log(row);
   }
 
   /**
@@ -1462,15 +1575,41 @@ export class SalesService {
         'Version conflict — order was modified',
       );
 
+    // Lines bought from samples the shop holds (§4, owner 2026-10-27): the
+    // samples orders are held, checked again as they stand now — another sale
+    // may have taken their units since this one was opened or saved as a
+    // draft — and their units move into this sale, at the cost they left at.
+    const fromSamples = await this.sampleSources(tx, order.items, {
+      customerId: order.customerId,
+      day: businessDay(order.orderedAt),
+      lock: true,
+    });
+    const kept = fromSamples
+      ? await this.moveSamplesInto(tx, order, fromSamples, actorId)
+      : null;
+
     // A sale dated before the day it was entered draws only what had been
     // received by the end of its own day (§4, 2026-10-16); any other sale
-    // draws the whole shelf, as before.
-    const { allocations, totalCogs, lowStock } = await this.drawFifo(
+    // draws the whole shelf, as before. Only what the samples did not cover.
+    const drawn = await this.drawFifo(
       tx,
-      order,
+      {
+        ...order,
+        items: fromSamples
+          ? order.items
+              .map((item, i) => ({
+                ...item,
+                quantity: fromSamples.plan.lines[i].fromShelf,
+              }))
+              .filter((item) => item.quantity.gt(0))
+          : order.items,
+      },
       actorId,
       { movementType: 'SALE', referenceType: 'SALE_ORDER' },
     );
+    const allocations = [...(kept?.allocations ?? []), ...drawn.allocations];
+    const totalCogs = drawn.totalCogs.add(kept?.cogs ?? 0);
+    const lowStock = drawn.lowStock;
 
     // Update order status
     const updatedOrder = await tx.saleOrder.update({
@@ -1500,6 +1639,8 @@ export class SalesService {
         beforeJson: { status: 'DRAFT' },
         afterJson: { status: 'CONFIRMED', cogs: Number(totalCogs) },
       },
+      /** What each samples order gave this sale, for its own history. */
+      samplesAudits: kept?.audits ?? [],
       lowStock,
       data: {
         ...updatedOrder,
@@ -1724,7 +1865,23 @@ export class SalesService {
    */
   private async claimOpenSamples(tx: Db, id: string) {
     if (!isUuid(id)) throw notFound('saleOrder');
-    const order = await tx.saleOrder.findUnique({
+    // The claim comes first: its row lock makes a second decision wait for
+    // this one, and the read after it sees what the first one left — a sale
+    // that took some of the units leaves the order open (§4, owner
+    // 2026-10-27), so the status alone would not stop a stale read.
+    const claimed = await tx.saleOrder.updateMany({
+      where: { id, status: SAMPLES_OPEN_STATUS },
+      data: { version: { increment: 1 } },
+    });
+    const order = await this.readOpenSamples(tx, id);
+    if (claimed.count === 0) throw notOpenSamples(order);
+    return order;
+  }
+
+  /** An open samples order with its lines and draws, oldest batch first; refused once it is not open. */
+  private async readOpenSamples(db: Db, id: string) {
+    if (!isUuid(id)) throw notFound('saleOrder');
+    const order = await db.saleOrder.findUnique({
       where: { id },
       include: {
         customer: { select: { displayName: true } },
@@ -1741,11 +1898,6 @@ export class SalesService {
     });
     if (!order) throw notFound('saleOrder');
     if (order.status !== SAMPLES_OPEN_STATUS) throw notOpenSamples(order);
-    const claimed = await tx.saleOrder.updateMany({
-      where: { id, status: SAMPLES_OPEN_STATUS },
-      data: { version: { increment: 1 } },
-    });
-    if (claimed.count === 0) throw notOpenSamples(order);
     // A line's draws, oldest batch first — the order FIFO drew them in.
     for (const item of order.items) {
       item.allocations.sort(
@@ -1756,6 +1908,240 @@ export class SalesService {
       );
     }
     return order;
+  }
+
+  // ─── Samples into the current order (§4, owner 2026-10-27) ───────────
+
+  /**
+   * The samples orders a sale's lines are bought from, each checked, and the
+   * plan of which units come from them (`planSampleLines`). Null when no line
+   * names one. The one check, asked when a draft or a sale is saved and again
+   * when it is confirmed — then holding each samples order (`lock`), so two
+   * sales cannot take the same units: the second waits, and reads what the
+   * first left.
+   *
+   * Refused, coded: a samples line on samples (`VALIDATION_FAILED`); an id
+   * that is not an order (404); an order that never was samples
+   * (`NOT_SAMPLES`) or is no longer at the shop — returned, written off,
+   * bought (`SAMPLES_ALREADY_DECIDED`); another shop's (`SAMPLES_OTHER_SHOP`);
+   * a product it holds none of, or none any more (`SAMPLES_PRODUCT_NOT_OUT`);
+   * a sale dated before they were left (`SAMPLES_SALE_BEFORE_LEFT`).
+   */
+  private async sampleSources(
+    db: Db,
+    items: readonly SaleLineSource[],
+    ctx: { customerId: string; day: string; samples?: boolean; lock: boolean },
+  ) {
+    const named = items
+      .map((i) => i?.fromSamplesOrderId)
+      .filter((id) => id !== undefined && id !== null);
+    if (named.length === 0) return null;
+    if (ctx.samples) {
+      throw refuseShape(
+        'items.fromSamplesOrderId',
+        'Samples are left from the shelf, not from other samples.',
+      );
+    }
+    if (named.some((id) => typeof id !== 'string' || !isUuid(id))) {
+      throw refuseShape(
+        'items.fromSamplesOrderId',
+        'fromSamplesOrderId must be the id of a samples order.',
+      );
+    }
+    const sources = new Map<
+      string,
+      Awaited<ReturnType<SalesService['readOpenSamples']>>
+    >();
+    // Always in the same order, so two sales holding the same two samples
+    // orders never wait on each other.
+    for (const id of [...new Set(named)].sort()) {
+      const order = ctx.lock
+        ? await this.claimOpenSamples(db, id)
+        : await this.readOpenSamples(db, id);
+      if (order.customerId !== ctx.customerId) {
+        throw samplesOtherShop(order.orderNo, order.customer.displayName);
+      }
+      const leftOn = businessDay(order.samplesLeftAt ?? order.orderedAt);
+      if (ctx.day < leftOn) {
+        throw samplesSaleBeforeLeft(order.orderNo, leftOn, ctx.day);
+      }
+      for (const productId of new Set(
+        items.filter((i) => i.fromSamplesOrderId === id).map((i) => i.productId),
+      )) {
+        const out = order.items
+          .filter((i) => i.productId === productId)
+          .flatMap((i) => i.allocations)
+          .reduce((s, a) => s.add(a.qty), new Prisma.Decimal(0));
+        if (out.gt(0)) continue;
+        const product = await db.product.findUnique({
+          where: { id: productId },
+          select: { name: true },
+        });
+        const name = product?.name ?? 'that product';
+        throw badRequest(
+          'SAMPLES_PRODUCT_NOT_OUT',
+          `${order.orderNo} holds no ${name} as a sample any more, so this line cannot be bought from it.`,
+          { order: order.orderNo, product: name },
+        );
+      }
+      sources.set(id, order);
+    }
+    const plan = planSampleLines(
+      items,
+      new Map([...sources].map(([id, o]) => [id, sampleDrawsOf(o)])),
+    );
+    return { sources, plan };
+  }
+
+  /**
+   * Move the samples' units into a sale being confirmed: per line, the units
+   * the plan takes from its samples order get an allocation on the sale's
+   * line at the batch and cost they left at — no stock moves, they are
+   * already off the shelf (`SAMPLE_OUT`) — and leave the samples order. A
+   * samples order with nothing left closes as bought (`SAMPLES_BOUGHT`);
+   * one with units left stays open, its day left and reminder kept.
+   */
+  private async moveSamplesInto(
+    tx: Db,
+    sale: {
+      id: string;
+      orderNo: string;
+      items: { id: string; productId: string; fromSamplesOrderId: string | null }[];
+    },
+    from: NonNullable<Awaited<ReturnType<SalesService['sampleSources']>>>,
+    actorId: string,
+  ) {
+    const allocations: unknown[] = [];
+    let cogs = new Prisma.Decimal(0);
+    const moved = new Map<string, Map<string, Prisma.Decimal>>();
+    for (const [i, item] of sale.items.entries()) {
+      for (const k of from.plan.lines[i].fromSamples) {
+        const source = from.sources.get(item.fromSamplesOrderId!)!;
+        await this.takeFromSamples(tx, source, item.productId, k.batchId, k.qty);
+        allocations.push(
+          await tx.saleItemAllocation.create({
+            data: {
+              saleItemId: item.id,
+              inventoryBatchId: k.batchId,
+              qty: k.qty,
+              unitCostEgp: k.unitCostEgp,
+              cogsEgp: k.cogsEgp,
+            },
+          }),
+        );
+        cogs = cogs.add(k.cogsEgp);
+        const perProduct =
+          moved.get(source.id) ?? new Map<string, Prisma.Decimal>();
+        perProduct.set(
+          item.productId,
+          (perProduct.get(item.productId) ?? new Prisma.Decimal(0)).add(k.qty),
+        );
+        moved.set(source.id, perProduct);
+      }
+    }
+    const audits: AuditEntry[] = [];
+    for (const source of from.sources.values()) {
+      const status = await this.settleSamplesLeft(tx, source);
+      audits.push({
+        actorUserId: actorId,
+        action: 'SAMPLES_INTO_SALE',
+        entityType: 'SaleOrder',
+        entityId: source.id,
+        beforeJson: { status: SAMPLES_OPEN_STATUS },
+        afterJson: {
+          status,
+          sale: { id: sale.id, orderNo: sale.orderNo },
+          lines: [...(moved.get(source.id) ?? new Map())].map(
+            ([productId, qty]: [string, Prisma.Decimal]) => ({
+              productId,
+              quantity: Number(qty),
+            }),
+          ),
+        },
+      });
+    }
+    return { allocations, cogs, audits };
+  }
+
+  /**
+   * Take `qty` units of one batch off a samples order's draws of a product,
+   * oldest line first: the draw is cut, or removed once empty. The order read
+   * in memory is cut with it, so a later line of the same sale sees what is
+   * left; `settleSamplesLeft` writes the lines.
+   */
+  private async takeFromSamples(
+    tx: Db,
+    source: Awaited<ReturnType<SalesService['readOpenSamples']>>,
+    productId: string,
+    batchId: string,
+    qty: Prisma.Decimal,
+  ) {
+    let left = qty;
+    for (const item of source.items) {
+      if (item.productId !== productId) continue;
+      for (const a of item.allocations) {
+        if (!left.gt(0)) break;
+        const have = new Prisma.Decimal(a.qty);
+        if (a.inventoryBatchId !== batchId || !have.gt(0)) continue;
+        const take = Prisma.Decimal.min(have, left);
+        const rest = have.sub(take);
+        if (rest.gt(0)) {
+          await tx.saleItemAllocation.update({
+            where: { id: a.id },
+            data: {
+              qty: rest,
+              cogsEgp: rest.mul(a.unitCostEgp).toDecimalPlaces(2),
+            },
+          });
+        } else {
+          await tx.saleItemAllocation.delete({ where: { id: a.id } });
+        }
+        a.qty = rest;
+        item.quantity = new Prisma.Decimal(item.quantity).sub(take);
+        left = left.sub(take);
+      }
+    }
+    if (left.gt(0)) {
+      // The plan takes at most what the draws hold; reaching here means the
+      // order changed under a held row, which the claim does not allow.
+      throw new Error('Samples draws hold fewer units than are being taken.');
+    }
+  }
+
+  /**
+   * Write a samples order's lines as they stand after units were taken off
+   * it: each line holds what its draws still hold, an empty line goes, and an
+   * order with no line left closes as bought. Returns the status it ends in.
+   */
+  private async settleSamplesLeft(
+    tx: Db,
+    source: Awaited<ReturnType<SalesService['readOpenSamples']>>,
+  ) {
+    let left = 0;
+    for (const item of source.items) {
+      const qty = item.allocations.reduce(
+        (s, a) => s.add(a.qty),
+        new Prisma.Decimal(0),
+      );
+      if (qty.gt(0)) {
+        left += 1;
+        await tx.saleItem.update({
+          where: { id: item.id },
+          data: { quantity: qty },
+        });
+      } else {
+        await tx.saleItem.delete({ where: { id: item.id } });
+      }
+    }
+    source.items = source.items.filter((i) =>
+      i.allocations.some((a) => new Prisma.Decimal(a.qty).gt(0)),
+    );
+    if (left > 0) return SAMPLES_OPEN_STATUS;
+    await tx.saleOrder.update({
+      where: { id: source.id },
+      data: { status: SAMPLES_BOUGHT_STATUS, samplesDecidedAt: new Date() },
+    });
+    return SAMPLES_BOUGHT_STATUS;
   }
 
   /** Put units back on the shelf of the batch they left, and say so. */
@@ -1807,11 +2193,55 @@ export class SalesService {
    * Nothing on the sale at all is refused with `SAMPLES_NOTHING_KEPT`, which
    * points at "Returned": saving a sale should never quietly record a return.
    * All in one transaction, or none of it.
+   *
+   * **Keep as sample** (owner 2026-10-27): units not on the sale of a product
+   * in `keepAsSample` stay at the shop. Then the order cannot become the sale
+   * — it still holds samples — so the sale is a new order, made exactly as
+   * New Order makes one from samples (its lines of the samples' products
+   * bought from this order, `moveSamplesInto`), and the units neither bought
+   * nor kept go back to the shelf first. The samples order stays open with
+   * what is kept (day left and reminder unchanged). GUESS: with nothing kept,
+   * it converts in place as before. A retry with the same `Idempotency-Key`
+   * answers with the sale already made.
    */
   async convertSamples(
     id: string,
     body: SamplesConversionInput,
     actorId: string,
+    idempotencyKey?: string,
+  ) {
+    const key = idempotencyKey?.trim() || undefined;
+    if (key) {
+      const existing = await this.findByKey(actorId, key);
+      if (existing) return existing;
+    }
+    const keep: unknown = body?.keepAsSample;
+    if (
+      keep !== undefined &&
+      (!Array.isArray(keep) || keep.some((p) => typeof p !== 'string'))
+    ) {
+      throw refuseShape('keepAsSample', 'keepAsSample must be product ids.');
+    }
+    // A new order number can lose a race, as on any new sale (`create`).
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.convertSamplesOnce(id, body, actorId, key);
+      } catch (e) {
+        if (!isUniqueViolation(e)) throw e;
+        if (key) {
+          const existing = await this.findByKey(actorId, key);
+          if (existing) return existing;
+        }
+        if (attempt >= ORDER_NUMBER_ATTEMPTS) throw e;
+      }
+    }
+  }
+
+  private async convertSamplesOnce(
+    id: string,
+    body: SamplesConversionInput,
+    actorId: string,
+    idempotencyKey: string | undefined,
   ) {
     const outcome = await this.prisma.$transaction(async (tx) => {
       const order = await this.claimOpenSamples(tx, id);
@@ -1822,11 +2252,7 @@ export class SalesService {
         body.customerId !== null &&
         body.customerId !== order.customerId
       ) {
-        throw badRequest(
-          'SAMPLES_OTHER_SHOP',
-          `The samples on ${order.orderNo} were left with ${shop}; the sale from them is to ${shop}.`,
-          { order: order.orderNo, shop },
-        );
+        throw samplesOtherShop(order.orderNo, shop);
       }
       if (!Array.isArray(body?.items) || body.items.length === 0) {
         throw badRequest(
@@ -1845,33 +2271,22 @@ export class SalesService {
       // never one that has not come, and never before the samples were left.
       const day = chosenDay(body.orderedOn, 'SALE_MADE');
       const leftOn = businessDay(order.samplesLeftAt ?? order.orderedAt);
-      if (day < leftOn) {
-        throw badRequest(
-          'SAMPLES_SALE_BEFORE_LEFT',
-          `The samples on ${order.orderNo} were left on ${leftOn}, so the sale cannot be dated ${day}.`,
-          { order: order.orderNo, left: leftOn, day },
-        );
-      }
+      if (day < leftOn) throw samplesSaleBeforeLeft(order.orderNo, leftOn, day);
       const cutoff = receivedCutoff(day);
 
-      await this.checkLines(tx, body.items);
-      const { itemsData, subtotal } = saleLines(body.items);
+      // The lines are this order's own: a tag naming a samples order is New
+      // Order's, and here every sample product's line is bought from this one.
+      const items = body.items.map((item) => ({
+        productId: item?.productId,
+        quantity: item?.quantity,
+        unitPrice: item?.unitPrice,
+        discount: item?.discount,
+      }));
+      await this.checkLines(tx, items);
+      const { itemsData, subtotal } = saleLines(items);
 
-      const draws = order.items.flatMap((i) =>
-        i.allocations.map((a) => ({
-          productId: i.productId,
-          batchId: a.inventoryBatchId,
-          qty: a.qty,
-          unitCostEgp: a.unitCostEgp,
-          receivedAt: a.inventoryBatch.createdAt.getTime(),
-        })),
-      );
       // Oldest batch first within each product, across every line of it.
-      draws.sort(
-        (a, b) =>
-          a.receivedAt - b.receivedAt || a.batchId.localeCompare(b.batchId),
-      );
-      const plan = planSamplesConversion(draws, body.items);
+      const plan = planSamplesConversion(sampleDrawsOf(order), items);
 
       // More than went out comes from the shelf of the sale's day — and the
       // shelf must have it, said before anything moves.
@@ -1906,6 +2321,24 @@ export class SalesService {
           );
         }
         throw notEnoughStock(name, available, p.extra, day, cutoff);
+      }
+
+      // Kept as samples (owner 2026-10-27): the order stays samples, and the
+      // sale is a new order made from it.
+      const keep = new Set(body.keepAsSample ?? []);
+      if (plan.products.some((p) => keep.has(p.productId) && p.out.gt(p.kept))) {
+        return {
+          kind: 'split' as const,
+          ...(await this.buyPartOfSamples(
+            tx,
+            order,
+            plan,
+            keep,
+            { channel, currency, day, items },
+            actorId,
+            idempotencyKey,
+          )),
+        };
       }
 
       // The samples' lines give way to the sale's: their draws are replaced
@@ -1986,6 +2419,7 @@ export class SalesService {
       });
       const totalCogs = keptCogs.add(drawn?.totalCogs ?? 0);
       return {
+        kind: 'inPlace' as const,
         data: updated,
         lowStock: drawn?.lowStock ?? [],
         audit: {
@@ -2016,11 +2450,117 @@ export class SalesService {
       };
     });
 
+    if (outcome.kind === 'split') {
+      const { created, confirmed, returned, samplesOrder } = outcome;
+      await this.audit.log({
+        actorUserId: actorId,
+        action: 'CREATE',
+        entityType: 'SaleOrder',
+        entityId: created.id,
+        afterJson: created,
+      });
+      await this.logConfirmed(confirmed);
+      if (returned) await this.audit.log(returned);
+      await notifyLowStock(this.prisma, this.notifications, confirmed.lowStock);
+      await this.announceSale(created.id, actorId);
+      return {
+        data: {
+          ...confirmed.data,
+          customer: created.customer,
+          samples: null,
+          samplesOrder,
+        },
+      };
+    }
+
     await this.audit.log(outcome.audit);
     await notifyLowStock(this.prisma, this.notifications, outcome.lowStock);
     // Samples bought are a sale from now on (§4).
     await this.announceSale(outcome.data.id, actorId);
     return { data: { ...outcome.data, samples: samplesSummary(outcome.data) } };
+  }
+
+  /**
+   * "They're buying" with some units kept as samples (owner 2026-10-27): the
+   * units neither bought nor kept go back to the shelf (newest first, as
+   * a lowered line's always did), then the sale is made as New Order makes a
+   * sale from samples — `prepareDraft` and `confirmWithin`, every line of a
+   * product that went out on this order bought from it — so the kept units
+   * stay on this order, open.
+   */
+  private async buyPartOfSamples(
+    tx: Db,
+    order: Awaited<ReturnType<SalesService['readOpenSamples']>>,
+    plan: ReturnType<typeof planSamplesConversion>,
+    keep: ReadonlySet<string>,
+    sale: {
+      channel: string;
+      currency: string;
+      day: string;
+      items: CreateSaleOrderInput['items'];
+    },
+    actorId: string,
+    idempotencyKey: string | undefined,
+  ) {
+    const returned: { productId: string; returned: number }[] = [];
+    for (const p of plan.products) {
+      if (keep.has(p.productId) || p.back.length === 0) continue;
+      let units = new Prisma.Decimal(0);
+      for (const b of p.back) {
+        await this.takeFromSamples(tx, order, p.productId, b.batchId, b.qty);
+        await this.sampleBack(tx, order.id, b.batchId, b.qty, actorId);
+        units = units.add(b.qty);
+      }
+      returned.push({ productId: p.productId, returned: Number(units) });
+    }
+    if (returned.length > 0) await this.settleSamplesLeft(tx, order);
+
+    const wentOut = new Set(
+      plan.products.filter((p) => p.out.gt(0)).map((p) => p.productId),
+    );
+    const draft = await this.prepareDraft(
+      tx,
+      {
+        customerId: order.customerId,
+        channel: sale.channel,
+        currency: sale.currency,
+        orderedOn: sale.day,
+        confirm: true,
+        items: sale.items.map((item) =>
+          wentOut.has(item.productId)
+            ? { ...item, fromSamplesOrderId: order.id }
+            : item,
+        ),
+      },
+      actorId,
+      idempotencyKey,
+    );
+    const created = await tx.saleOrder.create({
+      data: draft,
+      include: { items: true, customer: true },
+    });
+    const confirmed = await this.confirmWithin(
+      tx,
+      created.id,
+      actorId,
+      created.version,
+    );
+    return {
+      created,
+      confirmed,
+      samplesOrder: { id: order.id, orderNo: order.orderNo },
+      returned:
+        returned.length > 0
+          ? ({
+              actorUserId: actorId,
+              action: 'SAMPLES_PART_RETURNED',
+              entityType: 'SaleOrder',
+              entityId: order.id,
+              beforeJson: { status: SAMPLES_OPEN_STATUS },
+              afterJson: { status: SAMPLES_OPEN_STATUS, lines: returned },
+            } satisfies AuditEntry)
+          : null,
+    };
   }
 
   /** "Returned": every sample back on the shelf (§4, samples at shops). */

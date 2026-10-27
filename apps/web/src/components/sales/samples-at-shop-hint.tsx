@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { PackageOpen } from '@/components/ui/icons';
+import { Check, PackageOpen, Plus } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { useDateFormat } from '@/lib/dates';
 import { localName } from '@/lib/localized-name';
@@ -44,22 +44,36 @@ export function useSamplesAtShop(customerId: string | undefined, enabled = true)
   });
 }
 
+/** One product a shop holds on one samples order. */
+export type ShopSampleLine = ShopSamplesOrder['lines'][number];
+
 /**
  * The hint above New Order's lines, and under a record_sale preview in the
  * office chat: "This shop holds 1 Helmet as a sample", per open samples
  * order, with the way to that order's "They're buying" — a button in the form
  * (`onOpen`), a link from the chat (`href`). Amber, the colour of "not a sale
- * yet". A hint only: it holds no state the form submits and never disables
- * anything.
+ * yet". It never disables anything.
+ *
+ * In New Order (`onAdd`, owner 2026-10-27, "Samples into the current order")
+ * it is also a list per product with **Add to order**, and **Add all**: the
+ * line it adds is tagged with the samples order and edits like any line; on
+ * confirm the server moves those units into the sale. A product already on
+ * the order reads "Added".
  */
 export function SamplesAtShopHint({
   orders,
   onOpen,
   href,
+  onAdd,
+  onAddAll,
+  isAdded,
 }: {
   orders: ShopSamplesOrder[] | undefined;
   onOpen?: (order: ShopSamplesOrder) => void;
   href?: (order: ShopSamplesOrder) => string;
+  onAdd?: (order: ShopSamplesOrder, line: ShopSampleLine) => void;
+  onAddAll?: () => void;
+  isAdded?: (orderId: string, productId: string) => boolean;
 }) {
   const t = useTranslations('sales.samples');
   const locale = useLocale();
@@ -69,6 +83,9 @@ export function SamplesAtShopHint({
   const list = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' });
   const linkClass =
     'mt-1 inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-accent-900 underline underline-offset-2 hover:text-accent-700 sm:min-h-0';
+  const addClass =
+    'inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-accent-400 bg-background px-3 py-1 text-xs font-medium text-accent-900 hover:bg-accent-100 disabled:cursor-default disabled:border-transparent disabled:bg-transparent disabled:opacity-80 sm:min-h-0';
+  const anyLeft = orders.some((o) => o.lines.some((l) => !isAdded?.(o.id, l.productId)));
 
   return (
     <div
@@ -93,6 +110,39 @@ export function SamplesAtShopHint({
                   date: formatDate(order.leftOn),
                 })}
               </p>
+              {onAdd && (
+                <ul className="mt-1.5 space-y-1.5">
+                  {order.lines.map((l) => {
+                    const added = !!isAdded?.(order.id, l.productId);
+                    return (
+                      <li
+                        key={l.productId}
+                        data-testid="samples-at-shop-line"
+                        data-product-id={l.productId}
+                        className="flex min-w-0 items-center justify-between gap-2"
+                      >
+                        <span className="min-w-0 break-words">
+                          {t('holdsLine', { units: formatNumber(Number(l.units)), product: localName(l, locale) })}
+                        </span>
+                        <button
+                          type="button"
+                          data-testid="samples-at-shop-add"
+                          disabled={added}
+                          onClick={() => onAdd(order, l)}
+                          className={addClass}
+                        >
+                          {added ? (
+                            <Check className="h-3.5 w-3.5" aria-hidden />
+                          ) : (
+                            <Plus className="h-3.5 w-3.5" aria-hidden />
+                          )}
+                          {added ? t('added') : t('addToOrder')}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
               {onOpen ? (
                 <button
                   type="button"
@@ -110,7 +160,13 @@ export function SamplesAtShopHint({
             </div>
           );
         })}
-        <p className="text-xs">{t('holdsHint')}</p>
+        {onAdd && onAddAll && anyLeft && (
+          <button type="button" data-testid="samples-at-shop-add-all" onClick={onAddAll} className={addClass}>
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            {t('addAll')}
+          </button>
+        )}
+        <p className="text-xs">{onAdd ? t('holdsAddHint') : t('holdsHint')}</p>
       </div>
     </div>
   );

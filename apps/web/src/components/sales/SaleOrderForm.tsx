@@ -29,6 +29,7 @@ import { businessToday } from '@/lib/dates';
 import {
   SamplesAtShopHint,
   useSamplesAtShop,
+  type ShopSampleLine,
   type ShopSamplesOrder,
 } from '@/components/sales/samples-at-shop-hint';
 import { useCustomerBranches } from '@/lib/customer-branches';
@@ -70,6 +71,13 @@ interface Line {
    * the product or the channel changes afterwards.
    */
   priceTyped: boolean;
+  /**
+   * Bought from samples the shop holds (§4, "Samples into the current order",
+   * owner 2026-10-27): the samples order and how many of the product it
+   * holds. Sent as `fromSamplesOrderId`; on confirm the server moves those
+   * units into this line. Gone when the product is changed or the shop is.
+   */
+  fromSamples?: { orderId: string; orderNo: string; units: number };
 }
 
 /**
@@ -146,6 +154,26 @@ export function outOnSamples(source: SamplesSource | undefined, productId: strin
 }
 
 /**
+ * "They're buying" (§4, owner 2026-10-27): each product that went out and is
+ * not all on the sale — removed, or lowered — with the units not bought. The
+ * popup asks of each: keep as sample (the default) or returned.
+ */
+export function notBought(
+  source: SamplesSource | undefined,
+  lines: { productId: string; quantity: number }[],
+): { productId: string; units: number }[] {
+  const products = [...new Set((source?.items ?? []).map((i) => i.productId))];
+  return products
+    .map((productId) => ({
+      productId,
+      units:
+        outOnSamples(source, productId) -
+        lines.filter((l) => l.productId === productId).reduce((s, l) => s + (Number(l.quantity) || 0), 0),
+    }))
+    .filter((p) => p.units > 0);
+}
+
+/**
  * One key per opened form. `crypto.randomUUID` only exists in a secure
  * context, and the office opens the dev server over the LAN by IP, so it has
  * a fallback — uniqueness per person and per minute is all the server needs.
@@ -197,6 +225,14 @@ function newIdempotencyKey(): string {
  * samples out shows what it holds above the lines, with a link to that samples
  * order's "They're buying" (`onOpenSamples`). A hint only — a separate
  * purchase while a sample is on trial is valid, so nothing is blocked.
+ *
+ * **Samples into the current order** (§4, owner 2026-10-27): the hint lists
+ * each product with **Add to order** (and **Add all**). The line it adds is
+ * tagged "From sample ORD-…" and edits like any line; on confirm the server
+ * moves the sample's units into it (more takes the rest from the shelf, fewer
+ * leaves the rest a sample). Another shop, walk-in or leaving samples drops
+ * those lines. In "They're buying", each product removed or lowered asks
+ * **Keep as sample** (the default) or **Returned**.
  *
  * Required pickers are checked the way `ValidatedForm` checks them — the
  * constraint API, so each empty picker shows its own "Required" and the first
@@ -300,10 +336,31 @@ export function SaleOrderForm({
    * completing samples — the units of it out on that order, which the sale
    * keeps first.
    */
-  const stockFor = (productId: string): number => {
+  const stockFor = (productId: string, line?: Line): number => {
     const row = stock.find((r) => r.productId === productId);
-    return (row ? Number(row.availableStock ?? 0) : 0) + outOnSamples(fromSamples, productId);
+    // A line bought from a sample the shop holds has those units too (§4,
+    // owner 2026-10-27): they are not on the shelf, they are at the shop.
+    const atShop = line?.fromSamples && line.productId === productId ? line.fromSamples.units : 0;
+    return (row ? Number(row.availableStock ?? 0) : 0) + outOnSamples(fromSamples, productId) + atShop;
   };
+
+  /**
+   * "They're buying" (§4, owner 2026-10-27): the products not all on the
+   * sale, and which of them the partner marked Returned. Everything else not
+   * bought stays a sample at the shop — the default.
+   */
+  const [returnedProducts, setReturnedProducts] = useState<string[]>([]);
+
+  /**
+   * Lines bought from samples belong to the shop that holds them: a switch to
+   * another shop, to walk-in, or to leaving samples takes them off the order
+   * (the second visit — CLAUDE.md §0). A line typed by hand stays.
+   */
+  const dropSampleLines = () =>
+    setLines((prev) => {
+      const rest = prev.filter((l) => !l.fromSamples);
+      return rest.length === prev.length ? prev : rest.length ? rest : [emptyLine()];
+    });
 
   /**
    * The product's price for a channel — the one set, else the default landed +
@@ -337,7 +394,11 @@ export function SaleOrderForm({
   const onCustomerChange = (id: string, record?: { type?: string }) => {
     // The last customer's branch goes with them, now — not when the next
     // customer's branches arrive.
-    if (id !== customerId) setPickedBranch(null);
+    if (id !== customerId) {
+      setPickedBranch(null);
+      // The last shop's samples are not this one's to sell.
+      dropSampleLines();
+    }
     setCustomerId(id);
     const type = record?.type === 'B2B' || record?.type === 'B2C' ? record.type : channelOf(id);
     if (type) applyChannel(type);
@@ -348,6 +409,8 @@ export function SaleOrderForm({
     if (!walkIn) {
       channelBeforeWalkIn.current = channel;
       applyChannel('B2C');
+      // A walk-in holds no samples.
+      dropSampleLines();
     } else {
       applyChannel(channelBeforeWalkIn.current ?? channelOf(customerId) ?? 'B2B');
       channelBeforeWalkIn.current = null;
@@ -360,6 +423,8 @@ export function SaleOrderForm({
   /** Samples on: a shop's order with no charge; walk-in, if it was on, goes off. */
   const toggleSamples = () => {
     if (!samples && walkIn) toggleWalkIn();
+    // Samples are left from the shelf, never from other samples.
+    if (!samples) dropSampleLines();
     setSamples(!samples);
     setRefusal(null);
   };
@@ -376,10 +441,17 @@ export function SaleOrderForm({
   // Samples are not sold, so there is no price to check against cost.
   // Completing samples is not checked either: the units kept are costed at
   // what they left at, which the shelf's FIFO cost the check reads is not.
-  const priceCheck = usePriceCheck(lines, currency, {
-    enabled: !samples && !fromSamples,
-    orderedOn: orderedOn < businessToday() ? orderedOn : undefined,
-  });
+  // A line bought from a sample is not checked either (GUESS, owner
+  // 2026-10-27): its units cost what they left at, not the shelf's FIFO cost —
+  // sent without its product, it is a line the check does not cost.
+  const priceCheck = usePriceCheck(
+    lines.map((l) => (l.fromSamples ? { ...l, productId: '' } : l)),
+    currency,
+    {
+      enabled: !samples && !fromSamples,
+      orderedOn: orderedOn < businessToday() ? orderedOn : undefined,
+    },
+  );
 
   // What the shop already holds as samples (§4, owner 2026-10-25): a hint
   // above the lines, read for the shop on screen — a walk-in has no shop, and
@@ -387,6 +459,37 @@ export function SaleOrderForm({
   // shop's hint never stays behind. Neither button looks at it.
   const samplesAtShop = useSamplesAtShop(customerId, !walkIn && !fromSamples);
   const heldAtShop = !walkIn && !fromSamples ? samplesAtShop.data : undefined;
+
+  /** This sample is on the order already. */
+  const isAdded = (orderId: string, productId: string) =>
+    lines.some((l) => l.fromSamples?.orderId === orderId && l.productId === productId);
+
+  /**
+   * Add to order (§4, owner 2026-10-27): a line of the product, at the units
+   * the shop holds and the channel's price, tagged with its samples order.
+   * It edits like any line. The empty line a new order starts with gives way.
+   */
+  const addFromSample = (order: ShopSamplesOrder, held: ShopSampleLine) => {
+    setLines((prev) => {
+      if (prev.some((l) => l.fromSamples?.orderId === order.id && l.productId === held.productId)) return prev;
+      const units = Number(held.units);
+      const line: Line = {
+        ...emptyLine(),
+        productId: held.productId,
+        quantity: units,
+        unitPrice: priceFor(held.productId, channel) ?? 0,
+        fromSamples: { orderId: order.id, orderNo: order.orderNo, units },
+      };
+      return [...prev.filter((l) => l.productId || l.fromSamples), line];
+    });
+    setRefusal(null);
+  };
+  const addAllSamples = () => {
+    for (const order of heldAtShop ?? []) for (const held of order.lines) addFromSample(order, held);
+  };
+
+  /** "They're buying": the units not on the sale, product by product. */
+  const unbought = fromSamples ? notBought(fromSamples, lines) : [];
 
   // What is still empty, from state — never a snapshot taken at submit.
   const missing = [
@@ -400,7 +503,10 @@ export function SaleOrderForm({
   const mutation = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fromSamples
-        ? api.post(`/sales/orders/${fromSamples.id}/samples/convert`, body)
+        ? api.post(`/sales/orders/${fromSamples.id}/samples/convert`, body, {
+            // Keeping samples makes a new sale: a retry must not make two.
+            headers: { 'Idempotency-Key': idempotencyKey },
+          })
         : api.post('/sales/orders', body, { headers: { 'Idempotency-Key': idempotencyKey } }),
     onSuccess: (res, body) => {
       const order = res.data?.data ?? res.data;
@@ -435,17 +541,27 @@ export function SaleOrderForm({
     submitting.current = true;
     setChecked(false);
     setRefusal(null);
-    const items = lines.map(({ productId, quantity, unitPrice, discount }) => ({
+    const items = lines.map(({ productId, quantity, unitPrice, discount, fromSamples: sample }) => ({
       productId,
       quantity,
       unitPrice,
       discount,
+      // Bought from a sample the shop holds (§4, owner 2026-10-27).
+      ...(sample ? { fromSamplesOrderId: sample.orderId } : {}),
     }));
     mutation.mutate(
       fromSamples
-        ? // Exactly the lines on screen: the server keeps what went out, puts
-          // back what is not here, and draws anything more from the shelf.
-          { customerId, channel, currency, orderedOn, items }
+        ? // Exactly the lines on screen: the server keeps what went out, draws
+          // anything more from the shelf, and of what is not here keeps at
+          // the shop what is marked "Keep as sample" and puts back the rest.
+          {
+            customerId,
+            channel,
+            currency,
+            orderedOn,
+            items,
+            keepAsSample: unbought.map((p) => p.productId).filter((p) => !returnedProducts.includes(p)),
+          }
         : samples
         ? // Left at the shop: a price only where one was typed — it is noted
           // for the decision, nothing is charged — and never a discount.
@@ -695,7 +811,14 @@ export function SaleOrderForm({
         </div>
       </div>
 
-      <SamplesAtShopHint orders={heldAtShop} onOpen={onOpenSamples} />
+      {/* Leaving samples adds nothing from samples: the list is only the hint there. */}
+      <SamplesAtShopHint
+        orders={heldAtShop}
+        onOpen={onOpenSamples}
+        onAdd={samples ? undefined : addFromSample}
+        onAddAll={samples ? undefined : addAllSamples}
+        isAdded={isAdded}
+      />
 
       <div>
         <div className="mb-2 flex items-center justify-between">
@@ -711,7 +834,7 @@ export function SaleOrderForm({
 
         <ul className="space-y-3">
           {lines.map((line, idx) => {
-            const inStock = line.productId ? stockFor(line.productId) : 0;
+            const inStock = line.productId ? stockFor(line.productId, line) : 0;
             const overStock = !!line.productId && line.quantity > inStock;
             const lineTotals = totals.lines[idx];
             const discountTooLarge = lineTotals.discountCents > lineTotals.grossCents;
@@ -746,6 +869,9 @@ export function SaleOrderForm({
                                   unitPrice: l.priceTyped
                                     ? l.unitPrice
                                     : (priceFor(v, channel) ?? l.unitPrice),
+                                  // Another product is not the sample's (GUESS):
+                                  // the line becomes an ordinary one.
+                                  fromSamples: v === l.productId ? l.fromSamples : undefined,
                                 }
                               : l,
                           ),
@@ -756,9 +882,9 @@ export function SaleOrderForm({
                       options={products
                         // Switched off, it is sold from the shelf until the
                         // shelf is empty, then it leaves (§3, owner 2026-10-14).
-                        .filter((p) => isSellable(p, stockFor(p.id)))
+                        .filter((p) => isSellable(p, stockFor(p.id, line)))
                         .map((p) => {
-                        const available = stockFor(p.id);
+                        const available = stockFor(p.id, line);
                         return {
                           value: p.id,
                           label: localName(p, locale),
@@ -772,6 +898,20 @@ export function SaleOrderForm({
                         };
                       })}
                     />
+                    {line.fromSamples && (
+                      <p
+                        data-testid="sale-line-from-sample"
+                        className="mt-1 flex items-center gap-1 text-[11px] font-medium text-accent-900"
+                      >
+                        <PackageOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        <span className="min-w-0">
+                          {t('samples.fromSample', {
+                            orderNo: line.fromSamples.orderNo,
+                            units: formatNumber(line.fromSamples.units),
+                          })}
+                        </span>
+                      </p>
+                    )}
                   </div>
                   <RowAction labelClassName="mb-1 block text-xs">
                     <button
@@ -874,11 +1014,72 @@ export function SaleOrderForm({
                   </span>
                 </div>
                 )}
-                {!samples && <BelowCostLine check={priceCheck?.lines[idx]} />}
+                {!samples && !line.fromSamples && <BelowCostLine check={priceCheck?.lines[idx]} />}
               </li>
             );
           })}
         </ul>
+
+        {/* "They're buying" (§4, owner 2026-10-27): what is removed or lowered
+            stays a sample unless marked Returned. */}
+        {fromSamples && unbought.length > 0 && (
+          <div
+            data-testid="samples-not-bought"
+            className="mt-3 rounded-lg border border-accent-300 bg-accent-50 px-3 py-2.5 text-sm text-accent-900"
+          >
+            <p className="font-medium">{t('samples.notBoughtTitle')}</p>
+            <p className="text-xs">{t('samples.notBoughtHint')}</p>
+            <ul className="mt-2 space-y-2">
+              {unbought.map((p) => {
+                const product = products.find((x) => x.id === p.productId);
+                const back = returnedProducts.includes(p.productId);
+                const choose = (returned: boolean) =>
+                  setReturnedProducts((prev) =>
+                    returned ? [...prev.filter((x) => x !== p.productId), p.productId] : prev.filter((x) => x !== p.productId),
+                  );
+                const name = product ? localName(product, locale) : p.productId;
+                const choice = (on: boolean) =>
+                  `min-h-11 cursor-pointer rounded-md px-3 py-1 text-xs font-medium sm:min-h-0 ${
+                    on ? 'bg-accent-600 text-primary-foreground' : 'text-accent-900 hover:bg-accent-100'
+                  }`;
+                return (
+                  <li
+                    key={p.productId}
+                    data-testid="samples-not-bought-line"
+                    data-product-id={p.productId}
+                    className="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <span className="min-w-0 break-words">
+                      {t('samples.notBoughtLine', { units: formatNumber(p.units), product: name })}
+                    </span>
+                    <span role="radiogroup" aria-label={name} className="inline-flex rounded-lg border border-accent-400 bg-background p-0.5">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={!back}
+                        data-testid="samples-keep"
+                        onClick={() => choose(false)}
+                        className={choice(!back)}
+                      >
+                        {t('samples.keepAsSample')}
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={back}
+                        data-testid="samples-return-line"
+                        onClick={() => choose(true)}
+                        className={choice(back)}
+                      >
+                        {t('samples.returnedChoice')}
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
           <span className="text-sm font-semibold text-foreground">{t('orderTotal')}</span>

@@ -31,6 +31,8 @@ export type HistoryKind =
   | 'CONFIRMED'
   | 'SAMPLES_LEFT'
   | 'SAMPLES_BOUGHT'
+  | 'SAMPLES_INTO_SALE'
+  | 'SAMPLES_PART_RETURNED'
   | 'SAMPLES_RETURNED'
   | 'SAMPLES_WRITTEN_OFF'
   | 'PAYMENT'
@@ -114,6 +116,9 @@ const DOT: Record<HistoryKind, string> = {
   SAMPLES_LEFT: 'bg-accent-500',
   CONFIRMED: 'bg-primary',
   SAMPLES_BOUGHT: 'bg-primary',
+  // Units of a samples order bought in another sale, or some sent back (§4, owner 2026-10-27).
+  SAMPLES_INTO_SALE: 'bg-primary',
+  SAMPLES_PART_RETURNED: 'bg-muted-foreground',
   PAYMENT: 'bg-success',
   REVERSAL: 'bg-destructive',
   RETURN: 'bg-accent-500',

@@ -170,6 +170,7 @@ test.describe('New Order — the shop holds samples (§4, 2026-10-25)', () => {
     const hint = form.getByTestId('samples-at-shop-hint');
     await expect(hint).toContainText('هذا المحل لديه');
     await expect(hint).toContainText(held.orderNo);
-    await expect(hint).toContainText(ar.sales.samples.holdsHint);
+    // New Order lists what can be added (owner 2026-10-27).
+    await expect(hint).toContainText(ar.sales.samples.holdsAddHint);
   });
 });

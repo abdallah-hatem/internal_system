@@ -176,14 +176,15 @@ export class SalesController {
   @HttpCode(200)
   @ApiOperation({
     summary:
-      "They're buying: the samples order becomes a confirmed sale, in place, with exactly these lines (as a new order sends them). Sample units kept come from what went out; units not kept go back to their batches; anything more is drawn from the shelf.",
+      "They're buying: the samples order becomes a confirmed sale, in place, with exactly these lines (as a new order sends them). Sample units kept come from what went out; units not kept go back to their batches; anything more is drawn from the shelf. With `keepAsSample`, units of those products not on the sale stay at the shop and the sale is a new order made from the samples (idempotent via Idempotency-Key header).",
   })
   convertSamples(
     @Param('id') id: string,
     @Body() body: SamplesConversionInput,
     @CurrentUser() user: { id: string },
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.salesService.convertSamples(id, body, user.id);
+    return this.salesService.convertSamples(id, body, user.id, idempotencyKey);
   }
 
   @Post(':id/samples/return')

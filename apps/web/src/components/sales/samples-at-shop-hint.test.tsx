@@ -121,7 +121,7 @@ describe('New Order — the shop holds samples', () => {
     pickShop('Nile Motors');
     await waitFor(() => expect(hint()).not.toBeNull());
     expect(hint()!.textContent).toContain('This shop holds 1 Helmet as a sample (ORD-0012, left');
-    expect(hint()!.textContent).toContain(en.sales.samples.holdsHint);
+    expect(hint()!.textContent).toContain(en.sales.samples.holdsAddHint);
     // Above the lines: the hint comes before the first line in the document.
     const firstLine = screen.getAllByTestId('sale-line')[0];
     expect(hint()!.compareDocumentPosition(firstLine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -228,6 +228,6 @@ describe('New Order — the shop holds samples', () => {
     await waitFor(() => expect(hint()).not.toBeNull());
     expect(hint()!.textContent).toContain('هذا المحل لديه');
     expect(hint()!.textContent).toContain('خوذة');
-    expect(hint()!.textContent).toContain(ar.sales.samples.holdsHint);
+    expect(hint()!.textContent).toContain(ar.sales.samples.holdsAddHint);
   });
 });

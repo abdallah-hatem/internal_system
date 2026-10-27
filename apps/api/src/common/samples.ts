@@ -40,11 +40,20 @@ const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 /** Samples still at the shop. */
 export const SAMPLES_OPEN_STATUS = 'SAMPLES' as const;
 
-/** How a samples order ends, other than by being bought. */
+/**
+ * How a samples order ends while it stays a samples order: every unit back,
+ * written off, or — since 2026-10-27 — every unit gone into other sales
+ * (SAMPLES_BOUGHT, "Samples into the current order"). A samples order bought
+ * in place by "They're buying" becomes a CONFIRMED sale instead.
+ */
 export const SAMPLES_CLOSED_STATUSES = [
   'SAMPLES_RETURNED',
   'SAMPLES_WRITTEN_OFF',
+  'SAMPLES_BOUGHT',
 ] as const;
+
+/** Every unit of the samples order went into other sales (owner 2026-10-27). */
+export const SAMPLES_BOUGHT_STATUS = 'SAMPLES_BOUGHT' as const;
 
 /**
  * Every status a samples order can hold while it is not a sale. None of them
@@ -306,6 +315,84 @@ export function planSamplesConversion(
     return { fromSamples, fromShelf: need };
   });
   return { products, lines: planned };
+}
+
+// ─── Samples into the current order (owner 2026-10-27) ────────────────
+
+/** A sale line as New Order sends it: taken from a samples order at the shop, or not. */
+export interface SaleLineSource {
+  productId: string;
+  quantity: Prisma.Decimal.Value;
+  fromSamplesOrderId?: string | null;
+}
+
+export interface SampleLinesPlan {
+  /** Per sale line, in the order given: its units from the samples, and how many more from the shelf. */
+  lines: { fromSamples: KeptDraw[]; fromShelf: Prisma.Decimal }[];
+  /** Per samples order, per product on the sale: the units the sale takes from it. */
+  taken: Map<string, { productId: string; kept: Prisma.Decimal }[]>;
+  /** Per product: what the whole sale needs from the shelf. */
+  shelf: Map<string, Prisma.Decimal>;
+}
+
+/**
+ * A sale whose lines may come from samples the shop holds (BUSINESS_LOGIC §4,
+ * "Samples into the current order", owner 2026-10-27). Per samples order, the
+ * lines tagged with it are planned exactly as "They're buying" plans a
+ * conversion (`planSamplesConversion`), over that order's draws of the
+ * products on those lines only — its other products are not touched and stay
+ * samples:
+ *
+ * - a line takes the sample's units first, oldest batch first, at the cost
+ *   they left at — no second shelf draw;
+ * - more than the sample holds takes the rest from the shelf (FIFO, by the
+ *   caller);
+ * - fewer leaves the rest at the shop as a sample.
+ *
+ * A line with no samples order is all shelf. `drawsByOrder` holds each
+ * samples order's draws in FIFO order (oldest batch first) within a product.
+ */
+export function planSampleLines(
+  lines: readonly SaleLineSource[],
+  drawsByOrder: ReadonlyMap<string, readonly SampleDraw[]>,
+): SampleLinesPlan {
+  const planned: SampleLinesPlan['lines'] = lines.map((l) => ({
+    fromSamples: [],
+    fromShelf: D(l.quantity),
+  }));
+  const taken: SampleLinesPlan['taken'] = new Map();
+  const orderIds = [
+    ...new Set(
+      lines
+        .map((l) => l.fromSamplesOrderId)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  for (const orderId of orderIds) {
+    const at = lines.flatMap((l, i) =>
+      l.fromSamplesOrderId === orderId ? [i] : [],
+    );
+    const products = new Set(at.map((i) => lines[i].productId));
+    const plan = planSamplesConversion(
+      (drawsByOrder.get(orderId) ?? []).filter((d) =>
+        products.has(d.productId),
+      ),
+      at.map((i) => lines[i]),
+    );
+    at.forEach((lineAt, k) => (planned[lineAt] = plan.lines[k]));
+    taken.set(
+      orderId,
+      plan.products.map((p) => ({ productId: p.productId, kept: p.kept })),
+    );
+  }
+  const shelf = new Map<string, Prisma.Decimal>();
+  lines.forEach((l, i) => {
+    const need = planned[i].fromShelf;
+    if (need.gt(0)) {
+      shelf.set(l.productId, (shelf.get(l.productId) ?? D(0)).add(need));
+    }
+  });
+  return { lines: planned, taken, shelf };
 }
 
 // ─── Settling a cycle with samples out ─────────────────────────────────

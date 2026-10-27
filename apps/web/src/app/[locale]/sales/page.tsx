@@ -98,6 +98,8 @@ interface SaleOrder {
     reminderOn: string;
     remindedAt: string | null;
     decidedAt: string | null;
+    /** The sales its units went into (§4, owner 2026-10-27), from the detail. */
+    soldInto?: { id: string; orderNo: string }[];
   } | null;
 }
 
@@ -116,6 +118,8 @@ interface SaleOrderItem {
   unitPrice: number;
   discount: number;
   lineTotal?: number | string;
+  /** Bought from this samples order (§4, owner 2026-10-27), from the detail. */
+  fromSamplesOrder?: { id: string; orderNo: string } | null;
   /** The line now (§4, 2026-10-22), from the API: units back and held, price and worth now. */
   returnedQty?: string;
   heldQty?: string;
@@ -155,6 +159,8 @@ const STATUS_COLORS: Record<string, string> = {
   SAMPLES: 'bg-accent-100 text-accent-800',
   SAMPLES_RETURNED: 'bg-muted text-muted-foreground',
   SAMPLES_WRITTEN_OFF: 'bg-destructive/10 text-destructive',
+  // Every unit went into other sales (§4, owner 2026-10-27).
+  SAMPLES_BOUGHT: 'bg-muted text-muted-foreground',
 };
 
 const FILTER_TABS = ['all', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled', 'samplesFilter'] as const;
@@ -644,6 +650,11 @@ function SalesPageContent() {
             <ProductLink id={item.productId} name={localName(item.product, locale)} />
           </p>
           <p className="text-xs text-muted-foreground"><LatinText dir="ltr" truncate>{item.product?.sku}</LatinText></p>
+          {item.fromSamplesOrder && (
+            <p data-testid="item-from-sample" className="text-xs text-accent-900">
+              {tsm('fromSampleTag', { orderNo: item.fromSamplesOrder.orderNo })}
+            </p>
+          )}
           <LineHeldNote line={item} />
           <p data-testid="item-phone-figures" className="sm:hidden mt-0.5 text-xs text-muted-foreground tabular-nums">
             <LatinText dir="ltr" className="whitespace-nowrap">
@@ -1523,9 +1534,14 @@ function SalesPageContent() {
 function SamplesPanel({ order }: { order: SaleOrder }) {
   const tsm = useTranslations('sales.samples');
   const t = useTranslations('sales');
+  const locale = useLocale();
   const { formatDate } = useDateFormat();
   const s = order.samples!;
   const shop = order.customer?.isWalkIn ? t('walkInCustomer') : order.customer?.displayName ?? '—';
+  // The sales that bought its units (§4, owner 2026-10-27), as one list.
+  const soldInto = s.soldInto?.length
+    ? new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(s.soldInto.map((o) => o.orderNo))
+    : null;
   if (order.status === 'SAMPLES') {
     return (
       <div
@@ -1541,6 +1557,11 @@ function SamplesPanel({ order }: { order: SaleOrder }) {
           {s.remindedAt ? tsm('reminderSent') : tsm('reminderOn', { date: formatDate(s.reminderOn) })}
         </p>
         <p className="mt-1 text-xs text-accent-900">{tsm('atShopHint')}</p>
+        {soldInto && (
+          <p data-testid="samples-panel-sold-into" className="mt-1 text-xs text-accent-900">
+            {tsm('partSoldInto', { orders: soldInto })}
+          </p>
+        )}
       </div>
     );
   }
@@ -1550,6 +1571,8 @@ function SamplesPanel({ order }: { order: SaleOrder }) {
       ? tsm('returnedDone', { date: decided })
       : order.status === 'SAMPLES_WRITTEN_OFF'
       ? tsm('writtenOffDone', { date: decided })
+      : order.status === 'SAMPLES_BOUGHT'
+      ? tsm('boughtInto', { date: decided, orders: soldInto ?? '—' })
       : tsm('boughtFrom', { date: formatDate(s.leftOn) });
   return (
     <p data-testid="samples-panel" className="rounded-lg bg-muted px-4 py-2 text-xs text-muted-foreground">

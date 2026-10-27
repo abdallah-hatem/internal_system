@@ -6,6 +6,7 @@ import {
   assertNoSamplesOut,
   daysAtShop,
   isSamplesStatus,
+  planSampleLines,
   planSamplesConversion,
   samplesReminderDay,
   samplesRemindersDue,
@@ -181,6 +182,97 @@ describe('planSamplesConversion — the sale from samples, as the popup was save
   });
 });
 
+describe('planSampleLines — New Order lines bought from samples the shop holds (owner 2026-10-27)', () => {
+  const linesKept = (plan: ReturnType<typeof planSampleLines>, i: number) =>
+    plan.lines[i].fromSamples.map((k) => [
+      k.batchId,
+      k.qty.toString(),
+      k.cogsEgp.toFixed(2),
+    ]);
+  const shelf = (plan: ReturnType<typeof planSampleLines>) =>
+    Object.fromEntries([...plan.shelf].map(([p, q]) => [p, q.toString()]));
+  const ORDERS = new Map([
+    ['s1', DRAWS],
+    ['s2', [{ productId: 'pa', batchId: 'later', qty: 1, unitCostEgp: 150 }]],
+  ]);
+
+  it('all of the sample: every unit from it, oldest first, at the cost it left at; nothing from the shelf', () => {
+    const plan = planSampleLines(
+      [{ productId: 'pa', quantity: 5, fromSamplesOrderId: 's1' }],
+      ORDERS,
+    );
+    expect(linesKept(plan, 0)).toEqual([
+      ['old', '2', '200.00'],
+      ['new', '3', '390.00'],
+    ]);
+    expect(shelf(plan)).toEqual({});
+    expect(plan.taken.get('s1')?.map((t) => t.kept.toString())).toEqual(['5']);
+  });
+
+  it('less than the sample: the oldest units, the rest stays a sample; products not on the sale are not touched', () => {
+    const plan = planSampleLines(
+      [{ productId: 'pa', quantity: 1, fromSamplesOrderId: 's1' }],
+      ORDERS,
+    );
+    expect(linesKept(plan, 0)).toEqual([['old', '1', '100.00']]);
+    // pb went out on s1 too, but no line takes it: it is not in the plan.
+    expect(plan.taken.get('s1')?.map((t) => t.productId)).toEqual(['pa']);
+    expect(shelf(plan)).toEqual({});
+  });
+
+  it('more than the sample: the sample first, the rest from the shelf', () => {
+    const plan = planSampleLines(
+      [{ productId: 'pa', quantity: 8, fromSamplesOrderId: 's1' }],
+      ORDERS,
+    );
+    expect(plan.lines[0].fromShelf.toString()).toBe('3');
+    expect(shelf(plan)).toEqual({ pa: '3' });
+  });
+
+  it('none: a line with no samples order is all shelf, even when the shop holds that product', () => {
+    const plan = planSampleLines([{ productId: 'pa', quantity: 2 }], ORDERS);
+    expect(plan.lines[0].fromSamples).toEqual([]);
+    expect(shelf(plan)).toEqual({ pa: '2' });
+    expect(plan.taken.size).toBe(0);
+  });
+
+  it('two samples orders and two lines of one product: each line its own order, the shelf need summed per product', () => {
+    const plan = planSampleLines(
+      [
+        { productId: 'pa', quantity: 3, fromSamplesOrderId: 's2' },
+        { productId: 'pa', quantity: 4, fromSamplesOrderId: 's1' },
+        { productId: 'pa', quantity: '1.5' },
+        { productId: 'pb', quantity: '0.3', fromSamplesOrderId: 's1' },
+      ],
+      ORDERS,
+    );
+    expect(linesKept(plan, 0)).toEqual([['later', '1', '150.00']]);
+    expect(linesKept(plan, 1)).toEqual([
+      ['old', '2', '200.00'],
+      ['new', '2', '260.00'],
+    ]);
+    expect(linesKept(plan, 3)).toEqual([['chain', '0.3', '15.00']]);
+    // 2 beyond s2, 1.5 untagged.
+    expect(shelf(plan)).toEqual({ pa: '3.5' });
+  });
+
+  it('two lines on the same samples order share it in the order given, never counting a unit twice', () => {
+    const plan = planSampleLines(
+      [
+        { productId: 'pa', quantity: 4, fromSamplesOrderId: 's1' },
+        { productId: 'pa', quantity: 4, fromSamplesOrderId: 's1' },
+      ],
+      ORDERS,
+    );
+    expect(linesKept(plan, 0)).toEqual([
+      ['old', '2', '200.00'],
+      ['new', '2', '260.00'],
+    ]);
+    expect(linesKept(plan, 1)).toEqual([['new', '1', '130.00']]);
+    expect(plan.lines.map((l) => l.fromShelf.toString())).toEqual(['0', '3']);
+  });
+});
+
 describe('splitSampleAllocations — which units are bought, which come back', () => {
   // Drawn FIFO: 2 from the old batch at 100, 3 from the newer at 130.
   const draws = [
@@ -330,11 +422,15 @@ describe('settling with samples out', () => {
   });
 });
 
-it('the samples statuses are exactly the three, and none is a sale', () => {
+it('the samples statuses are exactly the four, and none is a sale', () => {
   expect(
-    ['SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF'].every(
-      isSamplesStatus,
-    ),
+    [
+      'SAMPLES',
+      'SAMPLES_RETURNED',
+      'SAMPLES_WRITTEN_OFF',
+      // Every unit went into other sales (owner 2026-10-27): not a sale itself.
+      'SAMPLES_BOUGHT',
+    ].every(isSamplesStatus),
   ).toBe(true);
   for (const s of [
     'DRAFT',

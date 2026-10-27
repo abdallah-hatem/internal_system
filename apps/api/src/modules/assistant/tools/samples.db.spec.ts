@@ -778,6 +778,71 @@ suite('assistant samples tools against Postgres', () => {
     expect(walkIn.s.data.samplesAtShop).toEqual([]);
   });
 
+  // ── record_sale buys the samples into the sale (§4, owner 2026-10-27) ─
+
+  it('record_sale with fromSamples: the line takes the sample units (no second shelf draw), the rest from the shelf, through the same SalesService as New Order; another shop, an unknown or a closed order are refused', async () => {
+    const { call, product, batch, shop: s, order } = await leftWith(2, 10);
+    expect(await shelf(batch.id)).toBe(8);
+    const args = {
+      customer: s.displayName,
+      lines: [
+        {
+          product: product.name,
+          qty: 3,
+          unitPrice: 300,
+          fromSamples: order.orderNo,
+        },
+      ],
+    };
+    const { shown, done } = await previewAndCommit(call, 'record_sale', args);
+    expect(shown.text).toContain(`(from samples ${order.orderNo})`);
+    expect(shown.s.data.lines[0].fromSamples).toBe(order.orderNo);
+    // The preview wrote nothing.
+    expect(done.s.status).toBe('committed');
+    // 2 from the sample, 1 from the shelf.
+    expect(await shelf(batch.id)).toBe(7);
+    const samples = await prisma.saleOrder.findUniqueOrThrow({
+      where: { id: order.orderId },
+    });
+    expect(samples.status).toBe('SAMPLES_BOUGHT');
+    const line = await prisma.saleItem.findFirstOrThrow({
+      where: { saleOrderId: done.s.data.orderId },
+    });
+    expect(line.fromSamplesOrderId).toBe(order.orderId);
+
+    // Again: the samples order is closed.
+    const again = await call('record_sale', args);
+    expect(codeOf(again)).toBe('SAMPLES_ALREADY_DECIDED');
+
+    // Another shop's samples, and an order number that does not exist.
+    const theirs = await leftWith(1, 5);
+    const other = await call('record_sale', {
+      customer: s.displayName,
+      lines: [
+        {
+          product: theirs.product.name,
+          qty: 1,
+          unitPrice: 300,
+          fromSamples: theirs.order.orderNo,
+        },
+      ],
+    });
+    expect(codeOf(other)).toBe('SAMPLES_OTHER_SHOP');
+    const unknown = await call('record_sale', {
+      customer: s.displayName,
+      lines: [
+        {
+          product: product.name,
+          qty: 1,
+          unitPrice: 300,
+          fromSamples: 'ORD-1999-99999',
+        },
+      ],
+    });
+    expect(codeOf(unknown)).toBe('NOT_FOUND');
+    expect(await shelf(theirs.batch.id)).toBe(4);
+  });
+
   it('office support may leave and return samples but not write them off', async () => {
     const support = await as('ADMIN_SUPPORT');
     const { product, batch } = await stocked(5);
