@@ -386,6 +386,13 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- Next (2026-10-28, owner: "in products tab above the table we need cards that responds to filter, so when filter by
+  category, it shows number of products in that category, and total number of units as well"): **the Products tab's
+  cards follow its filters** — the same search, category and status the table sends: how many products match and how many
+  units they hold (in stock), worked out by the server for the whole filtered set, not the page shown (LEARNINGS: never
+  sum paged data in the browser). The list endpoint returns the totals beside its page (or one summary endpoint taking the
+  same filters); skeletons while they load; tests for a category filter, search, an empty result, and paging not
+  changing the totals.
 - Next (2026-10-28, owner: "I should be able to pick which sample a shop returned"): **Return some samples, not all** —
   "Returned" on a samples order opens the products the shop holds on it, each with a quantity (default all; lower it
   or 0 for what stays). The chosen units go back to the batches they left at their cost; the rest stay samples on the
