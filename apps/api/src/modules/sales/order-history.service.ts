@@ -7,6 +7,7 @@ import { businessDay } from '../../common/dates';
 import { OWED_STATUSES } from '../../common/customer-balance';
 import { heldUnitPrice, heldUnits } from '../../common/held-price';
 import { isUuid } from '../../common/uuid';
+import { isSamplesStatus } from '../../common/samples';
 
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
 const cents = (v: unknown) => Math.round(Number(v ?? 0) * 100);
@@ -18,6 +19,8 @@ export type HistoryKind =
   | 'CONFIRMED'
   | 'SAMPLES_LEFT'
   | 'SAMPLES_BOUGHT'
+  | 'SAMPLES_INTO_SALE'
+  | 'SAMPLES_PART_RETURNED'
   | 'SAMPLES_RETURNED'
   | 'SAMPLES_WRITTEN_OFF'
   | 'PAYMENT'
@@ -59,13 +62,15 @@ const RANK: Record<HistoryKind, number> = {
   SAMPLES_LEFT: 1,
   CONFIRMED: 2,
   SAMPLES_BOUGHT: 3,
-  PAYMENT: 4,
-  REVERSAL: 5,
-  RETURN: 6,
-  PRICE_ADJUSTED: 7,
-  SAMPLES_RETURNED: 8,
-  SAMPLES_WRITTEN_OFF: 9,
-  CANCELLED: 10,
+  SAMPLES_INTO_SALE: 4,
+  SAMPLES_PART_RETURNED: 5,
+  PAYMENT: 6,
+  REVERSAL: 7,
+  RETURN: 8,
+  PRICE_ADJUSTED: 9,
+  SAMPLES_RETURNED: 10,
+  SAMPLES_WRITTEN_OFF: 11,
+  CANCELLED: 12,
 };
 
 interface Draft extends Omit<HistoryEvent, 'effect' | 'owes'> {
@@ -144,6 +149,7 @@ export class OrderHistoryService {
         entityId: true,
         occurredAt: true,
         actorUserId: true,
+        afterJson: true,
       },
     });
     const userIds = new Set<string>(
@@ -192,9 +198,39 @@ export class OrderHistoryService {
       lineTotal: D(i.lineTotal).toFixed(2),
     }));
 
+    // A samples order's lines are what is still at the shop: units bought
+    // into other sales or sent back leave them (§4, owner 2026-10-27). What
+    // went out, and where it went, is read from the audit rows that say so.
+    type AuditLine = { productId?: string; quantity?: number; returned?: number };
+    const auditLines = (row: (typeof audit)[number] | undefined) => {
+      const lines = (row?.afterJson as { lines?: unknown } | null)?.lines;
+      return Array.isArray(lines) ? (lines as AuditLine[]) : null;
+    };
+    const named = await this.prisma.product.findMany({
+      where: {
+        id: {
+          in: audit
+            .flatMap((a) => auditLines(a) ?? [])
+            .map((l) => l.productId)
+            .filter((id): id is string => typeof id === 'string'),
+        },
+      },
+      select: { id: true, name: true, nameAr: true },
+    });
+    const unitRows = (lines: { productId?: string; qty: unknown }[]) =>
+      lines.map((l) => {
+        const p = named.find((x) => x.id === l.productId);
+        return {
+          product: p?.name ?? '—',
+          productAr: p?.nameAr ?? null,
+          qty: D(l.qty).toString(),
+        };
+      });
+
     // How it began: samples left at the shop, or a sale entered as a draft.
     if (order.samplesLeftAt) {
       const left = auditOf('LEAVE_SAMPLES');
+      const leftLines = auditLines(left);
       push({
         kind: 'SAMPLES_LEFT',
         at: order.samplesLeftAt.toISOString(),
@@ -202,13 +238,43 @@ export class OrderHistoryService {
         by: nameOf(left?.actorUserId ?? order.createdBy),
         reference: order.orderNo,
         amount: null,
-        lines: lineRows.map(({ product, productAr, qty }) => ({
-          product,
-          productAr,
-          qty,
-        })),
+        // What went out, as it was left; the lines as they stand when the
+        // record of the leaving is missing.
+        lines: leftLines
+          ? unitRows(leftLines.map((l) => ({ ...l, qty: l.quantity })))
+          : lineRows.map(({ product, productAr, qty }) => ({
+              product,
+              productAr,
+              qty,
+            })),
         apply: (o) => o,
       });
+      // Units bought into other sales, and units sent back while the rest
+      // stayed: neither moves what this order owes, which is nothing.
+      for (const row of audit) {
+        if (row.entityType !== 'SaleOrder' || row.entityId !== order.id) {
+          continue;
+        }
+        const into = row.action === 'SAMPLES_INTO_SALE';
+        if (!into && row.action !== 'SAMPLES_PART_RETURNED') continue;
+        const sale = (row.afterJson as { sale?: { orderNo?: string } } | null)
+          ?.sale;
+        push({
+          kind: into ? 'SAMPLES_INTO_SALE' : 'SAMPLES_PART_RETURNED',
+          at: row.occurredAt.toISOString(),
+          atMs: row.occurredAt.getTime(),
+          by: nameOf(row.actorUserId),
+          reference: into ? (sale?.orderNo ?? null) : order.orderNo,
+          amount: null,
+          lines: unitRows(
+            (auditLines(row) ?? []).map((l) => ({
+              ...l,
+              qty: into ? l.quantity : l.returned,
+            })),
+          ),
+          apply: (o) => o,
+        });
+      }
     } else {
       push({
         kind: 'CREATED',
@@ -224,15 +290,12 @@ export class OrderHistoryService {
       });
     }
 
-    // Owed from the moment it became a sale: confirmed, or the samples bought.
+    // Owed from the moment it became a sale: confirmed, or the samples bought
+    // in place. A samples order whose units all went into other sales
+    // (SAMPLES_BOUGHT, owner 2026-10-27) never became one.
     const bought = auditOf('SAMPLES_BOUGHT');
-    const SAMPLES_ONLY: string[] = [
-      'SAMPLES',
-      'SAMPLES_RETURNED',
-      'SAMPLES_WRITTEN_OFF',
-    ];
     if (order.samplesLeftAt) {
-      if (bought || !SAMPLES_ONLY.includes(order.status)) {
+      if (bought || !isSamplesStatus(order.status)) {
         const atMs = (
           bought?.occurredAt ??
           order.samplesDecidedAt ??

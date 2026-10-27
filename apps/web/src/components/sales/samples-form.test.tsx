@@ -281,7 +281,7 @@ describe('"They\'re buying" — the New Order popup, pre-filled from the samples
     renderCompleting();
     expect(screen.getByText('Complete sale from samples ORD-2026-00042')).toBeTruthy();
     expect(screen.getByTestId('samples-convert-note').textContent).toBe(
-      '10 units were out as samples; anything you remove goes back to the shelf.',
+      '10 units were out as samples; for anything you remove or lower, choose below whether it stays a sample or comes back to the shelf.',
     );
     const customer = screen.getAllByRole('combobox')[0];
     expect(customer.textContent).toContain('Nile Motors');
@@ -307,9 +307,14 @@ describe('"They\'re buying" — the New Order popup, pre-filled from the samples
     const { onSaved } = renderCompleting();
     answer = () => Promise.resolve({ data: { data: { id: 'o-1', orderNo: 'ORD-2026-00042', status: 'CONFIRMED' } } });
     typeInto(field(lines()[0], 'quantity')!, '3');
-    // The bolts came back: their line goes, and they with it, to the shelf.
+    // The bolts came back: their line goes, and they are marked Returned —
+    // without the click they would stay at the shop as samples (owner 2026-10-27).
     fireEvent.click(within(lines()[2]).getByRole('button', { name: en.sales.removeItem }));
     expect(lines()).toHaveLength(2);
+    const bolts = screen
+      .getAllByTestId('samples-not-bought-line')
+      .find((l) => l.getAttribute('data-product-id') === BOLT.id)!;
+    fireEvent.click(within(bolts).getByTestId('samples-return-line'));
     // And the shop takes two mirrors that were never samples.
     fireEvent.click(screen.getByRole('button', { name: new RegExp(en.sales.addItem) }));
     fireEvent.click(within(lines()[2]).getAllByRole('combobox')[0]);
@@ -332,6 +337,8 @@ describe('"They\'re buying" — the New Order popup, pre-filled from the samples
         { productId: CHAIN.id, quantity: 3, unitPrice: 95, discount: 15 },
         { productId: MIRROR.id, quantity: 2, unitPrice: 300, discount: 0 },
       ],
+      // The pistons not bought stay at the shop: Keep as sample, the default.
+      keepAsSample: [PISTON.id],
     });
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     expect(onSaved.mock.calls[0][0]).toMatchObject({ fromSamples: true, confirmed: true, samples: false });
@@ -401,7 +408,7 @@ describe('"They\'re buying" — the New Order popup, pre-filled from the samples
   it('Arabic: the line under the title and the button are Arabic', () => {
     renderCompleting('ar');
     expect(screen.getByTestId('samples-convert-note').textContent).toBe(
-      'خرجت 10 وحدات كعينات؛ أي شيء تحذفه يرجع إلى الرف.',
+      'خرجت 10 وحدات كعينات؛ لأي شيء تحذفه أو تنقصه، اختر بالأسفل هل يبقى عينة أم يرجع إلى الرف.',
     );
     expect(screen.getByTestId('sale-submit').textContent).toContain(ar.sales.samples.complete);
   });

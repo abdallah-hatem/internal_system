@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-import { badRequest, conflict } from '../../../common/api-error';
+import { badRequest, conflict, notFound } from '../../../common/api-error';
 import { SELLABLE } from '../../../common/product-status';
 import { availableByProduct } from '../../../common/available-stock';
 import { chosenDay, businessToday } from '../../../common/dates';
 import { formatMoney, formatQty } from '../../../common/money';
 import { PAYMENT_METHODS } from '../../../common/walk-in';
+import { isUuid } from '../../../common/uuid';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { PaymentsService } from '../../payments/payments.service';
@@ -101,6 +102,15 @@ const saleShape = {
           .describe(
             'Money off this line in EGP (an amount, not a percent). At most what the line is worth.',
           ),
+        fromSamples: z
+          .string()
+          .trim()
+          .min(1)
+          .max(60)
+          .optional()
+          .describe(
+            "ONLY when the partner says the shop is buying samples it holds: that samples order's number (ORD-…), as the preview's \"Samples at this shop\" note names it. The line then takes that order's units of this product first, at the cost they left at, and only the rest from the shelf; units of it not on the line stay samples at the shop. Refused unless it is this shop's open samples order and holds this product.",
+          ),
       }),
     )
     .min(1),
@@ -129,10 +139,17 @@ type SaleInput = {
     qty: number;
     unitPrice?: number;
     discount?: number;
+    fromSamples?: string;
   }[];
   paymentMethod?: (typeof PAYMENT_METHODS)[number];
   orderedOn?: string;
 };
+
+/** A samples order a line names, as found on file (`samplesOrdersNamed`). */
+export interface NamedSamplesOrder {
+  id: string;
+  orderNo: string;
+}
 
 export interface CatalogueProduct {
   id: string;
@@ -178,6 +195,8 @@ interface PlannedLine {
   unitPrice: number;
   priceSource: 'given' | 'list' | 'default';
   discount: number;
+  /** The samples order the line is bought from (§4, owner 2026-10-27), or null. */
+  fromSamples: NamedSamplesOrder | null;
 }
 
 type Plan =
@@ -199,7 +218,12 @@ type Plan =
  */
 export function resolveSale(
   input: SaleInput,
-  catalogue: { products: CatalogueProduct[]; customers: CatalogueCustomer[] },
+  catalogue: {
+    products: CatalogueProduct[];
+    customers: CatalogueCustomer[];
+    /** The orders lines name in `fromSamples`; the sales service checks the rest. */
+    samplesOrders?: NamedSamplesOrder[];
+  },
 ): Plan {
   const walkIn = input.walkIn === true;
   if (walkIn && input.customer) {
@@ -335,6 +359,20 @@ export function resolveSale(
       unitPrice = Number(list.amount);
       priceSource = list.source === 'DEFAULT' ? 'default' : 'list';
     }
+    // Bought from samples the shop holds (§4, owner 2026-10-27): the order
+    // named, by number or id. Whether it is this shop's, still open and
+    // holding the product is the sales service's check, as for New Order.
+    let fromSamples: NamedSamplesOrder | null = null;
+    if (l.fromSamples) {
+      const named = l.fromSamples.trim();
+      fromSamples =
+        (catalogue.samplesOrders ?? []).find(
+          (o) => o.id === named || o.orderNo === named.toUpperCase(),
+        ) ?? null;
+      if (!fromSamples) {
+        throw notFound('saleOrder', `No order ${named} is on file.`);
+      }
+    }
     lines.push({
       line,
       productId: product.id,
@@ -345,6 +383,7 @@ export function resolveSale(
       unitPrice,
       priceSource,
       discount: l.discount ?? 0,
+      fromSamples,
     });
   });
 
@@ -368,6 +407,7 @@ export function resolveSale(
         quantity: l.qty,
         unitPrice: l.unitPrice,
         ...(l.discount ? { discount: l.discount } : {}),
+        ...(l.fromSamples ? { fromSamplesOrderId: l.fromSamples.id } : {}),
       })),
       // Passed through as given: the service refuses a method on a sale that
       // is not a walk-in, so the assistant is refused what the form would be.
@@ -406,8 +446,8 @@ export function samplesAtShopNote(shop: string, orders: ShopSamples): string {
           .map((l) => `${formatQty(l.units)} × ${l.name} (${l.sku})`)
           .join(', '),
     ),
-    'If the shop is buying those samples, complete that samples order instead (complete_samples_sale): this sale draws its units from the shelf while the samples still count as out. ' +
-      'Tell the partner before they confirm; a separate purchase is fine and this does not stop the sale.',
+    'If the shop is buying those samples, put fromSamples: <that ORD-…> on the line of that product: its units then come from the samples, not the shelf (units not on the line stay samples). Otherwise this sale draws its units from the shelf while the samples still count as out. ' +
+      'Tell the partner before they confirm; a separate purchase is fine and this does not stop the sale. To sell every sample on an order, complete_samples_sale does it too.',
   ].join('\n');
 }
 
@@ -511,7 +551,35 @@ export function registerSalesTools(
   const prisma = () => ctx.resolve(PrismaService);
   const audit = () => ctx.resolve(AuditService);
 
-  const catalogue = () => loadSaleCatalogue(prisma());
+  /**
+   * The catalogue, and the orders the lines name in `fromSamples`, by number
+   * or id — whatever their status: the sales service refuses one that is not
+   * this shop's open samples, in its own words.
+   */
+  const catalogue = async (input: SaleInput) => {
+    const named = [
+      ...new Set(
+        input.lines
+          .map((l) => l.fromSamples?.trim())
+          .filter((n): n is string => !!n),
+      ),
+    ];
+    const [base, samplesOrders] = await Promise.all([
+      loadSaleCatalogue(prisma()),
+      named.length
+        ? prisma().saleOrder.findMany({
+            where: {
+              OR: [
+                { orderNo: { in: named.map((n) => n.toUpperCase()) } },
+                { id: { in: named.filter((n) => isUuid(n)) } },
+              ],
+            },
+            select: { id: true, orderNo: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    return { ...base, samplesOrders };
+  };
 
   /** The sale as the sales service would make it, rolled back. */
   async function dryRun(body: CreateSaleOrderInput): Promise<SeenOrder> {
@@ -555,7 +623,7 @@ export function registerSalesTools(
   }
 
   async function preview(input: SaleInput) {
-    const plan = resolveSale(input, await catalogue());
+    const plan = resolveSale(input, await catalogue(input));
     if (plan.status === 'questions') {
       return {
         needsAnswers: true,
@@ -601,6 +669,7 @@ export function registerSalesTools(
       ...(l.priceSource === 'list' ? { note: LIST_PRICE_NOTE } : {}),
       ...(l.priceSource === 'default' ? { note: DEFAULT_PRICE_NOTE } : {}),
       discount: Number(l.discount).toFixed(2),
+      fromSamples: l.fromSamples?.orderNo ?? null,
       lineTotal: seen.items[i].lineTotal,
       available: available.get(l.productId)?.toString() ?? '0',
       belowCost: cost.lines[i]?.belowCost
@@ -630,6 +699,7 @@ export function registerSalesTools(
             (l.priceSource === 'list' ? ` (${LIST_PRICE_NOTE})` : '') +
             (l.priceSource === 'default' ? ` (${DEFAULT_PRICE_NOTE})` : '') +
             (Number(l.discount) ? ` less ${formatMoney(l.discount)}` : '') +
+            (l.fromSamples ? ` (from samples ${l.fromSamples})` : '') +
             ` = ${formatMoney(l.lineTotal)} ${CURRENCY}; ${formatQty(l.available)} in stock` +
             (l.belowCost
               ? `\n  Below cost: each costs ${formatMoney(l.belowCost.unitCostEgp)}, selling at ${formatMoney(l.belowCost.unitPriceEgp)}, a loss of ${formatMoney(l.belowCost.lossEgp)} on this line.`
@@ -701,6 +771,7 @@ export function registerSalesTools(
             discount: string;
             lineTotal: string;
             available: string;
+            fromSamples: string | null;
           }[];
           total: string;
         };
@@ -717,12 +788,13 @@ export function registerSalesTools(
             l.discount,
             l.lineTotal,
             l.available,
+            l.fromSamples,
           ]),
           total: d.total,
         };
       },
       async commit(input) {
-        const plan = resolveSale(input, await catalogue());
+        const plan = resolveSale(input, await catalogue(input));
         // Unreachable after a bound preview, which already refused this.
         if (plan.status === 'questions') {
           throw conflict(

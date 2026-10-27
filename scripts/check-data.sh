@@ -509,7 +509,7 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   -- sale and owe nothing, and no money is ever allocated to them.
   UNION ALL SELECT 26, 'samples order with a total, a balance or money allocated',
          count(*) FROM sale_orders o
-   WHERE o.status IN ('SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF')
+   WHERE o.status IN ('SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF', 'SAMPLES_BOUGHT')
      AND (o.total <> 0 OR o.outstanding <> 0
           OR EXISTS (SELECT 1 FROM payment_allocations a WHERE a.sale_order_id = o.id))
   -- Units at a shop are counted from the allocations of the open samples order:
@@ -522,8 +522,27 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
                                   WHERE a.sale_item_id = i.id), 0)
   UNION ALL SELECT 26.2, 'samples order with no day it was left',
          count(*) FROM sale_orders
-   WHERE status IN ('SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF')
+   WHERE status IN ('SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF', 'SAMPLES_BOUGHT')
      AND samples_left_at IS NULL
+  -- Samples into the current order (section 4, owner 2026-10-27): a sale line
+  -- bought from samples takes them from the same shop's samples order, and a
+  -- samples order closed as bought has nothing left at the shop.
+  UNION ALL SELECT 26.3, 'samples order closed as bought that still holds lines',
+         count(*) FROM sale_orders o
+   WHERE o.status = 'SAMPLES_BOUGHT'
+     AND EXISTS (SELECT 1 FROM sale_items i WHERE i.sale_order_id = o.id)
+  UNION ALL SELECT 26.4, 'sale line bought from another shop''s samples, or from an order that never was samples',
+         count(*) FROM sale_items i
+         JOIN sale_orders o ON o.id = i.sale_order_id
+         JOIN sale_orders s ON s.id = i.from_samples_order_id
+   WHERE s.customer_id <> o.customer_id OR s.samples_left_at IS NULL
+  UNION ALL SELECT 26.5, 'confirmed sale line from samples that holds fewer units than it sold',
+         count(*) FROM sale_items i
+         JOIN sale_orders o ON o.id = i.sale_order_id
+   WHERE i.from_samples_order_id IS NOT NULL
+     AND o.status IN ('CONFIRMED', 'PARTIALLY_PAID', 'PAID')
+     AND i.quantity <> coalesce((SELECT sum(a.qty) FROM sale_item_allocations a
+                                  WHERE a.sale_item_id = i.id), 0)
   -- A branch is its owner's (§7, 2026-10-25): an order on another customer's
   -- branch would put one shop's sale on another's books.
   UNION ALL SELECT 27.1, 'sale order on another customer''s branch',

@@ -473,7 +473,7 @@ export function registerReadTools(
     {
       title: 'List sales',
       description:
-        'Sale orders, newest first, optionally for one customer and/or between two days (the day it was ordered, in Cairo time). Returns order number, customer, channel, status, currency, total, discount, what is still outstanding, when it was ordered, and its lines. A DRAFT is not a sale and owes nothing. An order with kind "SAMPLES" is samples left at a shop with no charge (status SAMPLES while still at the shop, SAMPLES_RETURNED or SAMPLES_WRITTEN_OFF once decided): it is NOT a sale, owes nothing and must never be counted as sold or owed; its unitsAtShop, leftOn and reminderOn say how many are out and since when. Refuses DATE_RANGE_REVERSED when from is after to.',
+        'Sale orders, newest first, optionally for one customer and/or between two days (the day it was ordered, in Cairo time). Returns order number, customer, channel, status, currency, total, discount, what is still outstanding, when it was ordered, and its lines. A DRAFT is not a sale and owes nothing. An order with kind "SAMPLES" is samples left at a shop with no charge (status SAMPLES while still at the shop, SAMPLES_RETURNED, SAMPLES_WRITTEN_OFF or SAMPLES_BOUGHT — every unit gone into other sales — once decided): it is NOT a sale, owes nothing and must never be counted as sold or owed; its unitsAtShop, leftOn and reminderOn say how many are out and since when. Refuses DATE_RANGE_REVERSED when from is after to.',
       inputSchema: {
         customerId: z
           .string()

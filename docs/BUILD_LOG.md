@@ -295,6 +295,12 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   popup gets the same per-line choice for a removed line: **Keep as sample** (default) or **Returned**. Tests: more /
   less / all / none of a sample, two samples orders at once, another shop's sample (refused), a returned or written-off
   sample (refused), doing it twice, stock and the settlement gate correct after. Build on its own branch.
+  **Built 2026-10-27 on `feature/samples-into-order`, NOT shipped** (migration `20261027120000_samples_into_order`,
+  additive: status `SAMPLES_BOUGHT`, `sale_items.from_samples_order_id`). Rules and guesses in BUSINESS_LOGIC §4
+  "Samples into the current order". Tests: `samples-into-order.db.spec.ts` (real receipts; each case break-verified),
+  `planSampleLines` in `samples.spec.ts`, the assistant's `record_sale` `fromSamples` in `tools/samples.db.spec.ts`,
+  web `samples-into-order.test.tsx`; e2e `105-samples-into-order.spec.ts` written, NOT run (owner: no Playwright for
+  now); check-data 26.3–26.5 added.
 - (3) (2026-10-26): **Change split saved and checked on the server in one go** — the Funding card's Change split
   writes each participant's % through separate participant PUTs and only the dialog checks they add to 100 (the server
   checks at settlement). Add one endpoint that saves the whole split (all or none, adding to 100, coded refusals

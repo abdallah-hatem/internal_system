@@ -219,7 +219,7 @@ describe('Sales — a samples order', () => {
     const form = await screen.findByTestId('sale-order-form');
     expect(within(form).getByText('Complete sale from samples ORD-2026-00042')).toBeTruthy();
     expect(within(form).getByTestId('samples-convert-note').textContent).toBe(
-      '5 units were out as samples; anything you remove goes back to the shelf.',
+      '5 units were out as samples; for anything you remove or lower, choose below whether it stays a sample or comes back to the shelf.',
     );
     await waitFor(() => expect(within(form).getAllByRole('combobox')[0].textContent).toContain('Nile Motors'));
     const lines = within(form).getAllByTestId('sale-line');

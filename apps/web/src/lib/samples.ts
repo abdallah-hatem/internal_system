@@ -7,7 +7,7 @@
  */
 
 /** Every status a samples order holds while it is not a sale. */
-export const SAMPLES_STATUSES = ['SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF'] as const;
+export const SAMPLES_STATUSES = ['SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF', 'SAMPLES_BOUGHT'] as const;
 
 export function isSamplesStatus(status: string | null | undefined): boolean {
   return (SAMPLES_STATUSES as readonly string[]).includes(status ?? '');

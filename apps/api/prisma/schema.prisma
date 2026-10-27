@@ -990,6 +990,10 @@ enum OrderStatus {
   /// The shop kept them or they were lost: their cost is a cost of the cycle
   /// they came from, as goods lost on the way are.
   SAMPLES_WRITTEN_OFF
+  /// Every unit went into sales made from New Order or "They're buying"
+  /// (§4, samples into the current order, owner 2026-10-27): nothing is left
+  /// at the shop. Not a sale itself — the sales that took the units are.
+  SAMPLES_BOUGHT
 }
 
 model Customer {
@@ -1094,7 +1098,10 @@ model SaleOrder {
   /// The create form's key, so a retried POST returns this order instead of a
   /// second one. Unique per person: two people's keys never answer for each other.
   idempotencyKey     String?                @map("idempotency_key")
-  items              SaleItem[]
+  items              SaleItem[]             @relation("SaleOrderItems")
+  /// Sale lines that took their units from this samples order (§4, owner
+  /// 2026-10-27): what the shop bought of what it held.
+  sampleLinesSold    SaleItem[]             @relation("SaleItemFromSamples")
   reservations       InventoryReservation[]
   paymentAllocations PaymentAllocation[]
 
@@ -1119,13 +1126,20 @@ model SaleItem {
   discount    Decimal  @default(0) @db.Decimal(18, 2)
   lineTotal   Decimal  @map("line_total") @db.Decimal(18, 2)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  /// The samples order at the same shop this line is bought from (§4,
+  /// "Samples into the current order", owner 2026-10-27): on confirm its
+  /// units — and their allocations, at the cost they left at — move into this
+  /// line; anything more is drawn from the shelf. Null for an ordinary line.
+  fromSamplesOrderId String? @map("from_samples_order_id") @db.Uuid
 
-  saleOrder        SaleOrder             @relation(fields: [saleOrderId], references: [id])
+  saleOrder        SaleOrder             @relation("SaleOrderItems", fields: [saleOrderId], references: [id])
+  fromSamplesOrder SaleOrder?            @relation("SaleItemFromSamples", fields: [fromSamplesOrderId], references: [id], onDelete: Restrict)
   product          Product               @relation(fields: [productId], references: [id])
   allocations      SaleItemAllocation[]
   returnItems      SaleReturnItem[]
   priceAdjustments SalePriceAdjustment[]
 
+  @@index([fromSamplesOrderId])
   @@map("sale_items")
 }
 

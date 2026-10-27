@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-27 (state lines only, to match production at `d87b68b`: the sections for the 2026-10-22 order screens, the 2026-10-26 releases — units sold, each cycle's funding, the Funding card, put in so far, partner accounts, notifications, samples hint, office chat, server-side lists, the statement's Profit column — and the 2026-10-27 releases — customer branches and the Sales branch filter, investors in the funding, cycle 1's funding correction — now say live; Edit order stays not shipped). Before that 2026-10-26 (§3: every office list searches, filters, sorts and pages on the server; the Sales list filters by customer and by branch — guesses marked; §4: editing a confirmed order — not shipped, saved on `feature/edit-order` (2026-10-27); §7: a walk-in sale looks up no branch).. Before that 2026-10-26 (§8: each cycle's funding is its own — an advance funds only its cycle; §9/§12: an entry undone and its undo leave every period's profit figures — owner decisions, guesses marked, on branch `worktree-agent-ac6239d7503848e74`). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-27 (§4: samples into the current order — New Order adds what a shop holds as samples, "They're buying" keeps what is not bought as samples — built on `feature/samples-into-order`, NOT shipped, guesses marked). Before that 2026-10-27 (state lines only, to match production at `d87b68b`: the sections for the 2026-10-22 order screens, the 2026-10-26 releases — units sold, each cycle's funding, the Funding card, put in so far, partner accounts, notifications, samples hint, office chat, server-side lists, the statement's Profit column — and the 2026-10-27 releases — customer branches and the Sales branch filter, investors in the funding, cycle 1's funding correction — now say live; Edit order stays not shipped). Before that 2026-10-26 (§3: every office list searches, filters, sorts and pages on the server; the Sales list filters by customer and by branch — guesses marked; §4: editing a confirmed order — not shipped, saved on `feature/edit-order` (2026-10-27); §7: a walk-in sale looks up no branch).. Before that 2026-10-26 (§8: each cycle's funding is its own — an advance funds only its cycle; §9/§12: an entry undone and its undo leave every period's profit figures — owner decisions, guesses marked, on branch `worktree-agent-ac6239d7503848e74`). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -1050,6 +1050,7 @@ payment, a return, a contract and the invoice work on it as they are. Per produc
 | Bought (CONFIRMED) | Kept units stay out (sold, same batches); units not kept back to their own batch (`SAMPLE_BACK`); extra drawn FIFO (`SALE`) | A normal sale on its day, with the popup's lines: revenue, COGS, receivable |
 | Returned (SAMPLES_RETURNED) | Every unit back to the batch it left (`SAMPLE_BACK`) | Nothing. Its lines and allocations stay as the record of what went out and count in nothing, as a cancelled sale's do |
 | Written off (SAMPLES_WRITTEN_OFF) | Gone for good: never back on the shelf, not at a shop | Their landed cost is a cost of the cycle each unit came from |
+| Bought into other sales (SAMPLES_BOUGHT, 2026-10-27) | Every unit moved, with its allocation, into the sales that bought it — no stock moved | Nothing on the samples order; each sale is a normal sale with those units' cost as its COGS |
 
 **The write-off is costed like goods lost on the way (§2, §9; CLAUDE.md §11).** `samplesWrittenOffEgp` in
 `common/cycle-losses.ts` sums the cost on the written-off orders' allocations, per cycle (by batch) or for all
@@ -1119,6 +1120,77 @@ reads one low and the cycle cannot settle until the samples order is closed.
   — the sale still goes through. **The office chat** shows the same hint, translated, under the preview card, its link
   opening "They're buying" (`/sales?buying=<id>`); the English note is cut from the card so it is not said twice (the
   model still reads it).
+**Samples into the current order** (owner 2026-10-27: "need the sample to not be just a hint … a button to click to
+add this sample to the current order, and auto handle the rest … a shop can also have 3 samples of 3 different
+products, but he decides to make an order that includes buying 2 of them while one still remains as a sample"). Built
+2026-10-27 on `feature/samples-into-order`, NOT shipped. Migration `20261027120000_samples_into_order` (additive: order
+status `SAMPLES_BOUGHT`; nullable `sale_items.from_samples_order_id`, indexed, a foreign key to the samples order).
+- **New Order.** The samples hint is a list per product of each open samples order, with **Add to order** beside each
+  and one **Add all** (every product of every order at the shop not yet on the order). The line added is the product
+  at the units the shop holds and the channel's price, tagged **"From sample ORD-… · N at the shop"** (Arabic
+  "من العينة …"), and edits like any line — quantity, price, discount, remove. A product already added reads
+  **Added**. The line's units at the shop count as available to it on the form. The hint's link to "They're buying"
+  stays.
+- **On confirm, in one transaction** (`confirmWithin`, the one path for create-and-confirm, a draft's confirm and the
+  assistant): each samples order a line names is held (a row claim, in id order), checked again as it stands now, and
+  per line (`planSampleLines` in `common/samples.ts`, which plans each samples order exactly as "They're buying" plans a
+  conversion, `planSamplesConversion`):
+  - the sample's units move into the sale line **with their allocations at the batch and cost they left at** — no
+    second shelf draw, no stock movement (they left with `SAMPLE_OUT`); the sale's COGS and the statement's Profit are
+    at that cost;
+  - **more than the sample** holds takes the rest from the shelf, FIFO (`drawFifo`, movement `SALE`); the shelf check
+    when saving asks the shelf only for that rest;
+  - **fewer leaves the rest as a sample** on the same order: its line is cut to what its draws still hold.
+- **Lines not added stay samples on the same order** — the same ORD number, the day left and the reminder unchanged
+  (`samples_left_at`, `samples_reminded_at` untouched; `samples_decided_at` stays empty). **A samples order with nothing
+  left closes as bought** (`SAMPLES_BOUGHT`, `samples_decided_at` set): no lines, total 0, never a sale itself, counted in
+  nothing, no actions on it. Its popup says "Bought on …: every unit went into ORD-…"; an open one partly bought says
+  "Part bought in ORD-…" (`samples.soldInto` on the order, the sales whose lines name it, not drafts or cancelled).
+- **Validated on the server** (`sampleSources`, asked when a draft or a sale is saved and again at confirm), coded,
+  en + ar: another shop's samples, a walk-in → `SAMPLES_OTHER_SHOP`; a returned, written-off or bought-out order →
+  `SAMPLES_ALREADY_DECIDED`; an order that never was samples → `NOT_SAMPLES`; a product the order holds none of (or none
+  any more) → **`SAMPLES_PRODUCT_NOT_OUT`** (new); dated before they were left → `SAMPLES_SALE_BEFORE_LEFT`; a samples
+  line on a samples order, or an id that is not an id → `VALIDATION_FAILED`; an id that is no order → 404.
+- **Twice**: the same Idempotency-Key answers with the first sale; another sale of units already moved is refused
+  (the order is closed, or the product no longer out); two at once queue on the claim and the second reads what the first
+  left, so no unit is ever taken twice. Shelf + samples + sold still equals what was received.
+- **The "They're buying" popup**: a product removed, or lowered below what went out, is listed under **"Not on the sale"**
+  with **Keep as sample** (chosen) or **Returned**. Returned units go back to the shelf as before. If any units are kept
+  the samples order cannot become the sale — it still holds samples — so the sale is a **new order** made exactly as New
+  Order makes one from samples (`buyPartOfSamples`: units neither bought nor kept back to the shelf first, then
+  `prepareDraft` + `confirmWithin` with every line of a product that went out tagged with this order); the samples order
+  stays open with what is kept. The request body is the old one plus `keepAsSample: [productId…]`, and it carries the
+  form's Idempotency-Key.
+- **History.** A samples order's history shows what was left (read from the leaving's audit row, so it stays right after
+  units move) and each move: **"Samples bought in another order"** (`SAMPLES_INTO_SALE`, the sale's number) and **"Some
+  samples returned"** (`SAMPLES_PART_RETURNED`). The sale's line shows "From sample ORD-…" in its popup.
+- **The assistant** (§16): `record_sale` takes `fromSamples: "ORD-…"` per line — the same `SalesService.create`, so every
+  check above is the preview's and the commit's; the preview line says "(from samples ORD-…)", and the samples note
+  tells the model to use it. The office chat's hint is unchanged (its link opens "They're buying").
+- `scripts/check-data.sh` 26.3–26.5: a samples order closed as bought that still holds lines; a sale line from another
+  shop's samples or from an order that never was samples; a confirmed sale line from samples whose allocations do not
+  add up to it.
+- GUESS: **a samples order emptied by sales gets its own status, `SAMPLES_BOUGHT`**, and loses its lines (its lines are
+  what is still at the shop); what was left and where it went are read from the audit log.
+- GUESS: **the units a line takes are the sample's oldest-received**, as FIFO would (the round-1 guess, kept).
+- GUESS: **the samples order changing between opening New Order and confirm** — fewer units left than the line asks: the
+  line takes what is left and the rest from the shelf (not refused); none of that product left: `SAMPLES_PRODUCT_NOT_OUT`;
+  the order returned, written off or bought out: `SAMPLES_ALREADY_DECIDED`, and the draft stays a draft.
+- GUESS: the added line is priced at the channel's list price — the hint carries no noted price (a noted price is not a
+  decision).
+- GUESS: choosing another product on a sample line makes it an ordinary line; switching to walk-in or to leaving samples
+  takes the sample lines off, like switching shop (a line typed by hand stays; an order left with none gets an empty
+  line).
+- GUESS: no below-cost warning on a sample line — its units cost what they left at, not the shelf's FIFO cost the check
+  reads (as in "They're buying").
+- GUESS: in "They're buying" the choice is asked for a **lowered** line too, not only a removed one ("fewer leaves the
+  rest as a sample", as in New Order). With nothing kept it converts in place as before. Without `keepAsSample` (an older
+  client, the assistant's `complete_samples_sale`) nothing is kept — the API's default is the old behaviour; the popup's
+  default is Keep.
+- GUESS: the new sale made by "They're buying" with units kept goes on the shop's default branch, as a new order does.
+- GUESS: cancelling or returning a sale that took units from samples puts them on the shelf, as for any sale — they do not
+  become samples again.
+
 - GUESS: the hint lists units out per product on each order (all units of a product summed across the batches they
   left), oldest order first; no price is shown (a noted price is not a decision).
 
@@ -1148,7 +1220,10 @@ Roles are the office endpoints', defined once in `modules/sales/sales-roles.ts` 
 **Who.** Leaving samples, "They're buying" and "Returned": the sales roles (core partners and admin support), as
 selling is. "Write off": core partners only (GUESS — it moves cost onto a cycle, like cancelling a sale).
 
-**Checked by** `apps/api/src/common/samples.spec.ts` (the rules, `planSamplesConversion`),
+**Checked by** `apps/api/src/common/samples.spec.ts` (the rules, `planSamplesConversion`, `planSampleLines`),
+`apps/api/src/modules/sales/samples-into-order.db.spec.ts` (samples into the current order, on stock received through
+cycle, PO, leg, delivery and verified receipt), `apps/web/src/components/sales/samples-into-order.test.tsx`, spec
+105-samples-into-order (written, not run),
 `apps/api/src/modules/sales/samples.db.spec.ts` (against Postgres: every figure before and after, and each change the
 popup can make), `apps/web/src/components/sales/samples-form.test.tsx` and
 `samples-pages.test.tsx`, spec 34 TC-INV-72..74, and `scripts/check-data.sh` 26–26.2 (a samples order with a total,
