@@ -351,8 +351,8 @@ copy and the stranded-drafts scripts are pinned to it by tests.
   Preparing step, once. **The first departure moves the cycle on to In transit,
   as before**; later departures (L8) move nothing.
 - Guesses, open until confirmed (2026-10-27):
-  - **GUESS — "the cycle's order is confirmed" means the cycle has left
-    Purchasing (§15).** There is no other moment in this code at which a
+  - **DECIDED 2026-10-27 (owner: "keep it as is, set by hand or on departure") — "the cycle's order is
+    confirmed" means the cycle has left Purchasing (§15).** There is no other moment in this code at which a
     purchase order stops being a draft, and no confirm button on an order: the
     cycle's orders are confirmed together when it leaves Purchasing, and that
     move now always lands in Preparing. So Preparing is set by itself only
