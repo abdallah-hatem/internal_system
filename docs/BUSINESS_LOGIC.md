@@ -1123,7 +1123,7 @@ reads one low and the cycle cannot settle until the samples order is closed.
 **Samples into the current order** (owner 2026-10-27: "need the sample to not be just a hint … a button to click to
 add this sample to the current order, and auto handle the rest … a shop can also have 3 samples of 3 different
 products, but he decides to make an order that includes buying 2 of them while one still remains as a sample"). Built
-2026-10-27 on `feature/samples-into-order`, NOT shipped. Migration `20261027120000_samples_into_order` (additive: order
+2026-10-27 on `feature/samples-into-order`; live 2026-10-27 (evening). Migration `20261027120000_samples_into_order` (additive: order
 status `SAMPLES_BOUGHT`; nullable `sale_items.from_samples_order_id`, indexed, a foreign key to the samples order).
 - **New Order.** The samples hint is a list per product of each open samples order, with **Add to order** beside each
   and one **Add all** (every product of every order at the shop not yet on the order). The line added is the product
@@ -2221,7 +2221,7 @@ settlement figure moves.
 | First column of both lists | "Name" / "الاسم" instead of "Partner": investors are listed there too. | DECIDED (owner, 2026-10-27) |
 | Percentage rounding | `percentagesOf` (settlement-math.ts), used by `profitSplitView`: **largest remainder** at two places — every row starts at its share rounded down, the missing hundredths go to the rows that lost most, ties to the later row (thirds still read 33.33 / 33.33 / 33.34). They always sum to 100.00 and every row is within a hundredth of its true share. Before, rows were truncated and the last absorbed the rest (Setta read 9.96 for a true 9.9419; 80k/100k/120k read 26.66 / 33.33 / 40.01, now 26.67 / 33.33 / 40.00). Cycle 1 reads **27.34 / 16.45 / 16.45 / 29.82 / 9.94**: each rounded on its own they come to 100.01, so one row gives a hundredth — Eraiby, whose .57 is the smallest rounding-up of the three (Shady and Fares .61). Money lines (`distributeCycleProfit`, 4-place `sharePct`) unchanged. | DECIDED (owner: largest remainder); cycle 1's 29.82 rather than 29.83 follows from it |
 
-### A new temporary investor from the Funding card — DECIDED 2026-10-26 (owner: "add the fix to next up"), built 2026-10-27 on `dev`, details GUESSED
+### A new temporary investor from the Funding card — DECIDED 2026-10-26 (owner: "add the fix to next up"), live 2026-10-27, details GUESSED
 "+ Add investor" picked only existing `TEMP_INVESTOR` accounts and no screen made one, so the first investor met an
 empty list. A `+` beside the person picker (`FieldWithQuickCreate`, the registry's `investor` entry in
 `components/entities/entity-forms.tsx`) opens a form with a name alone; saving makes the investor, refreshes the
@@ -2237,7 +2237,7 @@ nothing chosen, and the next visit starts empty.
 | A name already used | **Refused**, `INVESTOR_NAME_TAKEN` (409, `{name}`), when any partner or investor already has it, ignoring case — the picker lists people by name, and two "Ahmad Eraiby"s there cannot be told apart, so the second would be picked by chance. Choose him from the list instead. Two of the same name at once: one is made, the other refused (an advisory lock around the check). | GUESS (2026-10-27) — the owner may prefer two people with one name allowed |
 | Arabic | The new strings ("مستثمر جديد", the hint and the refusals) are the agent's wording, for the owner to correct. | GUESS |
 
-### Change split saved and checked on the server — DECIDED 2026-10-26 (owner), built 2026-10-27 on `dev`, details GUESSED
+### Change split saved and checked on the server — DECIDED 2026-10-26 (owner), live 2026-10-27, details GUESSED
 The Funding card's Change split wrote each participant's % through its own participant PUT and only the dialog checked
 they added up to 100; the server refused a partial or off-100 split only at settlement, weeks later (CLAUDE.md §3). One
 endpoint now saves the whole split: `PUT /cycles/:id/split` with `{ split: [{ participantId, customProfitPct }] }`

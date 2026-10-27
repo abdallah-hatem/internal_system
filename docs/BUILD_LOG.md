@@ -5,13 +5,16 @@ feature by feature at the owner's word, each on its own branch, merged and shipp
 Goal (current, 2026-10-27): the "Next up" list below, top first.
 
 ## Current stage
-2026-10-27 — **production runs `origin/master` at `d87b68b`**: customer branches and the Sales branch filter
-(migration `20261025120000_customer_branches` applied first), on top of the 2026-10-26/27 releases listed under "Live
-in production". Production's migrations end at `20261025120000_customer_branches`; nothing is merged and waiting.
+2026-10-27 (evening) — **production runs `origin/master`** with what was on `dev` (owner: "ship current"): a new
+temporary investor from the Funding card, Change split saved on the server in one go, samples into the current order
+(migration `20261027120000_samples_into_order` applied first) and the known-bugs batch — on top of customer branches
+(`d87b68b`) and the other 2026-10-26/27 releases under "Live in production". Production's migrations end at
+`20261027120000_samples_into_order`; nothing is merged and waiting. **Building now:** Confirm & paid in one step, on
+its own branch (owner 2026-10-27: "start build the confirm and pay").
 - **Edit order** (on a confirmed order) is not shipped: saved on `feature/edit-order` (`4bdbf1e`) with its migration
   `20261026100000_sale_order_edits`, which must not be applied to production until that branch ships. Master's
   history holds no Edit order commit, so the branch can still be merged later.
-- **`dev`** = `master` (reset 2026-10-27, owner: "push dev as well"); Edit order lives only on `feature/edit-order`.
+- **`dev`** = `master` (2026-10-27, after shipping it); Edit order lives only on `feature/edit-order`.
   Nothing is held on another machine as far as git shows.
 - Tests at the release: API, web and unit suites green (counts in History, "Stage on 2026-10-26/27"); e2e not run
   (owner, 2026-10-25: unit and database tests only).
@@ -21,7 +24,7 @@ in production". Production's migrations end at `20261025120000_customer_branches
   (§8, OPEN); the Rules Review answers; the small UAE costs for CYC-2026-0001.
 State of the product and of production's data: `docs/where-things-stand.md`.
 
-## On `dev`, not yet in production
+## Shipped 2026-10-27 (evening) — was on `dev`
 - 2026-10-27 — built on `agent-funding` (no migration), Next-up (1) and (3), **e2e written, not run** (owner:
   unit and database tests only for now):
   - **A new temporary investor from the Funding card** (BUSINESS_LOGIC §8 "A new temporary investor from the Funding
@@ -47,6 +50,14 @@ State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-27 (evening) — shipped (migration `20261027120000_samples_into_order` applied first; owner "ship current"):
+  **a new temporary investor from the Funding card's `+`** and **Change split saved on the server in one go** (§8;
+  section "Shipped 2026-10-27 (evening)" above), **samples into the current order** (§4: Add to order / Add all, the
+  rest stays a sample, a samples order with nothing left closes as bought; "They're buying" asks Keep as sample or
+  Returned), and **the known-bugs batch** (batch names in the order popup, ledger reverse 404, locked RET- numbers, web
+  lockfile, CI container id). Also: `scripts/check-data.sh` repaired (an apostrophe in a SQL comment broke its quoting,
+  `3ef3c81`). Production backup before the migration was skipped by mistake (Docker was down; the migration is additive);
+  the 12:39 backup that day stands, and a fresh one followed the release.
 - 2026-10-27 — shipped (`d87b68b`; migration `20261025120000_customer_branches` applied first): **a customer with
   branches** (BUSINESS_LOGIC §7) — one owner pays for all; New Order's Branch picker starts on the default; pay to all
   branches or one; a Branches card, a Branch column on orders and statement; the invoice delivers to the branch — and
@@ -302,8 +313,8 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
-- (1) and (3) built 2026-10-27, on `dev` (above, "On `dev`, not yet in production").
-- (2) **Built 2026-10-27, merged into `dev` 2026-10-27 at the owner's word ("merge samples into dev and push"); not on master — production needs the migration first; migration `20261027120000_samples_into_order`; e2e written, not run; its guesses in that branch's BUSINESS_LOGIC §4).** (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
+- (1) and (3) **live 2026-10-27 (evening)**.
+- (2) **Live 2026-10-27 (evening)** (migration `20261027120000_samples_into_order` applied). Was: built 2026-10-27, merged into `dev` at the owner's word ("merge samples into dev and push"); production needed the migration first; migration `20261027120000_samples_into_order`; e2e written, not run; its guesses in that branch's BUSINESS_LOGIC §4).** (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
   order, and auto handle the rest … a shop can also have 3 samples of 3 different products, but he decides to make an order
   that includes buying 2 of them while one still remains as a sample"): **Samples into the current order** —
   New Order's samples hint becomes a list per product with **Add to order** (and **Add all**); the line is tagged
@@ -314,9 +325,9 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   popup gets the same per-line choice for a removed line: **Keep as sample** (default) or **Returned**. Tests: more /
   less / all / none of a sample, two samples orders at once, another shop's sample (refused), a returned or written-off
   sample (refused), doing it twice, stock and the settlement gate correct after. Build on its own branch.
-- (4) **Known bugs — fixed 2026-10-27, on `dev`:** the order popup's Allocations name a batch by its cycle and check-in day ("CYC-2026-0001 · checked in 9 Sep 2026", as the product page does) instead of `#` and eight characters of its id; `POST /ledger/<not-a-uuid>/reverse` is a coded 404 (`NOT_FOUND`), not a 500; return references take a lock on their series, so two returns at once never share a number; `apps/web/package-lock.json` carries the optional Tailwind WebAssembly entries `npm ci` wanted (no version moved); CI hands the e2e setup the Postgres service's container id (`DB_CONTAINER`) — **not yet seen running on GitHub**: CI runs on a push to master or a pull request. Tests: `ledger-entry.spec` (the not-a-uuid reverse), `references.db.spec` (six returns at once), `order-popup-history.test.tsx` (the batch named, never `#…`); each fails with its fix undone.
+- (4) **Known bugs — fixed, live 2026-10-27 (evening):** the order popup's Allocations name a batch by its cycle and check-in day ("CYC-2026-0001 · checked in 9 Sep 2026", as the product page does) instead of `#` and eight characters of its id; `POST /ledger/<not-a-uuid>/reverse` is a coded 404 (`NOT_FOUND`), not a 500; return references take a lock on their series, so two returns at once never share a number; `apps/web/package-lock.json` carries the optional Tailwind WebAssembly entries `npm ci` wanted (no version moved); CI hands the e2e setup the Postgres service's container id (`DB_CONTAINER`) — **not yet seen running on GitHub**: CI runs on a push to master or a pull request. Tests: `ledger-entry.spec` (the not-a-uuid reverse), `references.db.spec` (six returns at once), `order-popup-history.test.tsx` (the batch named, never `#…`); each fails with its fix undone.
 Later — queued, not to be built until the owner says:
-- Later (2026-10-27, owner: "in sales order we need a confirm and paid button for easier access, add to do later"):
+- **Building now** (2026-10-27, owner: "start build the confirm and pay"; first asked "in sales order we need a confirm and paid button for easier access, add to do later"):
   **Confirm and paid in one step** — on a draft sale order (the order popup and New Order), a "Confirm & paid" button that
   confirms the order and records a payment for its full total (today, the order's customer) in one server call, all or
   nothing; refused for a walk-in that is already paid, a cancelled or confirmed order, and anything Confirm alone refuses.

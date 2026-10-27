@@ -132,7 +132,9 @@ The parts worth knowing about:
 > a different Vercel account. It returns 200 on `/`, which is why it went
 > unnoticed for two sessions. Test on a route only this app has, never `/`.
 
-Production runs `origin/master` at `d87b68b` (2026-10-27): customer branches and the Sales branch filter, migration
+Production runs `origin/master` (2026-10-27, evening): a new temporary investor from the Funding card's `+`, Change split
+saved on the server in one go, samples into the current order (migration `20261027120000_samples_into_order`) and the
+known-bugs batch (batch names in the order popup, ledger reverse 404, locked RET- numbers). Before that, `d87b68b`: customer branches and the Sales branch filter, migration
 `20261025120000_customer_branches` applied first; a walk-in looks up no branch. Earlier the same day the Funding card
 learnt to count investors, read shares as agreed and show true percentages (`962ab07`), and CYC-2026-0001's funding
 was corrected by a one-off script. On 2026-10-26: the office chat, partner notifications, the New Order samples
