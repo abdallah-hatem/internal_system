@@ -17,7 +17,9 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
 - **Edit order** (on a confirmed order) is not shipped: saved on `feature/edit-order` (`4bdbf1e`) with its migration
   `20261026100000_sale_order_edits`, which must not be applied to production until that branch ships. Master's
   history holds no Edit order commit, so the branch can still be merged later.
-- **`dev`** = `master` (2026-10-27, after shipping it); Edit order lives only on `feature/edit-order`.
+- **`dev`** is ahead of `master` (2026-10-28): the product picker's category, the Preparing status (migration
+  `20261028100000_cycle_status_preparing`) and "Paid by" on an expense (migration `20261027180000_expense_paid_by`),
+  awaiting the owner's test before they ship. Edit order lives only on `feature/edit-order`.
   Nothing is held on another machine as far as git shows.
 - Tests at the release: API, web and unit suites green (counts in History, "Stage on 2026-10-26/27"); e2e not run
   (owner, 2026-10-25: unit and database tests only).
