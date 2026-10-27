@@ -2275,7 +2275,7 @@ Built (one definition, `apps/api/src/common/partner-account.ts`, `potsOf` — th
   draw.
 - **The Partners page** still shows the whole balance, and under the figures the pots: "Tied to no cycle: … · For
   CYC-2026-0002: …".
-- **Data check** 27.3 (`scripts/check-data.sh`): a partner whose untied money is below zero — a contribution that drew
+- **Data check** 28.6 (`scripts/check-data.sh`; was 27.3, which the branches' check also used): a partner whose untied money is below zero — a contribution that drew
   another cycle's advance before this rule. **Production:** from the facts read on 2026-10-26 (Abdallah's 50,775 and
   Shady's 10,000 on CYC-2026-0002, nothing contributed through an account on CYC-2026-0001) no contribution drew another
   cycle's advance; run the check after deploying to confirm it reads 0.
@@ -2287,7 +2287,7 @@ Built (one definition, `apps/api/src/common/partner-account.ts`, `potsOf` — th
 | Reversing an advance | Only while **its cycle's pot** still holds it (`ADVANCE_ALREADY_DRAWN` with `drawn`, `cycle`): reverse the contribution it funded first. Other cycles and untied money are never touched. Was: refused only if the whole account would go negative. | Never negative, per pot. |
 | Reversing a settlement whose payout was left in | Takes the payout back from **untied money only** (`ACCOUNT_MONEY_TIED_TO_CYCLES`). | A payout left in is untied money. |
 | A payout left in that names its cycle | Its `cycle_id` is the settled cycle it came from; it is **untied** all the same. | Owner: "only money tied to no cycle (a payout left in) funds any cycle". |
-| Untied money below zero (records from before the rule) | Offers nothing; no cycle's pot is reduced to cover it. Check 27.3 finds it. | Do not let old data move new money. |
+| Untied money below zero (records from before the rule) | Offers nothing; no cycle's pot is reduced to cover it. Check 28.6 finds it. | Do not let old data move new money. |
 | OPEN: an advance left undrawn on a cycle that is settled, closed or cancelled | **Stays that cycle's** — stranded: no other cycle can draw it and it cannot be taken out. Shown on the Partners page as that cycle's pot. Whether it should then become untied is for the owner. Not in production today (CYC-2026-0001 has no advances). | Build for what exists. |
 
 ### The cycle page's money-in is one Funding card — DECIDED 2026-10-26 (owner, from a rendered sample: "build it like this"), details GUESSED, live 2026-10-26 (`105bd6b`; below the Shipment card since `8d0447a`)
@@ -2612,7 +2612,7 @@ Built (API, office screens, Postgres and unit tests; e2e written, not run — ow
   only, opening on "The business"; choosing a partner says "No business cash leaves: {partner}'s account is credited
   with it…". The form is mounted fresh on every open, so a partner chosen and cancelled is never the next entry's payer
   (tested). The ledger row says "Paid by {partner}", and its detail too.
-- **Data check** (`scripts/check-data.sh`): 28 and 27.3 count `EXPENSE_PAID` as money in / untied money; new 28.3 (an
+- **Data check** (`scripts/check-data.sh`): 28 and 28.6 count `EXPENSE_PAID` as money in / untied money; new 28.3 (an
   `EXPENSE_PAID` credit no standing expense matches — missing row, an undo, not money out, another payer, other pounds,
   or standing while its expense is undone / undone while its expense stands), 28.4 (an expense paid by a partner with no
   credit), 28.5 (an undo naming another payer than its expense).

@@ -95,7 +95,7 @@ State of the product and of production's data: `docs/where-things-stand.md`.
     partners only. The ledger row says "Paid by {partner}"; the Partners page shows the credit, not reversible there.
   - Tests: `ledger/expense-paid-by.db.spec.ts` (15, real Postgres), `ledger-entry.spec.ts` (+2),
     `common/partner-account.spec.ts` (+1), `LedgerEntryDialog.test.tsx` (+3), `ledger-quick-actions.test.tsx` (+5),
-    `partner-accounts-section.test.tsx` (+2); each broken and seen to fail. Data checks 28.3–28.5 added (28, 27.3 count
+    `partner-accounts-section.test.tsx` (+2); each broken and seen to fail. Data checks 28.3–28.5 added (28, 28.6 count
     the new kind).
   - Found, not changed: a cycle's "investment" on Cycle profitability sums money-out rows without netting an undone
     pair (business-paid too) — OPEN in §9.
@@ -154,7 +154,7 @@ Older history: "History" at the foot of this file, and `git log`.
   (`apps/api/prisma/one-off/2026-10-26-reverse-cyc-0001-advance.ts`).
 - 2026-10-26 (evening) — shipped, no migration: **each cycle's funding is its own** — an advance funds only its own
   cycle, untied money (a payout left in) any cycle, refusals `ACCOUNT_MONEY_FOR_OTHER_CYCLE` /
-  `ACCOUNT_MONEY_TIED_TO_CYCLES` / `ADVANCE_ALREADY_DRAWN`, check-data 27.3 (`b8ab447`); **an undone entry and its undo
+  `ACCOUNT_MONEY_TIED_TO_CYCLES` / `ADVANCE_ALREADY_DRAWN`, check-data 28.6 (`b8ab447`; numbered 27.3 until 2026-10-27, when it was found sharing that number with the branches' check); **an undone entry and its undo
   leave every period** (`common/undone-entries.ts`, shared with cash on hand) — This month's Expenses no longer −3,338.82;
   the funding skeleton; **one Funding card** replaces the Participants card and the funding panel — target and paid so
   far, contributions in equal thirds with covered/short, the profit split with a new Change split, Add investor

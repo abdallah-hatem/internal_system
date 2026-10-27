@@ -575,7 +575,7 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   -- its cycle's advances, then untied money (payouts left in, less money
   -- taken out) — never another cycle's advance. Untied money below zero means
   -- one did; common/partner-account.ts's potsOf, in SQL.
-  UNION ALL SELECT 27.3, 'contribution drew on an advance paid for another cycle',
+  UNION ALL SELECT 28.6, 'contribution drew on an advance paid for another cycle',
          count(*) FROM (
            SELECT partner_user_id,
                   sum(CASE kind WHEN 'PAYOUT_LEFT_IN' THEN amount_egp
