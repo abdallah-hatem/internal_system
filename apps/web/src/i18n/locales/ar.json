@@ -921,7 +921,11 @@
     "lenderRepayment": "سداد لصديق",
     "stockTransfer": "نقل بضاعة متبقية",
     "stockTransferReversal": "إلغاء نقل بضاعة متبقية",
-    "chooseCycle": "اختر الدورة"
+    "chooseCycle": "اختر الدورة",
+    "paidBy": "دفعه",
+    "paidByBusiness": "النشاط",
+    "paidByHint": "لا يخرج نقد من النشاط: يُضاف المبلغ إلى حساب {partner}، والنشاط مدين له به.",
+    "paidByTag": "دفعه {partner}"
   },
   "settlements": {
     "title": "التسويات",
@@ -1850,6 +1854,11 @@
     "CYCLE_HAS_NO_PARTNERS": "لا يوجد شريك أساسي على الدورة {cycle} ليساهم.",
     "ACCOUNT_MOVEMENT_ALREADY_REVERSED": "تم إلغاء هذا القيد من قبل.",
     "ACCOUNT_PAYOUT_REVERSE_SETTLEMENT": "الأرباح المتروكة تُستعاد بإلغاء تسوية {cycle}.",
+    "ACCOUNT_EXPENSE_REVERSE_ON_LEDGER": "المصروف الذي دفعه يُستعاد من حسابه بإلغاء المصروف في الدفتر.",
+    "LEDGER_PAID_BY_ONLY_EXPENSE": "المصروفات فقط يمكن أن يدفعها شريك؛ الإيراد مال يدخل إلى النشاط.",
+    "LEDGER_PAYER_NOT_PARTNER": "يدفع المصروفَ النشاطُ أو أحدُ الشركاء الأساسيين، وهذا ليس أياً منهما.",
+    "LEDGER_PAYER_INACTIVE": "{partner} لم يعد شريكاً نشطاً، فلا يمكن تسجيل مصروف على أنه دفعه.",
+    "EXPENSE_CREDIT_ALREADY_TAKEN": "أُضيف إلى حساب {partner} مبلغ {amount} جنيه عن هذا المصروف، لكن فيه الآن {available} جنيه فقط يمكنه سحبها — فقد سحبه أو أدخله في دورة. ألغِ ذلك أولاً، ثم هذا المصروف.",
     "CONTRIBUTION_ALREADY_LOWERED": "مساهمته في {cycle} هي {contribution} جنيه، أقل من {amount} جنيه التي أدخلها هذا القيد؛ خُفّضت يدوياً.",
     "PAYOUT_LEFT_IN_TWICE": "يترك كل شريك أرباحه مرة واحدة.",
     "PAYOUT_LEFT_IN_NOT_A_PARTNER": "فقط الشريك الأساسي في تسوية {cycle} يمكنه ترك أرباحه.",
@@ -2859,8 +2868,10 @@
       "ADVANCE": "دفع للمورد",
       "CONTRIBUTION": "في دورة",
       "WITHDRAWAL": "سحب",
-      "PAYOUT_LEFT_IN": "أرباح متروكة"
+      "PAYOUT_LEFT_IN": "أرباح متروكة",
+      "EXPENSE_PAID": "مصروف دفعه"
     },
+    "expensesPaid": "مصروفات دفعها",
     "payLeaveIn": "دفع مع ترك جزء",
     "leaveInTitle": "صرف أرباح {cycle}",
     "leaveInHint": "اختر شريكاً ليترك أرباحه في حسابه الجاري بدلاً من أخذها. في الحالتين تُسجّل كمدفوعة له.",

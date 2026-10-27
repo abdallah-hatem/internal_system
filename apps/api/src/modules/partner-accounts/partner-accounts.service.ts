@@ -97,7 +97,10 @@ export class PartnerAccountsService {
     });
     const movements = await this.prisma.partnerAccountMovement.findMany({
       where: { partnerUserId: { in: holders.map((h) => h.id) } },
-      include: { cycle: { select: { id: true, code: true } } },
+      include: {
+        cycle: { select: { id: true, code: true } },
+        expenseEntry: { select: { category: true } },
+      },
       orderBy: [{ occurredOn: 'desc' }, { createdAt: 'desc' }],
     });
     return {
@@ -133,6 +136,7 @@ export class PartnerAccountsService {
       balanceEgp: m2(balanceOf(movements)),
       advancedEgp: by('ADVANCE'),
       leftInEgp: by('PAYOUT_LEFT_IN'),
+      expensesPaidEgp: by('EXPENSE_PAID'),
       contributedEgp: by('CONTRIBUTION'),
       withdrawnEgp: by('WITHDRAWAL'),
     };
@@ -177,11 +181,13 @@ export class PartnerAccountsService {
     occurredOn: Date;
     cycleId: string | null;
     settlementId: string | null;
+    expenseEntryId?: string | null;
     note: string | null;
     createdAt: Date;
     reversedAt: Date | null;
     reversalReason: string | null;
     cycle?: { id: string; code: string } | null;
+    expenseEntry?: { category: string } | null;
   }) {
     return {
       id: m.id,
@@ -196,6 +202,9 @@ export class PartnerAccountsService {
       cycleId: m.cycleId,
       cycleCode: m.cycle?.code ?? null,
       settlementId: m.settlementId,
+      /** The expense he paid (EXPENSE_PAID): its ledger row and category. */
+      expenseEntryId: m.expenseEntryId ?? null,
+      expenseCategory: m.expenseEntry?.category ?? null,
       note: m.note,
       createdAt: m.createdAt,
       reversedAt: m.reversedAt,
@@ -983,6 +992,14 @@ export class PartnerAccountsService {
           'ACCOUNT_PAYOUT_REVERSE_SETTLEMENT',
           `A payout left in comes out by reversing the settlement of ${m.cycle?.code ?? 'its cycle'}.`,
           { cycle: m.cycle?.code ?? '' },
+        );
+      }
+      if (m.kind === 'EXPENSE_PAID') {
+        // The credit is the expense's: undone on its own, the ledger would
+        // keep an expense paid by him that nobody owes him for (§9 "Paid by").
+        throw badRequest(
+          'ACCOUNT_EXPENSE_REVERSE_ON_LEDGER',
+          'An expense he paid comes out of his account by reversing the expense in the ledger.',
         );
       }
       if (m.kind === 'ADVANCE' && m.cycleId) {

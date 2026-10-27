@@ -921,7 +921,11 @@
     "lenderRepayment": "Repayment to a friend",
     "stockTransfer": "Leftovers moved",
     "stockTransferReversal": "Leftovers move undone",
-    "chooseCycle": "Choose the cycle"
+    "chooseCycle": "Choose the cycle",
+    "paidBy": "Paid by",
+    "paidByBusiness": "The business",
+    "paidByHint": "No business cash leaves: {partner}’s account is credited with it, and the business owes it back.",
+    "paidByTag": "Paid by {partner}"
   },
   "settlements": {
     "title": "Settlements",
@@ -1850,6 +1854,11 @@
     "CYCLE_HAS_NO_PARTNERS": "Cycle {cycle} has no core partner to contribute.",
     "ACCOUNT_MOVEMENT_ALREADY_REVERSED": "This entry was already reversed.",
     "ACCOUNT_PAYOUT_REVERSE_SETTLEMENT": "A payout left in comes out by reversing the settlement of {cycle}.",
+    "ACCOUNT_EXPENSE_REVERSE_ON_LEDGER": "An expense he paid comes out of his account by reversing the expense in the Ledger.",
+    "LEDGER_PAID_BY_ONLY_EXPENSE": "Only an expense can be paid by a partner; income is money coming in to the business.",
+    "LEDGER_PAYER_NOT_PARTNER": "An expense can be paid by the business or by one of the core partners; that is neither.",
+    "LEDGER_PAYER_INACTIVE": "{partner} is no longer an active partner, so an expense cannot be recorded as paid by him.",
+    "EXPENSE_CREDIT_ALREADY_TAKEN": "{partner}’s account was credited {amount} EGP for this expense, but now holds {available} EGP he can take out — he has already withdrawn it or drawn it into a cycle. Reverse that first, then this expense.",
     "CONTRIBUTION_ALREADY_LOWERED": "The contribution to {cycle} is {contribution} EGP, less than the {amount} EGP this entry put in; it was lowered by hand.",
     "PAYOUT_LEFT_IN_TWICE": "Each partner can leave his payout in once.",
     "PAYOUT_LEFT_IN_NOT_A_PARTNER": "Only a core partner on the settlement of {cycle} can leave his payout in.",
@@ -2859,8 +2868,10 @@
       "ADVANCE": "Paid supplier",
       "CONTRIBUTION": "Into cycle",
       "WITHDRAWAL": "Taken out",
-      "PAYOUT_LEFT_IN": "Payout left in"
+      "PAYOUT_LEFT_IN": "Payout left in",
+      "EXPENSE_PAID": "Expense he paid"
     },
+    "expensesPaid": "Expenses he paid",
     "payLeaveIn": "Pay, leaving some in",
     "leaveInTitle": "Pay out {cycle}",
     "leaveInHint": "Tick a partner to leave his payout in his running account instead of taking it. Either way it is recorded as paid to him.",

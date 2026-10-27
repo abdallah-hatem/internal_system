@@ -69,4 +69,13 @@ export class CreateLedgerEntryDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /**
+   * A core partner who paid this expense from his own pocket (§9 "Paid by",
+   * 2026-10-27). Left out or null: the business paid. Who may be named is
+   * the service's check.
+   */
+  @IsOptional()
+  @IsString()
+  paidByUserId?: string | null;
 }

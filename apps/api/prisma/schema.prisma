@@ -47,7 +47,9 @@ model User {
   saleOrders            SaleOrder[]            @relation("CreatedSaleOrderUser")
   payments              Payment[]              @relation("CreatedPaymentUser")
   productRequests       ProductRequest[]       @relation("CreatedProductRequestUser")
-  financialTransactions FinancialTransaction[]
+  financialTransactions FinancialTransaction[] @relation("LedgerActor")
+  /// Expenses he paid from his own pocket (§9, 2026-10-27): credited to his account.
+  expensesPaid          FinancialTransaction[] @relation("ExpensePaidBy")
   inventoryMovements    InventoryMovement[]
   stockTransfers        StockTransfer[]        @relation("StockTransferCreatedBy")
   stockTransfersUndone  StockTransfer[]        @relation("StockTransferReversedBy")
@@ -351,6 +353,9 @@ enum PartnerAccountMovementKind {
   CONTRIBUTION
   /// Money he took out: − his account.
   WITHDRAWAL
+  /// A business expense he paid from his own pocket: + his account. Not cash
+  /// (§9, 2026-10-27); the ledger row it credits is `expenseEntryId`.
+  EXPENSE_PAID
 }
 
 /// One movement on a core partner's running account (§8, owner 2026-10-25).
@@ -377,6 +382,8 @@ model PartnerAccountMovement {
   participantId  String?                    @map("participant_id") @db.Uuid
   /// The settlement whose payout was left in.
   settlementId   String?                    @map("settlement_id") @db.Uuid
+  /// The expense he paid (EXPENSE_PAID): one credit per ledger row.
+  expenseEntryId String?                    @unique @map("expense_entry_id") @db.Uuid
   note           String?
   createdBy      String?                    @map("created_by") @db.Uuid
   createdAt      DateTime                   @default(now()) @map("created_at") @db.Timestamptz()
@@ -388,6 +395,7 @@ model PartnerAccountMovement {
   cycle       ImportCycle?      @relation(fields: [cycleId], references: [id])
   participant CycleParticipant? @relation(fields: [participantId], references: [id])
   settlement  Settlement?       @relation(fields: [settlementId], references: [id])
+  expenseEntry FinancialTransaction? @relation(fields: [expenseEntryId], references: [id])
 
   @@index([partnerUserId])
   @@index([cycleId])
@@ -1271,9 +1279,16 @@ model FinancialTransaction {
   originalCurrency String?              @map("original_currency")
   createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz()
   createdBy        String?              @map("created_by") @db.Uuid
+  /// A partner who paid this expense from his own pocket (§9, 2026-10-27):
+  /// no business cash moved, and his account was credited. Null: the business
+  /// paid. Its undo carries the same payer.
+  paidByUserId     String?              @map("paid_by_user_id") @db.Uuid
 
   cycle              ImportCycle?        @relation(fields: [cycleId], references: [id])
-  actor              User?               @relation(fields: [createdBy], references: [id])
+  actor              User?               @relation("LedgerActor", fields: [createdBy], references: [id])
+  paidBy             User?               @relation("ExpensePaidBy", fields: [paidByUserId], references: [id])
+  /// The credit in his account, when a partner paid it.
+  paidByCredit       PartnerAccountMovement?
   /// The supplier refund this row undid, when it is a refund's reversal.
   reversedRefund     SupplierRefund?     @relation("SupplierRefundReversal")
   /// A general running cost: which payouts took it, and how much (§8, L7).

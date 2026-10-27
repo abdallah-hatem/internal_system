@@ -2694,6 +2694,27 @@ test.describe('A partner’s running account (§8, owner 2026-10-25: "equal thir
       expect(await errCode(res)).toBe('ROLE_NOT_ALLOWED');
     }
   });
+
+  // "Paid by" on an expense (§9, owner 2026-10-26; written 2026-10-27, not run).
+  test('TC-INV-92: an expense a partner paid moves no cash on hand, is still an expense, credits him — and its reversal takes the credit back', async ({ request }) => {
+    const w = await accountsWorld(request, 'Inv Paid By');
+    const dash = await dashOf(request, w.headers);
+    const before = await w.balance(w.s);
+    const res = await request.post(`${API}/ledger`, {
+      headers: w.headers,
+      data: { kind: 'EXPENSE', category: 'fuel', amount: 300, currency: 'EGP', paidByUserId: w.s },
+    });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    const after = await dashOf(request, w.headers);
+    expect(after.cashOnHand).toBe(dash.cashOnHand);
+    expect(after.totalExpenses).toBeCloseTo(dash.totalExpenses + 300, 2);
+    expect(await w.balance(w.s)).toBeCloseTo(before + 300, 2);
+    const id = (await res.json()).data.id;
+    const undo = await request.post(`${API}/ledger/${id}/reverse`, { headers: w.headers, data: { reason: 'typed twice' } });
+    expect(undo.ok(), await undo.text()).toBeTruthy();
+    expect(await w.balance(w.s)).toBeCloseTo(before, 2);
+    expect((await dashOf(request, w.headers)).cashOnHand).toBe(dash.cashOnHand);
+  });
 });
 
 // Preparing (BUSINESS_LOGIC §1, owner 2026-10-27): the order is confirmed and

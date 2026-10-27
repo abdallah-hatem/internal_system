@@ -56,6 +56,8 @@ interface LedgerEntry {
   occurredOn?: string | null;
   originalAmount?: number | string | null;
   originalCurrency?: string | null;
+  /** A partner who paid this expense from his own pocket (§9 "Paid by"); null: the business. */
+  paidBy?: { id: string; partner?: { displayName: string } | null } | null;
   createdAt: string;
 }
 
@@ -242,7 +244,17 @@ export default function LedgerPage() {
     },
     {
       key: 'category', header: t('category'), width: 'auto', kind: 'name', className: 'text-gray-600',
-      title: (e) => categoryLabel(e.category), cell: (e) => <bdi>{categoryLabel(e.category)}</bdi>,
+      title: (e) => categoryLabel(e.category),
+      cell: (e) => (
+        <>
+          <bdi>{categoryLabel(e.category)}</bdi>
+          {e.paidBy && (
+            <span data-testid="ledger-paid-by" className="ms-2 text-xs text-muted-foreground">
+              {t('paidByTag', { partner: e.paidBy.partner?.displayName ?? '' })}
+            </span>
+          )}
+        </>
+      ),
     },
     {
       key: 'direction', header: t('direction'), width: '7rem', skeleton: { kind: 'pill', share: 'w-3/4' },
@@ -513,6 +525,7 @@ export default function LedgerPage() {
               )}
               <Detail label={t('fxRate')} value={detail.fxRateToEgp?.toString() ?? '—'} />
               <Detail label={t('cycle')} value={detail.cycle?.code ?? '—'} />
+              {detail.paidBy && <Detail label={t('paidBy')} value={detail.paidBy.partner?.displayName ?? '—'} />}
               <Detail label={t('relatedTo')} value={detail.relatedType && detail.relatedId ? `${codeLabel('referenceType', detail.relatedType)} (${detail.relatedId})` : '—'} />
               <Detail label={t('reason')} value={detail.reason ?? '—'} />
             </div>

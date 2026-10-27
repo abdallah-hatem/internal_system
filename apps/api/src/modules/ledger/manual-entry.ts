@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { badRequest } from '../../common/api-error';
 import { TRANSFER_CATEGORY } from '../../common/ledger-categories';
 import { assertDay, assertNotFuture, businessToday } from '../../common/dates';
+import { isUuid } from '../../common/uuid';
+import { payerNotPartner } from '../../common/expense-paid-by';
 import {
   CYCLE_REQUIRED_CATEGORIES,
   MANUAL_ENTRY_KINDS,
@@ -22,6 +24,8 @@ export interface ManualEntryInput {
   occurredOn?: string;
   cycleId?: string;
   note?: string;
+  /** A core partner who paid the expense from his own pocket (§9 "Paid by"). */
+  paidByUserId?: string | null;
 }
 
 export interface CheckedManualEntry {
@@ -37,6 +41,12 @@ export interface CheckedManualEntry {
   original: { amount: Prisma.Decimal; currency: string } | null;
   occurredOn: string;
   note: string | null;
+  /**
+   * Who paid it, when a partner did from his own pocket; null when the
+   * business did. Shape checked here; that he is a core partner is the
+   * service's to look up.
+   */
+  paidByUserId: string | null;
 }
 
 /** Large enough for any real entry, small enough for Decimal(18,2). */
@@ -173,6 +183,8 @@ export function checkManualEntry(input: ManualEntryInput): CheckedManualEntry {
     );
   }
 
+  const paidByUserId = checkPaidBy(kind, input.paidByUserId);
+
   const original = new Prisma.Decimal(amount);
   const amountEgp = rate
     ? original.mul(rate).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
@@ -188,5 +200,25 @@ export function checkManualEntry(input: ManualEntryInput): CheckedManualEntry {
     original: rate ? { amount: original, currency } : null,
     occurredOn,
     note: input.note?.trim() || null,
+    paidByUserId,
   };
+}
+
+/**
+ * "Paid by" (§9, owner 2026-10-26/27): left out or null, the business paid.
+ * Only an expense can be paid by a partner — income paid by him means nothing
+ * (`LEDGER_PAID_BY_ONLY_EXPENSE`) — and the payer must at least look like a
+ * person's id; that he is a core partner is the service's check, with the
+ * same code.
+ */
+function checkPaidBy(kind: ManualEntryKind, paidBy: unknown): string | null {
+  if (paidBy === undefined || paidBy === null) return null;
+  if (kind !== 'EXPENSE') {
+    throw badRequest(
+      'LEDGER_PAID_BY_ONLY_EXPENSE',
+      'Only an expense can be paid by a partner; income is money coming in to the business.',
+    );
+  }
+  if (typeof paidBy !== 'string' || !isUuid(paidBy)) throw payerNotPartner();
+  return paidBy;
 }

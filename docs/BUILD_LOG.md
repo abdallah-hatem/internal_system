@@ -81,6 +81,24 @@ State of the product and of production's data: `docs/where-things-stand.md`.
   - Totals at the commit: API `jest --runInBand` 135 suites / 2,714 tests passed (database suites included, against
     the agent database); web `vitest` 120 files / 1,616 tests passed; `node --test unit` 128/128;
     `scripts/check-data.sh` on a fresh agent database: 76 checks, all zero.
+## Built on `feature/expense-paid-by`, merged into `dev` 2026-10-27 — not on master; production needs migration `20261027180000_expense_paid_by` first
+- 2026-10-27 — **"Paid by" on an expense** (owner 2026-10-26, "build it" 2026-10-27; was in "Later"), built on
+  **`feature/expense-paid-by`** (cut from `dev` at `4a583f2`), migration `20261027180000_expense_paid_by` (additive: an
+  enum value, `financial_transactions.paid_by_user_id`, `partner_account_movements.expense_entry_id`). **E2e written,
+  not run** (owner: not for now): `106-expense-paid-by.spec.ts`, 34 TC-INV-92. BUSINESS_LOGIC §9 "Paid by" on an
+  expense (and a line in §8's running account), its guesses there.
+  - The Ledger form and the Fuel quick action get **Paid by** (default: the business; an expense only). Paid by a
+    partner: the same expense row (operating expense, a cycle's cost, a running cost with its shares as today), named
+    as his, left out of cash by the one cash definition (`CASH_ROWS_WHERE`, `common/cash-position.ts`), and his account
+    credited (`EXPENSE_PAID`, untied money) in the same transaction. Reversing the expense reverses the credit, refused
+    (`EXPENSE_CREDIT_ALREADY_TAKEN`) once he has withdrawn it or drawn it into a contribution. Payer: active core
+    partners only. The ledger row says "Paid by {partner}"; the Partners page shows the credit, not reversible there.
+  - Tests: `ledger/expense-paid-by.db.spec.ts` (15, real Postgres), `ledger-entry.spec.ts` (+2),
+    `common/partner-account.spec.ts` (+1), `LedgerEntryDialog.test.tsx` (+3), `ledger-quick-actions.test.tsx` (+5),
+    `partner-accounts-section.test.tsx` (+2); each broken and seen to fail. Data checks 28.3–28.5 added (28, 27.3 count
+    the new kind).
+  - Found, not changed: a cycle's "investment" on Cycle profitability sums money-out rows without netting an undone
+    pair (business-paid too) — OPEN in §9.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
@@ -386,13 +404,6 @@ Later — queued, not to be built until the owner says:
   samples. No migration. Tests: `confirm-and-pay.db.spec` (21, real Postgres), `confirm-and-pay.spec` (5, roles and
   body), `confirm-and-paid.test.tsx` (14, popup and New Order) — each broken and seen to fail. GUESSes: cash, the
   order's day, walk-in, a zero order (§4).
-- Later (owner, 2026-10-26; queued only, not to be built until he says): **"Paid by" on an expense** — the business or
-  one of the partners. E.g. fuel for a delivery paid from a partner's own pocket: still booked as the same expense
-  (charged to a cycle, or a running cost shared from payouts, as today), but no business cash leaves (cash on hand does
-  not move) and the partner's running account is credited with it (the business owes it back; he withdraws it or
-  leaves it in for a contribution). The Ledger form and the Fuel quick action get the choice (a picker, default the
-  business); reversing the expense reverses the credit; the partner account may not go negative. Tests: cash on hand
-  unchanged, profit and running-cost shares as before, the account credited and reversed, the wrong partner refused.
 - Later (owner, 2026-10-25; built 2026-10-26, NOT shipped — saved on `feature/edit-order` (`4bdbf1e`), owner 2026-10-27): **Edit order** on a confirmed order — add a
   product, change a quantity, change a price (up or down). It feels like editing; underneath, each change is a dated,
   recorded event (never an overwrite of what was confirmed): more units drawn FIFO that day, fewer units back to their

@@ -37,10 +37,17 @@ vi.mock('@/lib/api', () => ({
             ? CYCLES
             : url.startsWith('/currency-rates')
               ? { USD: 48.5, AED: 13.2 }
-              : [],
+              : url === '/partner-accounts'
+                ? [{ partnerUserId: 'u-shady', name: 'Shady', active: true }]
+                : [],
         },
       }),
   },
+}));
+
+// A core partner: the one role that may write the ledger, and read who can pay.
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ user: { id: 'u1', email: 'x@y.z', role: 'CORE_PARTNER' } }),
 }));
 
 beforeAll(() => {
@@ -364,5 +371,49 @@ describe('the Fuel shortcut (§9, 2026-10-17)', () => {
     cleanup();
     renderDialog('interest');
     expect(hidden('category')?.value ?? '').toBe('');
+  });
+});
+
+describe('Paid by (§9, owner 2026-10-26, built 2026-10-27)', () => {
+  it('opens on the business; income has no payer at all, and coming back to an expense is the business again', async () => {
+    renderDialog('fuel');
+    expect(hidden('paidBy')?.value).toBe('BUSINESS');
+    await pick('ledger-paid-by', /Shady/);
+    expect(hidden('paidBy')?.value).toBe('u-shady');
+    fireEvent.click(card(L.kindIncome));
+    expect(document.querySelector('#ledger-paid-by')).toBeNull();
+    fireEvent.click(card(L.kindExpense));
+    expect(hidden('paidBy')?.value).toBe('BUSINESS');
+  });
+
+  it('income is never sent with a payer, even after one was chosen on the expense', async () => {
+    answer = () => Promise.resolve({ data: { data: { id: 'tx' } } });
+    const { onClose } = renderDialog('fuel');
+    await pick('ledger-paid-by', /Shady/);
+    fireEvent.click(card(L.kindIncome));
+    await pick('ledger-category', re(en.codes.ledgerCategory.interest));
+    typeAmount('40');
+    fireEvent.click(save());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(post.mock.calls[0][1]).not.toHaveProperty('paidByUserId');
+  });
+
+  it('a payer the server refuses: said translated, the form and his name kept', async () => {
+    answer = () =>
+      Promise.reject({
+        response: {
+          data: { error: { code: 'LEDGER_PAYER_INACTIVE', message: 'English fallback', params: { partner: 'Shady' } } },
+        },
+      });
+    const { onClose } = renderDialog('fuel');
+    await pick('ledger-paid-by', /Shady/);
+    typeAmount('300');
+    fireEvent.click(save());
+    expect((await screen.findByTestId('ledger-refusal')).textContent).toBe(
+      en.errors.LEDGER_PAYER_INACTIVE.replace('{partner}', 'Shady'),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(hidden('paidBy')?.value).toBe('u-shady');
+    expect(post.mock.calls[0][1]).toMatchObject({ paidByUserId: 'u-shady', amount: 300 });
   });
 });

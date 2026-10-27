@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog } from '@/components/ui/dialog';
 import { useTranslations } from 'next-intl';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCan } from '@/lib/can';
 import { ArrowDownRight, ArrowUpRight, Loader2 } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -29,6 +30,15 @@ interface CycleRow {
   status: string;
 }
 
+/** The Paid by picker's "the business" — what it opens on, and sends as nothing (§9 "Paid by"). */
+export const PAID_BY_BUSINESS = 'BUSINESS';
+
+interface AccountHolder {
+  partnerUserId: string;
+  name: string;
+  active: boolean;
+}
+
 /**
  * Record money in or out by hand (BUSINESS_LOGIC §9, L6 — mockup accepted by
  * the owner 2026-10-11).
@@ -47,6 +57,11 @@ interface CycleRow {
  * - **Charge to a cycle**, optional — except for extra freight, which is a
  *   cost of one cycle's goods (§2). Closed and cancelled cycles are not
  *   offered.
+ * - **Paid by** (an expense only, 2026-10-27): the business, which it opens
+ *   on, or one of the active core partners — fuel paid from his own pocket.
+ *   The same expense; no business cash moves and his account is credited.
+ *   Mounted fresh on every open, so a partner chosen and cancelled is never
+ *   the next entry's payer.
  *
  * The server checks every one of these again (rule 3); a refusal is shown
  * translated inside the dialog, which keeps everything as typed.
@@ -97,6 +112,7 @@ function LedgerEntryForm({
   const [occurredOn, setOccurredOn] = useState(() => businessToday());
   const [cycleId, setCycleId] = useState('');
   const [note, setNote] = useState('');
+  const [paidBy, setPaidBy] = useState(PAID_BY_BUSINESS);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
@@ -120,6 +136,25 @@ function LedgerEntryForm({
     [cycles, codeLabel],
   );
 
+  // Who can have paid: the core partners with an account, active ones only —
+  // the server refuses anyone else (LEDGER_PAYER_NOT_PARTNER / _INACTIVE).
+  const canReadAccounts = useCan('partnerAccount.read');
+  const { data: holders } = useQuery<AccountHolder[]>({
+    queryKey: ['partner-accounts'],
+    queryFn: () => api.get('/partner-accounts').then((r) => r.data.data ?? r.data),
+    enabled: canReadAccounts,
+  });
+  const paidByOptions = useMemo(
+    () => [
+      { value: PAID_BY_BUSINESS, label: t('paidByBusiness') },
+      ...(Array.isArray(holders) ? holders : [])
+        .filter((h) => h.active)
+        .map((h) => ({ value: h.partnerUserId, label: h.name })),
+    ],
+    [holders, t],
+  );
+  const payerName = paidByOptions.find((o) => o.value === paidBy && paidBy !== PAID_BY_BUSINESS)?.label;
+
   const rule = MANUAL_ENTRY_KINDS[kind];
   const categoryOptions = rule.categories.map((c) => ({
     value: c,
@@ -131,6 +166,8 @@ function LedgerEntryForm({
     setKind(next);
     // A category of the other kind would be refused; drop it rather than send it.
     if (!MANUAL_ENTRY_KINDS[next].categories.includes(category)) setCategory('');
+    // Only an expense has a payer; income is never sent with one.
+    if (next !== 'EXPENSE') setPaidBy(PAID_BY_BUSINESS);
     setRefusal(null);
   };
 
@@ -171,6 +208,7 @@ function LedgerEntryForm({
         occurredOn,
         ...(cycleId ? { cycleId } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
+        ...(kind === 'EXPENSE' && paidBy !== PAID_BY_BUSINESS ? { paidByUserId: paidBy } : {}),
       });
     } catch (err) {
       setRefusal(apiError(err, t('recordFailed')));
@@ -181,7 +219,8 @@ function LedgerEntryForm({
     submitting.current = false;
     // Expenses and income move the dashboard, the cycle's profit and its
     // settlement preview, not only the ledger.
-    for (const key of ['ledger', 'analytics', 'settlements', 'settlement', 'cycle', 'cycles']) {
+    // Paid by a partner, his account moves too.
+    for (const key of ['ledger', 'analytics', 'settlements', 'settlement', 'cycle', 'cycles', 'partner-accounts']) {
       void queryClient.invalidateQueries({ queryKey: [key] });
     }
     toast.success(t('entryCreated'));
@@ -346,6 +385,31 @@ function LedgerEntryForm({
           )}
         </div>
       </div>
+
+      {kind === 'EXPENSE' && (
+        <div data-ledger-paid-by>
+          <label htmlFor="ledger-paid-by" className="mb-1 block text-sm font-medium text-foreground">
+            {t('paidBy')}
+          </label>
+          <Select
+            id="ledger-paid-by"
+            name="paidBy"
+            value={paidBy}
+            onChange={(v) => {
+              setPaidBy(v || PAID_BY_BUSINESS);
+              setRefusal(null);
+            }}
+            placeholder={t('paidByBusiness')}
+            searchPlaceholder={tph('searchPeople')}
+            options={paidByOptions}
+          />
+          {payerName && (
+            <p data-testid="paid-by-hint" className="mt-1 text-xs text-muted-foreground">
+              {t('paidByHint', { partner: payerName })}
+            </p>
+          )}
+        </div>
+      )}
 
       <div>
         <label htmlFor="ledger-note" className="mb-1 block text-sm font-medium text-foreground">
