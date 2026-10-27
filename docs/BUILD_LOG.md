@@ -381,6 +381,12 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- Next (2026-10-28, owner: "I should be able to pick which sample a shop returned"): **Return some samples, not all** —
+  "Returned" on a samples order opens the products the shop holds on it, each with a quantity (default all; lower it
+  or 0 for what stays). The chosen units go back to the batches they left at their cost; the rest stay samples on the
+  same order (left day and reminder kept); nothing left → the order ends SAMPLES_RETURNED as today. The office chat's
+  return_samples takes the same lines. Server refuses more than is out, 0/negative, a product not on the order, and a
+  decided order. No migration. Tests: some/all/none, twice, then buying the rest, stock and the settlement gate after.
 - **Built 2026-10-27 on `feature/picker-category`, merged into `dev`** (owner: "start both and paid by … each one in its own branch then merge each one to dev"): **New Order's product picker shows each product's category** beside its name, in the reader's language, and the search matches it in either language (BUSINESS_LOGIC §4). No API change — the product list already carried the category. Tests: `SaleOrderForm.test.tsx` (3: beside the name and absent without one, Arabic, search in both languages), each seen to fail with the old label. No migration.
 - (1) and (3) **live 2026-10-27 (evening)**.
 - (2) **Live 2026-10-27 (evening)** (migration `20261027120000_samples_into_order` applied). Was: built 2026-10-27, merged into `dev` at the owner's word ("merge samples into dev and push"); production needed the migration first; migration `20261027120000_samples_into_order`; e2e written, not run; its guesses in that branch's BUSINESS_LOGIC §4).** (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
