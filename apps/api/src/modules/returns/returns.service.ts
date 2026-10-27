@@ -6,7 +6,11 @@ import {
   type PartnerNotifier,
 } from '../../common/partner-news';
 import { PrismaService } from '../../prisma/prisma.service';
-import { nextReferenceNumber, pad } from '../../common/references';
+import {
+  lockReferenceSeries,
+  nextReferenceNumber,
+  pad,
+} from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import {
   PaginationDto,
@@ -233,6 +237,10 @@ export class ReturnsService {
       (order.customer.isWalkIn ? RefundMethod.CASH : RefundMethod.CREDIT_NOTE);
 
     const created = await this.prisma.$transaction(async (tx) => {
+      // Two returns at once read the same highest RET- and took the same
+      // number (BUILD_LOG known bugs, 2026-10-26): the series is locked as
+      // purchase orders' is (`references.ts`).
+      await lockReferenceSeries(tx, 'RET');
       const year = new Date().getFullYear();
       const last = await tx.saleReturn.findFirst({
         where: { reference: { startsWith: `RET-${year}` } },

@@ -526,7 +526,15 @@ export class SalesService {
         items: {
           include: {
             product: true,
-            allocations: { include: { inventoryBatch: true } },
+            // The batch named as a person knows it: its cycle and the day it
+            // was checked in, as the product page does — not its id.
+            allocations: {
+              include: {
+                inventoryBatch: {
+                  include: { cycle: { select: { code: true } } },
+                },
+              },
+            },
             ...VALUE_NOW_ITEM_INCLUDE,
           },
         },

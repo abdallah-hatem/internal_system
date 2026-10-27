@@ -476,6 +476,7 @@
     "search": "ابحث في المبيعات برقم الطلب أو العميل",
     "batch": "تشغيلة",
     "perUnitCost": "/وحدة",
+    "batchCheckedIn": "استُلمت {date}",
     "cogs": "تكلفة البضاعة",
     "currency": "العملة",
     "recordReturn": "تسجيل مرتجع",

@@ -131,6 +131,8 @@ interface SaleOrderItem {
     unitCostEgp?: number | string;
     cogsEgp?: number | string;
     batch?: { batchNo: string };
+    /** The batch as a person knows it: its cycle and the day it was checked in. */
+    inventoryBatch?: { createdAt?: string; cycle?: { code: string } | null } | null;
   }[];
 }
 
@@ -1112,7 +1114,19 @@ function SalesPageContent() {
                                 between the batch and its cost, never inside
                                 "117.30 EGP /unit" (re-audit N5). */}
                             <p className="text-xs text-gray-500">
-                              <span className="whitespace-nowrap">{t('batch')} <BatchRef id={alloc.inventoryBatchId} /></span>
+                              {alloc.inventoryBatch?.cycle?.code ? (
+                                <span className="whitespace-nowrap" data-testid="allocation-batch">
+                                  <bdi dir="ltr" className="font-mono">{alloc.inventoryBatch.cycle.code}</bdi>
+                                  {alloc.inventoryBatch.createdAt && (
+                                    <>
+                                      {' · '}
+                                      {t('batchCheckedIn', { date: formatDate(alloc.inventoryBatch.createdAt) })}
+                                    </>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="whitespace-nowrap">{t('batch')} <BatchRef id={alloc.inventoryBatchId} /></span>
+                              )}
                               {alloc.unitCostEgp != null && (
                                 <>
                                   {' '}

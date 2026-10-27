@@ -168,6 +168,26 @@ describe('the sale order popup', () => {
     expect(screen.getByTestId('tab-orderDetails').getAttribute('aria-selected')).toBe('true');
   });
 
+  it('an allocation names its batch by cycle and check-in day, not by a raw id (known bug, 2026-10-27)', async () => {
+    const confirmed = order('o-1', 'ORD-2026-00002', 'CONFIRMED', '3750.00');
+    confirmed.items[0].allocations = [
+      {
+        id: 'al-1',
+        inventoryBatchId: '7f3c9a12-0000-4000-8000-000000000001',
+        qty: 3,
+        unitCostEgp: '117.30',
+        inventoryBatch: { createdAt: '2026-09-09T10:00:00.000Z', cycle: { code: 'CYC-2026-0001' } },
+      },
+    ] as never[];
+    data.detail['o-1'] = confirmed;
+    renderPage();
+    await openOrder('ORD-2026-00002');
+    const batch = await screen.findByTestId('allocation-batch');
+    expect(batch.textContent).toContain('CYC-2026-0001');
+    expect(batch.textContent).toContain('checked in');
+    expect(screen.queryByText(/#7f3c9a12/)).toBeNull();
+  });
+
   it('in Arabic the tabs are السجل and الطلب', async () => {
     renderPage('ar');
     await openOrder('ORD-2026-00002');

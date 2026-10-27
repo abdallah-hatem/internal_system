@@ -299,11 +299,7 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   writes each participant's % through separate participant PUTs and only the dialog checks they add to 100 (the server
   checks at settlement). Add one endpoint that saves the whole split (all or none, adding to 100, coded refusals
   `PARTIAL_CUSTOM_SPLIT` / `SPLIT_NOT_100` at save time) and have the dialog use it (CLAUDE.md §3).
-- (4) **Known bugs, fix when touched or in one small batch:** the order popup's Allocations show raw batch codes
-  instead of something a person reads; the CI e2e step fails on the container name; `POST /ledger/<not-a-uuid>/reverse`
-  answers 500 instead of a coded 400/404 (CLAUDE.md §1); return references (`RET-…`) are numbered without a lock, so
-  two returns at once can collide; `apps/web/package-lock.json` is out of sync with `package.json`, so `npm ci` refuses
-  there.
+- (4) **Known bugs — fixed 2026-10-27, on `dev`:** the order popup's Allocations name a batch by its cycle and check-in day ("CYC-2026-0001 · checked in 9 Sep 2026", as the product page does) instead of `#` and eight characters of its id; `POST /ledger/<not-a-uuid>/reverse` is a coded 404 (`NOT_FOUND`), not a 500; return references take a lock on their series, so two returns at once never share a number; `apps/web/package-lock.json` carries the optional Tailwind WebAssembly entries `npm ci` wanted (no version moved); CI hands the e2e setup the Postgres service's container id (`DB_CONTAINER`) — **not yet seen running on GitHub**: CI runs on a push to master or a pull request. Tests: `ledger-entry.spec` (the not-a-uuid reverse), `references.db.spec` (six returns at once), `order-popup-history.test.tsx` (the batch named, never `#…`); each fails with its fix undone.
 Later — queued, not to be built until the owner says:
 - Later (2026-10-27, owner: "in sales order we need a confirm and paid button for easier access, add to do later"):
   **Confirm and paid in one step** — on a draft sale order (the order popup and New Order), a "Confirm & paid" button that

@@ -41,6 +41,10 @@ const CYCLES: Record<string, { id: string; code: string; status: string }> = {
   },
 };
 
+/** Entries' ids are UUIDs, as the service checks before it asks the database. */
+const TX_RENT = '11111111-1111-4111-8111-111111111111';
+const TX_SHARE = '22222222-2222-4222-8222-222222222222';
+
 function setup() {
   const created: Record<string, unknown>[] = [];
   const prisma = {
@@ -315,7 +319,7 @@ describe('a partner’s running-cost share is the payout’s, never typed (§8, 
     const { ledger, prisma, created } = setup();
     Object.assign(prisma.financialTransaction, {
       findUnique: jest.fn().mockResolvedValue({
-        id: 'tx-share',
+        id: TX_SHARE,
         type: 'RUNNING_COST_CHARGE',
         category: 'running_cost_share',
         direction: 'INFLOW',
@@ -329,7 +333,7 @@ describe('a partner’s running-cost share is the payout’s, never typed (§8, 
       findFirst: jest.fn().mockResolvedValue(null),
     });
     const r = await refusal(
-      ledger.reverse('tx-share', 'typed by mistake', 'u-1'),
+      ledger.reverse(TX_SHARE, 'typed by mistake', 'u-1'),
     );
     expect(r.code).toBe('ENTRY_OWNED_ELSEWHERE');
     expect(created).toHaveLength(0);
@@ -526,12 +530,23 @@ describe('who may write an entry', () => {
   });
 });
 
+describe('an id that is not an entry', () => {
+  it('a reverse of an id that cannot be one is NOT_FOUND, asked of no database (was a 500)', async () => {
+    // This fake has no findUnique: asking the database at all is the old 500.
+    const { ledger } = setup();
+    const r = await refusal(
+      ledger.reverse('not-a-uuid', 'typed by mistake', 'u-1'),
+    );
+    expect(r).toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
 describe('the second time: reversing a manual entry', () => {
   const reversible = (cycleId: string | null) => {
     const { ledger, prisma, created } = setup();
     Object.assign(prisma.financialTransaction, {
       findUnique: jest.fn().mockResolvedValue({
-        id: 'tx-rent',
+        id: TX_RENT,
         type: 'EXPENSE',
         category: 'extra_freight',
         direction: 'OUTFLOW',
@@ -553,10 +568,10 @@ describe('the second time: reversing a manual entry', () => {
 
   it('is dated the day it is undone in Cairo and keeps what was paid', async () => {
     const { ledger, created } = reversible(CYCLE_ID);
-    await ledger.reverse('tx-rent', 'entered twice', 'u-1');
+    await ledger.reverse(TX_RENT, 'entered twice', 'u-1');
     expect(created[0]).toMatchObject({
       direction: 'INFLOW',
-      reversalOfId: 'tx-rent',
+      reversalOfId: TX_RENT,
       originalAmount: 100.5,
       originalCurrency: 'AED',
     });
@@ -573,7 +588,7 @@ describe('the second time: reversing a manual entry', () => {
     async (status, cycleId) => {
       const { ledger, created } = reversible(cycleId);
       const r = await refusal(
-        ledger.reverse('tx-rent', 'late correction', 'u-1'),
+        ledger.reverse(TX_RENT, 'late correction', 'u-1'),
       );
       expect(r.code).toBe('LEDGER_CYCLE_NOT_OPEN');
       expect(r.params).toEqual({ cycle: CYCLES[cycleId].code, status });
@@ -603,7 +618,7 @@ describe('the second time: reversing a manual entry', () => {
       { code: 'CYC-2026-007' },
       { code: 'CYC-2026-007' },
     ]);
-    const r = await refusal(ledger.reverse('tx-rent', 'wrong month', 'u-1'));
+    const r = await refusal(ledger.reverse(TX_RENT, 'wrong month', 'u-1'));
     expect(r.code).toBe('RUNNING_COST_CHARGED');
     expect(r.params).toEqual({ cycles: 'CYC-2026-007' });
     expect(created).toHaveLength(0);
@@ -611,7 +626,7 @@ describe('the second time: reversing a manual entry', () => {
 
   it('a running cost nobody has been charged for yet reverses as any entry does', async () => {
     const { ledger, created } = runningCost([]);
-    await ledger.reverse('tx-rent', 'wrong month', 'u-1');
+    await ledger.reverse(TX_RENT, 'wrong month', 'u-1');
     expect(created).toHaveLength(1);
   });
 });

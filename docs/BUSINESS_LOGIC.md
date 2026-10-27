@@ -1298,6 +1298,8 @@ units to leave are the ones being handed back. Restocking into "the product"
 would re-price inventory and misstate the profit of whichever cycle owns the
 batch.
 
+**Two returns at once get different numbers** — fixed 2026-10-27. `RET-YYYY-NNNNN` was taken as "the highest so far, plus one" with nothing stopping a second return from reading the same highest, so two returns recorded at the same moment could be handed one number. The series is now locked for the moment the number is chosen, as purchase orders' `PO-` is (`common/references.ts`).
+
 **Damaged goods are refunded but not restocked.** Their cost stays spent as a
 write-off rather than returning to inventory.
 

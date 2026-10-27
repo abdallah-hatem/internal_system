@@ -7,6 +7,7 @@ import type { AuditService } from '../modules/audit/audit.service';
 import type { NotificationsService } from '../modules/notifications/notifications.service';
 import { PaymentsService } from '../modules/payments/payments.service';
 import { PurchasesService } from '../modules/purchases/purchases.service';
+import { ReturnsService } from '../modules/returns/returns.service';
 import {
   SalesService,
   type CreateSaleOrderInput,
@@ -34,6 +35,7 @@ suite('reference numbers and dates against Postgres', () => {
   let prisma: PrismaClient;
   let sales: SalesService;
   let purchases: PurchasesService;
+  let returns: ReturnsService;
   let payments: PaymentsService;
   let actor: string;
 
@@ -52,6 +54,7 @@ suite('reference numbers and dates against Postgres', () => {
       createForMultipleUsers: () => Promise.resolve({ count: 0 }),
     });
     purchases = new PurchasesService(db, audit, notifications);
+    returns = new ReturnsService(db, audit);
     const user = await prisma.user.create({
       data: {
         email: `f9-${randomUUID()}@example.com`,
@@ -277,6 +280,44 @@ suite('reference numbers and dates against Postgres', () => {
       expect(
         await prisma.purchaseOrder.count({ where: { cycleId: cycle.id } }),
       ).toBe(6);
+    });
+  });
+
+  describe('return references', () => {
+    it('six returns at once → six different RET-YYYY-NNNNN references (was unlocked, 2026-10-27)', async () => {
+      const customer = await shop();
+      const product = await stocked(6);
+      const orders = (await Promise.all(
+        Array.from({ length: 6 }, () =>
+          sales.create(sale(customer.id, product.id, true), actor),
+        ),
+      )) as Made[];
+      const items = await Promise.all(
+        orders.map((o) =>
+          prisma.saleItem.findFirstOrThrow({
+            where: { saleOrderId: o.data.id },
+          }),
+        ),
+      );
+
+      const made = await Promise.all(
+        orders.map((o, i) =>
+          returns.create(
+            {
+              saleOrderId: o.data.id,
+              reason: 'wrong size',
+              items: [{ saleItemId: items[i].id, qty: 1 }],
+            },
+            actor,
+          ),
+        ),
+      );
+
+      const refs = made.map((m) => m.data!.reference);
+      expect(new Set(refs).size).toBe(6);
+      const year = new Date().getFullYear();
+      for (const r of refs)
+        expect(r).toMatch(new RegExp(`^RET-${year}-\\d{5}$`));
     });
   });
 

@@ -258,6 +258,9 @@ export class LedgerService {
       );
     }
 
+    // An id that cannot be one is not an entry (CLAUDE.md §1): asked of
+    // Postgres it failed the uuid cast and answered 500.
+    if (!isUuid(id)) throw notFound('financialTransaction');
     const original = await this.prisma.financialTransaction.findUnique({
       where: { id },
     });

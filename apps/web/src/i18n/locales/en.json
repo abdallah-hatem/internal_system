@@ -476,6 +476,7 @@
     "search": "Search sales by order number or customer",
     "batch": "Batch",
     "perUnitCost": "/unit",
+    "batchCheckedIn": "checked in {date}",
     "cogs": "COGS",
     "currency": "Currency",
     "recordReturn": "Record return",

@@ -104,6 +104,13 @@ jobs:
             sleep 2
           done
 
+      # The e2e setup snapshots and reseeds through `docker exec` on
+      # DB_CONTAINER (tests/support/env.ts), `motorcycle_parts_db` on a
+      # developer's machine; GitHub names the service container itself, so the
+      # suite stopped before any test ran. Hand it the service's real id.
+      - name: Name the database container for the e2e setup
+        run: echo "DB_CONTAINER=${{ job.services.postgres.id }}" >> "$GITHUB_ENV"
+
       - name: End-to-end tests
         working-directory: apps/web
         run: npx playwright test
