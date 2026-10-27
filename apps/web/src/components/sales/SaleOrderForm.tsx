@@ -54,6 +54,21 @@ export interface SaleFormProduct {
    * markup (§3, 2026-10-18). What a line starts from; never saved as typed.
    */
   listPrices?: ListPrices | null;
+  /** Shown beside the name in the picker, so a short name stays clear (§4, 2026-10-27). */
+  category?: { name: string; nameAr?: string | null } | null;
+}
+
+/**
+ * A product as New Order's picker names it (owner 2026-10-27: "product names we
+ * just want it simple … maybe with category showing beside it"): its name in the
+ * reader's language, then its category's; the search reads both languages of each.
+ */
+export function productPickerOption(p: SaleFormProduct, locale: string) {
+  const category = localName(p.category, locale);
+  return {
+    label: category ? `${localName(p, locale)} · ${category}` : localName(p, locale),
+    keywords: [otherName(p, locale), otherName(p.category, locale)].filter(Boolean).join(' '),
+  };
 }
 
 export interface SaleFormStockRow {
@@ -938,8 +953,7 @@ export function SaleOrderForm({
                         const available = stockFor(p.id, line);
                         return {
                           value: p.id,
-                          label: localName(p, locale),
-                          keywords: otherName(p, locale),
+                          ...productPickerOption(p, locale),
                           // The count belongs where the product is chosen, not
                           // in an error after the order is built.
                           // Tag last, so a hint in either language still starts with the SKU

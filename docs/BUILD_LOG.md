@@ -337,9 +337,7 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   itself when the cycle's order is confirmed and nothing has departed (the status already follows the shipment, L3),
   and by hand from the cycle page; the first departure moves it on to In transit as today. Migration (one enum value);
   every place statuses show (filters, badges, cycles list, the office chat) in en + ar.
-- Next (2026-10-27, owner: "product names we just want it simple … maybe with category showing beside it in sale order
-  product dropdown"): **New Order's product picker shows each product's category** beside its name (and the search
-  matches the category too), so short names like "Y20 headset" stay clear.
+- **Built 2026-10-27 on `feature/picker-category`, merged into `dev`** (owner: "start both and paid by … each one in its own branch then merge each one to dev"): **New Order's product picker shows each product's category** beside its name, in the reader's language, and the search matches it in either language (BUSINESS_LOGIC §4). No API change — the product list already carried the category. Tests: `SaleOrderForm.test.tsx` (3: beside the name and absent without one, Arabic, search in both languages), each seen to fail with the old label. No migration.
 - (1) and (3) **live 2026-10-27 (evening)**.
 - (2) **Live 2026-10-27 (evening)** (migration `20261027120000_samples_into_order` applied). Was: built 2026-10-27, merged into `dev` at the owner's word ("merge samples into dev and push"); production needed the migration first; migration `20261027120000_samples_into_order`; e2e written, not run; its guesses in that branch's BUSINESS_LOGIC §4).** (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
   order, and auto handle the rest … a shop can also have 3 samples of 3 different products, but he decides to make an order
