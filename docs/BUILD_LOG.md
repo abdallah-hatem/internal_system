@@ -54,15 +54,7 @@ State of the product and of production's data: `docs/where-things-stand.md`.
     `assistant/tools/samples.db.spec.ts` (part return through the tool, PREVIEW_CHANGED, the new not-out code),
     `components/sales/return-samples-dialog.test.tsx` (11: default all, some, none, the range, the second visit,
     a refusal, the toast, Arabic). Each broken and seen to fail.
-  - Totals at the commit: API `jest --runInBand` 138 suites / 2,752 tests, 2,751 passed — the one failure,
-    `ledger/expense-paid-by.db.spec` (a business-wide P&L category comparison), passes alone on a fresh database (15/15)
-    and failed only on a database reused across many runs; `node --test unit` 128/128; `scripts/check-data.sh` on a
-    fresh agent database: 79 checks, all zero. Web `vitest`: the two samples files 26/26; the whole web run was not
-    finished at the commit.
-
-## Shipped 2026-10-27 (evening) — was on `dev`
-- 2026-10-27 — built on `agent-funding` (no migration), Next-up (1) and (3), **e2e written, not run** (owner:
-  unit and database tests only for now):
+  - Totals: API `jest --runInBand` on a fresh database, 138 suites / 2,760 tests, all passed (an earlier run on a database reused across many runs failed one business-wide P&L comparison, which passes on a fresh one); `node --test unit` 128/128; `scripts/check-data.sh` on a fresh database, before and after the suite: 79 checks, all zero. The whole web run is in the combined run after merging into `dev`.
   - **A new temporary investor from the Funding card** (BUSINESS_LOGIC §8 "A new temporary investor from the Funding
     card"): a `+` beside "+ Add investor"'s person picker (`FieldWithQuickCreate`, the registry's `investor` entry)
     makes an investor from a name alone, refreshes the list and selects him. `POST /users/investors` (core partners
