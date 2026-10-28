@@ -45,6 +45,32 @@ export class AnalyticsController {
     return this.analyticsService.getProfitAndLoss(from, to);
   }
 
+  /**
+   * What made one bar of the profit and loss chart (owner 2026-10-28): its
+   * days (`from`, `to`, both required, at most 31) broken down by order,
+   * expense, repayment and other line, each section paged on its own
+   * (`section`, `page`, `pageSize`). The same parts the bar adds up.
+   */
+  @Get('profit-and-loss/breakdown')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({ summary: 'What made one bar of the profit and loss chart' })
+  getProfitBreakdown(
+    @Query('from') from?: unknown,
+    @Query('to') to?: unknown,
+    @Query('section') section?: unknown,
+    @Query('page') page?: unknown,
+    @Query('pageSize') pageSize?: unknown,
+  ) {
+    return this.analyticsService.getProfitBreakdown({
+      from,
+      to,
+      section,
+      page,
+      pageSize,
+    });
+  }
+
   @Get('revenue-by-month')
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')

@@ -19,7 +19,8 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
   history holds no Edit order commit, so the branch can still be merged later.
 - **`dev`** is ahead of `master` (2026-10-28): the product picker's category, the Preparing status (migration
   `20261028100000_cycle_status_preparing`) and "Paid by" on an expense (migration `20261027180000_expense_paid_by`),
-  awaiting the owner's test before they ship. Edit order lives only on `feature/edit-order`.
+  awaiting the owner's test before they ship. Edit order lives only on `feature/edit-order`. **What made a P&L bar**
+  is built on `feature/pnl-drilldown` (2026-10-28, no migration), merged into `dev` 2026-10-28.
   Nothing is held on another machine as far as git shows.
 - Tests at the release: API, web and unit suites green (counts in History, "Stage on 2026-10-26/27"); e2e not run
   (owner, 2026-10-25: unit and database tests only).
@@ -410,16 +411,43 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 
 ## Blocked
 _(none)_
+## Built on `feature/pnl-drilldown` (cut from `dev` at `7d6dab9`), merged into `dev` 2026-10-28 (owner: "start all four, each in its own branch, then merge to dev") — no migration
+- 2026-10-28 — **click a bar in Analytics' profit and loss to see what made it** (owner 2026-10-28: "in the Profit and
+  loss analytics chart, maybe clicking on a day or a month should open a popup or show me the details of loss"; was
+  Next up, first). BUSINESS_LOGIC §12 "What made a bar", its guesses there. **E2e written, not run** (owner: not for
+  now): `tests/107-pnl-drilldown.spec.ts`, TC-INV-94/95 in `34-business-invariants` (renumbered on merge: partial sample returns took 93).
+  - A day, a week or a month bar opens a popup: the bar's totals (Sales − COGS = Gross − Expenses ± Recovered / Other
+    income / Exchange difference = Net), then revenue and cost of goods **by order** (returns and price cuts in the
+    period as their own figures with their days), **every expense** (category, note, Paid by — a partner or the
+    business — and its cycle; goods lost; samples written off), **the exchange difference by repayment**, and
+    refunds recovered / other income. Each row links to its order (`/sales?order=`), expense (`/ledger?entry=`, new:
+    the ledger opens the entry a link names) or cycle. Skeleton while loading; an empty period says so. On a phone
+    an opened week's days, and the week itself, open theirs.
+  - One definition (CLAUDE.md §11): `GET /analytics/profit-and-loss/breakdown?from=&to=` reads the bar's days through
+    `profitParts` — the parts the chart's buckets add up, now each carrying the record it came from — and groups them
+    (`analytics/profit-breakdown.ts`); totals by `figuresOf`, the bar's own arithmetic. Validated on the server: both
+    days, real, in order, not after today, at most 31 days; each list paged on its own (`section`, `page`,
+    `pageSize`, 25 a page). New codes `PNL_BREAKDOWN_NEEDS_PERIOD`, `PNL_BREAKDOWN_TOO_LONG` (en + ar). Core
+    partners and support only.
+  - Tests: `analytics/profit-breakdown.db.spec.ts` (20, real Postgres, fixtures cycle → PO → leg → departure →
+    delivery → receipt → sale: every day of a month, every week of 60 days and every month of a year equal their bar;
+    this month and all time with whatever the database holds; a loss day; an empty day; paging; a return and a price
+    cut on later days than the sale; an expense paid by a partner; a sale at 23:30 UTC on the next Cairo day; the
+    period's limits; the second time; an undone expense; the wrong role), `profit-breakdown.spec.ts` (6, the
+    grouping), `investor-scope.spec.ts` (+1 route), web `pnl-breakdown.test.tsx` (9), `ledger-entry-link.test.tsx`
+    (2), `profit-and-loss-section.test.tsx` (a desktop tap now opens the breakdown). Each new test broken and seen to
+    fail (20 mutations: the breakdown reading its own parts, net without expenses, never empty, no paging, a blank
+    page size, a return as a sale, Paid by dropped, a UTC day, no roles, no longest period, any section; no click,
+    no skeleton, no empty state, the same page again, the business unnamed, a stale query key, two dialogs, the
+    code ignored, `?entry=` ignored).
+  - Totals at the commit: API `jest --runInBand` 138 suites / 2,760 tests passed (database suites included, against
+    a fresh agent database; on one that had held many earlier runs, `expense-paid-by.db`'s two all-time readings
+    took over 30 s and timed out — as slow with `dev`'s analytics service, so the data's size, not this change); web
+    `vitest` 122 files / 1,640 tests passed; `node --test unit` 128/128; `scripts/check-data.sh` on a fresh agent
+    database: 79 checks, all zero.
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
-- Next (2026-10-28, owner: "in the Profit and loss analytics chart, maybe clicking on a day or a month should open a
-  popup or show me the details of loss"): **click a bar in Analytics' profit and loss to see what made it** — a day,
-  week or month opens a popup with that period's figures broken down: revenue by order (returns and price cuts
-  shown), cost of goods by order, each expense (with Paid by once that ships), the exchange difference by repayment, so
-  a loss can be traced to the lines that caused it; each row links to its order, expense or cycle. Built from the same
-  server-side P&L definition the chart uses (one rule, one definition), asked for by period; a skeleton while it
-  loads, an empty period says so. Tests: totals in the popup equal the bar, a loss day, an empty day, paging.
 - **Built 2026-10-28 on `feature/sales-default-status`, merged into `dev`** (owner: "start all four, each in its own branch, then merge to dev"): **Sales opens on Confirmed + Partially paid** (BUSINESS_LOGIC §3). One chosen pill for the default, `?status=ALL` for every order, a link's own status kept; the API's status filter takes several values (`filtersOf`), and `/analytics/top-orders` takes the same status so the cards follow the list. No migration. Tests: `list-query.spec` (filtersOf: several, repeats, empty or unknown pieces refused), `sales-list.db.spec` (several statuses on real orders, counts, the cards among them, a draft never a card), `sales-default-status.test.tsx` (4: the default for list and cards, All kept in the address, `?status=ALL`, a link's own status); each seen to fail with its piece undone.
 - Next (2026-10-28, owner: "in products tab above the table we need cards that responds to filter, so when filter by
   category, it shows number of products in that category, and total number of units as well"): **the Products tab's

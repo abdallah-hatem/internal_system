@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Pagination, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useServerList } from '@/lib/server-list';
 import { useApiError } from '@/lib/api-error';
@@ -158,8 +159,26 @@ export default function LedgerPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const openCreate = () => setShowCreateModal(true);
   const [showReverseModal, setShowReverseModal] = useState(false);
-  const [viewingEntry, setViewingEntry] = useState<LedgerEntry | null>(null);
+  const [viewingEntry, setViewingEntryState] = useState<LedgerEntry | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
+  // `?entry=<id>` — a row of Analytics' "what made this bar" (2026-10-28) —
+  // opens that entry, wherever it is in the list. Read once, and forgotten
+  // the moment an entry is opened or closed, so it never reopens behind you.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [linkedEntryId, setLinkedEntryId] = useState(() => searchParams.get('entry'));
+  const setViewingEntry = (entry: LedgerEntry | null) => {
+    if (linkedEntryId) {
+      setLinkedEntryId(null);
+      const rest = new URLSearchParams(searchParams.toString());
+      rest.delete('entry');
+      const qs = rest.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
+    setViewingEntryState(entry);
+  };
+  const viewingId = viewingEntry?.id ?? linkedEntryId;
 
   // ── Queries ───────────────────────────────────────────────────────
   // One page, searched, filtered and paged by the API (owner 2026-10-25).
@@ -185,10 +204,10 @@ export default function LedgerPage() {
   });
 
   const { data: entryDetail } = useQuery({
-    queryKey: ['ledger-entry', viewingEntry?.id],
+    queryKey: ['ledger-entry', viewingId],
     queryFn: () =>
-      api.get(`/ledger/${viewingEntry!.id}`).then((r) => r.data.data ?? r.data),
-    enabled: !!viewingEntry,
+      api.get(`/ledger/${viewingId}`).then((r) => r.data.data ?? r.data),
+    enabled: !!viewingId,
   });
 
   // ── Mutations ─────────────────────────────────────────────────────
@@ -503,7 +522,7 @@ export default function LedgerPage() {
       )}
 
       {/* ─── View Entry Detail ─────────────────────────────────────── */}
-      {viewingEntry && detail && (
+      {viewingId && detail && (
         <Dialog title={`${t('type')}: ${typeLabel(detail.type)}`} onClose={() => setViewingEntry(null)}>
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
