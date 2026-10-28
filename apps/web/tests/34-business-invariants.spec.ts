@@ -2766,3 +2766,34 @@ test.describe('Preparing', () => {
     expect(add.ok()).toBeFalsy();
   });
 });
+
+// What made a bar (BUSINESS_LOGIC §12 Profit and loss, owner 2026-10-28): the
+// popup is the bar's own parts, so it cannot disagree with it. Database tests:
+// apps/api/src/modules/analytics/profit-breakdown.db.spec.ts.
+test.describe('What made a profit and loss bar', () => {
+  test('TC-INV-93: every bar of this month and of all time equals its breakdown — sales, gross, expenses, net — and each list adds up to its line', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const month = await pnlOf(request, headers, `?from=${dayFromNow(0).slice(0, 8)}01&to=${dayFromNow(0)}`);
+    const all = await pnlOf(request, headers);
+    for (const bar of [...month.buckets, ...all.buckets.slice(-3)]) {
+      const res = await request.get(`${API}/analytics/profit-and-loss/breakdown?from=${bar.from}&to=${bar.to}`, { headers });
+      expect(res.ok(), await res.text()).toBeTruthy();
+      const d = (await res.json()).data;
+      expect([bar.key, d.totals.salesEgp, d.totals.grossProfitEgp, d.totals.expensesEgp, d.totals.netProfitEgp]).toEqual([
+        bar.key, bar.salesEgp, bar.grossProfitEgp, bar.expensesEgp, bar.netProfitEgp,
+      ]);
+      expect(d.sections.orders.totals.revenueEgp).toBe(d.totals.salesEgp);
+      expect(d.sections.expenses.totals.amountEgp).toBe(d.totals.expensesEgp);
+      expect(d.sections.exchange.totals.amountEgp).toBe(d.totals.exchangeDifferenceEgp);
+    }
+  });
+
+  test('TC-INV-94: a breakdown is of one bar — no period, more than 31 days, or a period not yet started is refused with a code', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const ask = (q: string) => request.get(`${API}/analytics/profit-and-loss/breakdown${q}`, { headers });
+    expect(await errCode(await ask(''))).toBe('PNL_BREAKDOWN_NEEDS_PERIOD');
+    expect(await errCode(await ask('?from=2026-01-01&to=2026-03-01'))).toBe('PNL_BREAKDOWN_TOO_LONG');
+    expect(await errCode(await ask(`?from=${dayFromNow(2)}&to=${dayFromNow(2)}`))).toBe('PERIOD_NOT_STARTED');
+    expect(await errCode(await ask(`?from=${dayFromNow(-1)}&to=${dayFromNow(-1)}&page=0`))).toBe('LIST_PAGE_INVALID');
+  });
+});

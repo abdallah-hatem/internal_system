@@ -15,6 +15,7 @@ import { Money } from '@/components/ui/money';
 import { Dialog } from '@/components/ui/dialog';
 import { useIsPhone } from '@/lib/use-phone';
 import { weeksOfDays, type PnlWeek } from './pnl-weeks';
+import { PnlBreakdown } from './pnl-breakdown';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { FilterPills } from '@/components/ui/list-toolbar';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
@@ -481,6 +482,8 @@ export function PnlChart({ buckets: given, granularity: givenGranularity }: { bu
   const { formatMoney } = useNumberFormat();
   const [active, setActive] = useState<number | null>(null);
   const [openWeek, setOpenWeek] = useState<string | null>(null);
+  // The bar whose breakdown is open (owner 2026-10-28): its days and its name.
+  const [breakdown, setBreakdown] = useState<{ from: string; to: string; label: string } | null>(null);
   const today = businessToday();
 
   // Days folded into weeks on a phone; a rotation re-renders, never refetches.
@@ -518,9 +521,12 @@ export function PnlChart({ buckets: given, granularity: givenGranularity }: { bu
   return (
     <div data-testid="pnl-chart" data-granularity={granularity} data-buckets={n} data-folded={byWeek ? 'week' : undefined}>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t('pnl.chartTitle')} <span className="font-normal text-muted-foreground">· {granularityText}</span>
-        </h3>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('pnl.chartTitle')} <span className="font-normal text-muted-foreground">· {granularityText}</span>
+          </h3>
+          {n > 0 && <p className="text-xs text-muted-foreground">{t('pnl.breakdown.clickHint')}</p>}
+        </div>
         <ul data-testid="pnl-legend" className="flex items-center gap-4 text-xs text-muted-foreground">
           <li className="flex items-center gap-1.5">
             <span aria-hidden="true" className="h-3 w-2.5 rounded-t-[3px] bg-primary-300" />
@@ -619,9 +625,13 @@ export function PnlChart({ buckets: given, granularity: givenGranularity }: { bu
                   type="button"
                   data-bucket={b.key}
                   aria-label={`${bucketLabel(b, granularity, locale, 'full')}: ${t('pnl.sales')} ${formatMoney(b.salesEgp)}, ${t('pnl.netProfit')} ${formatMoney(b.netProfitEgp)}`}
-                  aria-haspopup={byWeek ? 'dialog' : undefined}
-                  className="h-full flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
-                  onClick={byWeek ? () => setOpenWeek(b.key) : undefined}
+                  aria-haspopup="dialog"
+                  className="h-full flex-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                  onClick={
+                    byWeek
+                      ? () => setOpenWeek(b.key)
+                      : () => setBreakdown({ from: b.from, to: b.to, label: bucketLabel(b, granularity, locale, 'full') })
+                  }
                   onPointerEnter={() => setActive(i)}
                   onPointerDown={() => setActive(i)}
                   onFocus={() => setActive(i)}
@@ -656,7 +666,26 @@ export function PnlChart({ buckets: given, granularity: givenGranularity }: { bu
         </div>
       )}
 
-      {opened && <WeekDays week={opened} onClose={() => setOpenWeek(null)} />}
+      {opened && (
+        <WeekDays
+          week={opened}
+          onClose={() => setOpenWeek(null)}
+          onOpen={(from, to, label) => {
+            // One dialog at a time: the week gives way to what made it.
+            setOpenWeek(null);
+            setBreakdown({ from, to, label });
+          }}
+        />
+      )}
+      {breakdown && (
+        <PnlBreakdown
+          key={`${breakdown.from}…${breakdown.to}`}
+          from={breakdown.from}
+          to={breakdown.to}
+          label={breakdown.label}
+          onClose={() => setBreakdown(null)}
+        />
+      )}
     </div>
   );
 }
@@ -666,7 +695,16 @@ export function PnlChart({ buckets: given, granularity: givenGranularity }: { bu
  * day's sales and net profit (a loss in red, its minus kept in an LTR run),
  * the week's total under them. Amounts are exact; the currency is said once.
  */
-function WeekDays({ week, onClose }: { week: PnlWeek<PnlBucket>; onClose: () => void }) {
+function WeekDays({
+  week,
+  onClose,
+  onOpen,
+}: {
+  week: PnlWeek<PnlBucket>;
+  onClose: () => void;
+  /** Open what made a day, or the whole week (owner 2026-10-28). */
+  onOpen: (from: string, to: string, label: string) => void;
+}) {
   const t = useTranslations('analytics');
   const locale = useLocale();
   const { formatAmount } = useNumberFormat();
@@ -701,12 +739,21 @@ function WeekDays({ week, onClose }: { week: PnlWeek<PnlBucket>; onClose: () => 
         </div>
         <ul data-testid="pnl-week-days" className="col-span-3 grid grid-cols-subgrid">
           {week.days.map((d) => (
-            <li key={d.key} data-day={d.key} data-loss={d.netProfitEgp < 0 || undefined} className={cn(row, 'border-b border-border/60')}>
-              <span className="min-w-0 truncate text-foreground">
-                {d.from === today ? t('pnl.today') : dayText(d.from, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
-              </span>
-              {amount(d.salesEgp, 'pnl-day-sales', false)}
-              {amount(d.netProfitEgp, 'pnl-day-net', true)}
+            <li key={d.key} data-day={d.key} data-loss={d.netProfitEgp < 0 || undefined} className="col-span-3 grid grid-cols-subgrid border-b border-border/60">
+              {/* The whole row opens what made that day. */}
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-label={t('pnl.breakdown.dayOpen', { label: bucketLabel(d, 'day', locale, 'full') })}
+                onClick={() => onOpen(d.from, d.to, bucketLabel(d, 'day', locale, 'full'))}
+                className={cn(row, 'col-span-3 text-start hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary')}
+              >
+                <span className="min-w-0 truncate text-primary">
+                  {d.from === today ? t('pnl.today') : dayText(d.from, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
+                </span>
+                {amount(d.salesEgp, 'pnl-day-sales', false)}
+                {amount(d.netProfitEgp, 'pnl-day-net', true)}
+              </button>
             </li>
           ))}
         </ul>
@@ -716,6 +763,15 @@ function WeekDays({ week, onClose }: { week: PnlWeek<PnlBucket>; onClose: () => 
           {amount(week.netProfitEgp, 'pnl-week-net', true)}
         </div>
       </div>
+      <button
+        type="button"
+        data-testid="pnl-week-open"
+        aria-haspopup="dialog"
+        onClick={() => onOpen(week.days[0].from, week.days[week.days.length - 1].to, bucketLabel(week, 'week', locale, 'full'))}
+        className="mt-2 rounded-md text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        {t('pnl.breakdown.wholeWeek')}
+      </button>
     </Dialog>
   );
 }
