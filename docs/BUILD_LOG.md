@@ -26,7 +26,7 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
 - Tests at the release: API, web and unit suites green (counts in History, "Stage on 2026-10-26/27"); e2e not run
   (owner, 2026-10-25: unit and database tests only).
 - The office chat runs on the API's `AI_PROVIDER`/`AI_API_KEY` (the owner set Groq on Vercel).
-- Waiting on the owner: Ahmad Zogmar's default branch (Mokattam / Master / LS2) and the names' spelling; the
+- Waiting on the owner: the
   branches GUESSes (BUSINESS_LOGIC §7); the Funding card GUESSes (§8); an advance left undrawn on a settled cycle
   (§8, OPEN); the Rules Review answers; the small UAE costs for CYC-2026-0001.
 State of the product and of production's data: `docs/where-things-stand.md`.
