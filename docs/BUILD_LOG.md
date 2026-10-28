@@ -167,6 +167,11 @@ State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-28 — production data: **Abdallah's 10,000 untied from CYC-2026-0001** (owner: "I put 65,000 in cycle 1, but I
+  should only put 55,000 … it stays in my account until i take it back"). The standing 10,000 advance of 15 Aug on cycle 1
+  now names no cycle, so it is untied money he can take out or put into any cycle; his balance (60,775) and cycle 1's
+  funding (contributions) did not move. `prisma/one-off/2026-10-28-abdallah-10000-untied.ts`, rehearsed on a copy
+  (check-data all zero), audit row; backup `.backups/prod-20261028-234301.sql`.
 - 2026-10-28 — production data: CYC-2026-0002's friend repaid **100 USD at 56.07 = 5,607 EGP** (367.25 AED at 3.6725,
   rate 15.2675), exchange difference +24.80; **2,092.15 AED still owed** (the remaining 581 USD).
 - 2026-10-28 — production data: **1 Y30 Headset back from Ahmad Zogmar's samples** (ORD-2026-00006 held 2; owner: "just
