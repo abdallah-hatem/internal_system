@@ -54,20 +54,26 @@ export interface SaleFormProduct {
    * markup (§3, 2026-10-18). What a line starts from; never saved as typed.
    */
   listPrices?: ListPrices | null;
-  /** Shown beside the name in the picker, so a short name stays clear (§4, 2026-10-27). */
+  /** Shown under the name in the picker, where the SKU was, so a short name stays clear (§4, 2026-10-27/29). */
   category?: { name: string; nameAr?: string | null } | null;
 }
 
 /**
  * A product as New Order's picker names it (owner 2026-10-27: "product names we
- * just want it simple … maybe with category showing beside it"): its name in the
- * reader's language, then its category's; the search reads both languages of each.
+ * just want it simple … maybe with category showing beside it"; 2026-10-29:
+ * "instead of the sku … show the category, and remove it from beside the
+ * name"): its name alone in the reader's language, and its category in that
+ * language to open the line under it (`category`, empty without one). The SKU
+ * is no longer shown but still found: the search reads it, and both languages
+ * of the name and the category.
  */
 export function productPickerOption(p: SaleFormProduct, locale: string) {
-  const category = localName(p.category, locale);
   return {
-    label: category ? `${localName(p, locale)} · ${category}` : localName(p, locale),
-    keywords: [otherName(p, locale), otherName(p.category, locale)].filter(Boolean).join(' '),
+    label: localName(p, locale),
+    category: localName(p.category, locale),
+    keywords: [p.sku, otherName(p, locale), localName(p.category, locale), otherName(p.category, locale)]
+      .filter(Boolean)
+      .join(' '),
   };
 }
 
@@ -951,14 +957,15 @@ export function SaleOrderForm({
                         .filter((p) => isSellable(p, stockFor(p.id, line)))
                         .map((p) => {
                         const available = stockFor(p.id, line);
+                        const { category, ...option } = productPickerOption(p, locale);
                         return {
                           value: p.id,
-                          ...productPickerOption(p, locale),
+                          ...option,
                           // The count belongs where the product is chosen, not
                           // in an error after the order is built.
-                          // Tag last, so a hint in either language still starts with the SKU
+                          // Tag last, so a hint in either language still starts with the category
                           // and lines up with its neighbours (the Arabic tag first flipped the line).
-                          hint: `${p.sku} · ${formatNumber(available)} ${t('inStock')}${isOffered(p) ? '' : ` · ${t('inactiveTag')}`}`,
+                          hint: `${category ? `${category} · ` : ''}${formatNumber(available)} ${t('inStock')}${isOffered(p) ? '' : ` · ${t('inactiveTag')}`}`,
                           disabled: available <= 0,
                         };
                       })}
