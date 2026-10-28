@@ -17,6 +17,12 @@ import {
   madeUpInvestorEmail,
   madeUpInvestorPassword,
 } from './new-investor';
+import {
+  STANDING_MOVEMENT,
+  type Pots,
+  accountPots,
+  putInSoFar,
+} from '../../common/partner-account';
 /** How many cycle projections the Partners page runs at once. */
 const PROJECTION_CONCURRENCY = 4;
 
@@ -82,6 +88,11 @@ export class UsersService {
    *   profitShare  — their share of profit, paid
    *   atRisk       — contributed less returned: money still out in open cycles
    *
+   *   putIn        — what he has put in so far, per cycle the Funding card's
+   *                  own figure (`putInSoFar`): his contribution plus his
+   *                  advances on that cycle not yet drawn into it. An advance
+   *                  tied to no cycle is in his running account only.
+   *
    * `atRisk` is the one worth watching. A settled cycle returns capital in full,
    * so a partner with money still at risk has it sitting in goods that have not
    * finished selling.
@@ -132,6 +143,62 @@ export class UsersService {
     }
 
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
+
+    /**
+     * Put in so far (BUSINESS_LOGIC §8, owner 2026-10-28: the cards should
+     * agree with the Funding card and the running accounts). Each core
+     * partner's pots — the same `accountPots` the Funding card reads — give
+     * his undrawn advances per cycle, and his CONTRIBUTION movements per
+     * cycle what was drawn from his account. A temporary investor has no
+     * account: his put in so far is his contribution.
+     */
+    const coreIds = users
+      .filter((u) => u.role === 'CORE_PARTNER')
+      .map((u) => u.id);
+    const pots =
+      coreIds.length > 0
+        ? await accountPots(this.prisma, coreIds)
+        : new Map<string, Pots>();
+    const drawnRows =
+      coreIds.length > 0
+        ? await this.prisma.partnerAccountMovement.groupBy({
+            by: ['partnerUserId', 'cycleId'],
+            where: {
+              ...STANDING_MOVEMENT,
+              kind: 'CONTRIBUTION',
+              partnerUserId: { in: coreIds },
+              cycleId: { not: null },
+            },
+            _sum: { amountEgp: true },
+          })
+        : [];
+    const fromAccountOf = (userId: string, cycleId: string) =>
+      new Prisma.Decimal(
+        drawnRows.find(
+          (r) => r.partnerUserId === userId && r.cycleId === cycleId,
+        )?._sum.amountEgp ?? 0,
+      );
+    // A cycle he paid for without being on it still has his money in it — the
+    // Funding card lists him there (GUESS 2026-10-28) — so it gets a row.
+    const onCycles = new Set(
+      users.flatMap((u) =>
+        [...u.cyclePartnerEntries, ...u.cycleInvestorEntries].map(
+          (e) => e.cycle.id,
+        ),
+      ),
+    );
+    const paidOnlyIds = [
+      ...new Set([...pots.values()].flatMap((p) => [...p.byCycle.keys()])),
+    ].filter((id) => !onCycles.has(id));
+    const paidOnlyCycles = new Map(
+      (paidOnlyIds.length > 0
+        ? await this.prisma.importCycle.findMany({
+            where: { id: { in: paidOnlyIds } },
+            select: { id: true, code: true, status: true },
+          })
+        : []
+      ).map((c) => [c.id, c]),
+    );
 
     /**
      * Each payout, explained line by line (§8 "a payout explains itself",
@@ -270,7 +337,41 @@ export class UsersService {
         byCycle.set(entry.cycle.id, row);
       }
 
-      const cycles = [...byCycle.values()];
+      // His undrawn advances on cycles he paid for but is not on.
+      const myPots = pots.get(user.id);
+      for (const cycleId of myPots?.byCycle.keys() ?? []) {
+        const c = paidOnlyCycles.get(cycleId);
+        if (byCycle.has(cycleId) || !c) continue;
+        byCycle.set(cycleId, {
+          id: c.id,
+          code: c.code,
+          status: c.status,
+          contribution: new Prisma.Decimal(0),
+          profit: new Prisma.Decimal(0),
+          accrued: new Prisma.Decimal(0),
+        });
+      }
+
+      const cycles = [...byCycle.values()].map((c) => {
+        const parts = putInSoFar({
+          contributionEgp: c.contribution,
+          fromAccountEgp: myPots ? fromAccountOf(user.id, c.id) : 0,
+          undrawnAdvancesEgp: myPots?.byCycle.get(c.id) ?? 0,
+        });
+        return {
+          ...c,
+          putIn: parts.totalEgp,
+          undrawn: parts.undrawnAdvancesEgp,
+        };
+      });
+      const putIn = cycles.reduce(
+        (s, c) => s.add(c.putIn),
+        new Prisma.Decimal(0),
+      );
+      const undrawn = cycles.reduce(
+        (s, c) => s.add(c.undrawn),
+        new Prisma.Decimal(0),
+      );
 
       const mine = new Set(entries.map((e) => e.id));
       const payouts = paidSettlements.flatMap((s) => {
@@ -298,6 +399,10 @@ export class UsersService {
         cycleCount: cycles.length,
         openCycleCount: cycles.filter((c) => c.status !== 'CLOSED').length,
         contributedEgp: money(contributed),
+        /** Put in so far: his contribution + his undrawn advances, over his cycles (§8). */
+        putInEgp: money(putIn),
+        /** Of it, advances paid for a cycle and not yet drawn into his capital. */
+        undrawnAdvancesEgp: money(undrawn),
         returnedEgp: money(returned),
         profitShareEgp: money(profitShare),
         accruedProfitEgp: money(accruedProfit),
@@ -311,6 +416,8 @@ export class UsersService {
             code: c.code,
             status: c.status,
             contributionEgp: money(c.contribution),
+            putInEgp: money(c.putIn),
+            undrawnAdvancesEgp: money(c.undrawn),
             profitShareEgp: money(c.profit),
             accruedProfitEgp: money(c.accrued),
           }))
