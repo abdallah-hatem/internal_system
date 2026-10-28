@@ -7,6 +7,7 @@ import type { AuditService } from '../audit/audit.service';
 import { PaymentsService } from '../payments/payments.service';
 import { CustomersService } from '../customers/customers.service';
 import { SalesService } from './sales.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 /**
  * The Sales list on the server (owner 2026-10-25, "server-side search,
@@ -491,6 +492,92 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
       // And the search still narrows: shop A's name does not hold shop B's.
       const none = await list({ ...q, search: `Shop B ${tag}`, page: '1' });
       expect(none.meta.total).toBe(0);
+    });
+  });
+
+  describe('several statuses at once (Sales opens on Confirmed + Partially paid, owner 2026-10-28)', () => {
+    it('returns every order in any of them, counted the same, and the cards answer for the same orders', async () => {
+      const shopC = await prisma.customer.create({
+        data: {
+          type: 'B2B',
+          displayName: `Shop C ${tag}`,
+          verificationStatus: 'VERIFIED',
+        },
+      });
+      const sellC = async (unitPrice: number, confirm = true) =>
+        (
+          (await sales.create(
+            {
+              customerId: shopC.id,
+              channel: 'B2B',
+              currency: 'EGP',
+              items: [{ productId, quantity: 1, unitPrice }],
+              confirm,
+            },
+            actor,
+          )) as { data: { id: string } }
+        ).data.id;
+      const payments = new PaymentsService(
+        prisma as unknown as PrismaService,
+        {
+          log: jest.fn(),
+        } as unknown as AuditService,
+      );
+      const pay = (orderId: string, amount: number) =>
+        payments.create(
+          { customerId: shopC.id, amount, currency: 'EGP', orderId },
+          actor,
+        );
+
+      const confirmed = await sellC(100);
+      const partly = await sellC(900);
+      await pay(partly, 300);
+      const paid = await sellC(900000);
+      await pay(paid, 900000);
+      const draft = await sellC(2000000, false);
+
+      const owing = await list({
+        customerId: shopC.id,
+        status: 'CONFIRMED,PARTIALLY_PAID',
+        page: '1',
+      });
+      expect(new Set(owing.data.map((r) => r.id))).toEqual(
+        new Set([confirmed, partly]),
+      );
+      expect(owing.meta.total).toBe(2);
+      const withDraft = await list({
+        customerId: shopC.id,
+        status: 'CONFIRMED,DRAFT',
+        page: '1',
+      });
+      expect(new Set(withDraft.data.map((r) => r.id))).toEqual(
+        new Set([confirmed, draft]),
+      );
+      const every = await list({ customerId: shopC.id, page: '1' });
+      expect(every.meta.total).toBe(4);
+      expect(
+        await refusal(
+          list({ customerId: shopC.id, status: 'CONFIRMED,', page: '1' }),
+        ),
+      ).toBe('LIST_FILTER_INVALID');
+
+      // The cards above the list: the paid 900,000 order leads on every order,
+      // but not among those still being paid for; a draft is never a sale.
+      const analytics = new AnalyticsService(
+        prisma as unknown as PrismaService,
+      );
+      type Top = { data: { mostRevenue: { orderId: string } | null } };
+      const owingTop = (await analytics.getTopOrders(
+        'CONFIRMED,PARTIALLY_PAID',
+      )) as Top;
+      expect(owingTop.data.mostRevenue?.orderId).not.toBe(paid);
+      const allTop = (await analytics.getTopOrders()) as Top;
+      expect(allTop.data.mostRevenue?.orderId).toBe(paid); // not the larger draft
+      const draftsTop = (await analytics.getTopOrders('DRAFT')) as Top;
+      expect(draftsTop.data.mostRevenue).toBeNull();
+      expect(await refusal(analytics.getTopOrders('PAID,nope'))).toBe(
+        'LIST_FILTER_INVALID',
+      );
     });
   });
 

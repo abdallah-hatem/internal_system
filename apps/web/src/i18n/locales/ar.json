@@ -469,6 +469,7 @@
     "draft": "مسودة",
     "confirmed": "مؤكد",
     "partiallyPaid": "مدفوع جزئياً",
+    "owing": "مؤكد + مدفوع جزئياً",
     "paid": "مدفوع",
     "cancelled": "ملغى",
     "returned": "مرتجع",

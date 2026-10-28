@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { stockValueEgp } from '../../common/stock-value';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma, type CycleStatus } from '@prisma/client';
+import { OrderStatus, Prisma, type CycleStatus } from '@prisma/client';
+import { filtersOf } from '../../common/list-query';
 import {
   COST_RECOVERY_CATEGORIES,
   NOT_OPERATING_EXPENSE,
@@ -1131,12 +1132,19 @@ export class AnalyticsService {
     };
   }
 
-  async getTopOrders() {
+  async getTopOrders(status?: string) {
     const D = (v: unknown) =>
       new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    // The Sales list's status filter, so its cards answer for the same orders
+    // (owner 2026-10-28). Only a sale is a sale: a draft, a cancelled order or
+    // samples asked for add nothing to the cards.
+    const asked = filtersOf(status, 'status', Object.values(OrderStatus));
+    const counted = REALISED_SALE_STATUSES.filter(
+      (s) => !asked || asked.includes(s as OrderStatus),
+    );
 
     const orders = await this.prisma.saleOrder.findMany({
-      where: { status: { in: [...REALISED_SALE_STATUSES] } },
+      where: { status: { in: [...counted] } },
       select: {
         id: true,
         orderNo: true,

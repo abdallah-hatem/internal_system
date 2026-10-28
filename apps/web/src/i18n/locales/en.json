@@ -469,6 +469,7 @@
     "draft": "Draft",
     "confirmed": "Confirmed",
     "partiallyPaid": "Partially Paid",
+    "owing": "Confirmed + partially paid",
     "paid": "Paid",
     "cancelled": "Cancelled",
     "returned": "Returned",

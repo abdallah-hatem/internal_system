@@ -163,7 +163,7 @@ const STATUS_COLORS: Record<string, string> = {
   SAMPLES_BOUGHT: 'bg-muted text-muted-foreground',
 };
 
-const FILTER_TABS = ['all', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled', 'samplesFilter'] as const;
+const FILTER_TABS = ['all', 'owing', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled', 'samplesFilter'] as const;
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // The table's skeleton rows are drawn by DataTable from each column's
@@ -191,7 +191,16 @@ function SaleCardSkeleton() {
 }
 
 /** A status pill and the order status it narrows the list to (sent to the API). */
+/**
+ * What Sales opens on with no `?status=` (owner 2026-10-28: "make the default
+ * filter confirmed and partially paid") — the orders still being paid for.
+ * `?status=ALL` is every order, kept in the address so it holds on the second visit.
+ */
+export const SALES_DEFAULT_STATUS = 'CONFIRMED,PARTIALLY_PAID';
+
 const STATUS_FILTER: Record<string, string> = {
+  all: 'ALL',
+  owing: SALES_DEFAULT_STATUS,
   draft: 'DRAFT',
   confirmed: 'CONFIRMED',
   partiallyPaid: 'PARTIALLY_PAID',
@@ -253,7 +262,14 @@ function SalesPageContent() {
   const list = useServerList<SaleOrder>({
     queryKey: 'sales',
     path: '/sales/orders',
-    filters: { status: 'status', customer: 'customerId', branch: 'branchId', from: 'from', to: 'to' },
+    filters: {
+      status: { param: 'status', toApi: (v) => (v === 'ALL' ? '' : v) },
+      customer: 'customerId',
+      branch: 'branchId',
+      from: 'from',
+      to: 'to',
+    },
+    defaults: { status: SALES_DEFAULT_STATUS },
   });
   const { rows: orders, isLoading, error: listError, reloading } = list;
   // Days the order was placed, both included, filtered by the API (I1).
@@ -262,7 +278,9 @@ function SalesPageContent() {
   const dated = Boolean(dates.from || dates.to);
   const statusFilter =
     Object.keys(STATUS_FILTER).find((k) => STATUS_FILTER[k] === list.get('status')) ?? 'all';
-  const setStatusFilter = (key: string) => list.set('status', key === 'all' ? null : STATUS_FILTER[key]);
+  const setStatusFilter = (key: string) => list.set('status', STATUS_FILTER[key]);
+  /** The status the API is asked for — the cards above answer for the same orders. */
+  const statusParam = list.get('status') === 'ALL' ? '' : list.get('status');
   const customerFilter = list.get('customer');
   /** Any filter beyond the search: the empty state offers to clear them too. */
   const narrowed = statusFilter !== 'all' || dated || Boolean(customerFilter) || Boolean(list.get('branch'));
@@ -829,7 +847,7 @@ function SalesPageContent() {
       </div>
 
       {/* The sale that brought in the most and the largest one (owner 2026-10-18). */}
-      <SalesSummary onOpen={(id) => void openOrderById(id).catch((e) => addToast(apiError(e, tc('error')), 'error'))} />
+      <SalesSummary status={statusParam} onOpen={(id) => void openOrderById(id).catch((e) => addToast(apiError(e, tc('error')), 'error'))} />
 
       {/* Search + Filter Tabs */}
       <ListToolbar
