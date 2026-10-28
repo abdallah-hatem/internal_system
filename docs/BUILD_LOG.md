@@ -397,12 +397,7 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   a loss can be traced to the lines that caused it; each row links to its order, expense or cycle. Built from the same
   server-side P&L definition the chart uses (one rule, one definition), asked for by period; a skeleton while it
   loads, an empty period says so. Tests: totals in the popup equal the bar, a loss day, an empty day, paging.
-- Next (2026-10-28, owner: "in Sales Orders tab, make the default filter confirmed and partially paid (pre selected or
-  whatever)"): **Sales opens on Confirmed + Partially paid** — the orders still being paid for. Opening Sales with no
-  status in the URL selects both (shown as chosen in the status filter, so it is clear and one click clears it); the
-  status filter takes several statuses at once if it does not already (server-side, `?status=CONFIRMED,PARTIALLY_PAID`);
-  choosing All, another status, or clearing it is kept in the URL and respected on the second visit (back, refresh).
-  The cards above follow the same filter. Tests: the default on first open, clearing it, a link with its own status.
+- **Built 2026-10-28 on `feature/sales-default-status`, merged into `dev`** (owner: "start all four, each in its own branch, then merge to dev"): **Sales opens on Confirmed + Partially paid** (BUSINESS_LOGIC §3). One chosen pill for the default, `?status=ALL` for every order, a link's own status kept; the API's status filter takes several values (`filtersOf`), and `/analytics/top-orders` takes the same status so the cards follow the list. No migration. Tests: `list-query.spec` (filtersOf: several, repeats, empty or unknown pieces refused), `sales-list.db.spec` (several statuses on real orders, counts, the cards among them, a draft never a card), `sales-default-status.test.tsx` (4: the default for list and cards, All kept in the address, `?status=ALL`, a link's own status); each seen to fail with its piece undone.
 - Next (2026-10-28, owner: "in products tab above the table we need cards that responds to filter, so when filter by
   category, it shows number of products in that category, and total number of units as well"): **the Products tab's
   cards follow its filters** — the same search, category and status the table sends: how many products match and how many

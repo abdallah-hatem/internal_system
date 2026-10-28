@@ -83,8 +83,8 @@ export class AnalyticsController {
   @ApiOperation({
     summary: 'The sale with the most revenue and the one with the most units',
   })
-  getTopOrders() {
-    return this.analyticsService.getTopOrders();
+  getTopOrders(@Query('status') status?: string) {
+    return this.analyticsService.getTopOrders(status);
   }
 
   /** The Products and Inventory tabs' cards: products, and units on the shelf. */

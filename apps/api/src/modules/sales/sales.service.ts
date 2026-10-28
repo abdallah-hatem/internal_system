@@ -1,5 +1,5 @@
 import {
-  filterOf,
+  filtersOf,
   listRows,
   type ListQuery,
   searchOf,
@@ -508,7 +508,7 @@ export class SalesService {
     },
   ) {
     const { customerId, channel, from, to } = query;
-    const status = filterOf(query.status, 'status', ORDER_STATUSES);
+    const statuses = filtersOf(query.status, 'status', ORDER_STATUSES);
     const search = searchOf(query);
     const { orderBy } = sortOf(query, SALE_SORTS);
     const ordered = instantRange(from, to);
@@ -520,7 +520,7 @@ export class SalesService {
     const where: Prisma.SaleOrderWhereInput = {
       ...(buyer !== undefined ? { customerId: buyer } : {}),
       ...(branch !== undefined ? { branchId: branch } : {}),
-      ...(status ? { status } : {}),
+      ...(statuses ? { status: { in: statuses } } : {}),
       ...(channel ? { channel } : {}),
       ...(ordered ? { orderedAt: ordered } : {}),
       ...(search

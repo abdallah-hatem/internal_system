@@ -137,13 +137,21 @@ export function StockSummary({ testId = 'stock-summary' }: { testId?: string }) 
  * most units, all time. Under the `sales` key so every change to a sale
  * (confirm, cancel, return) refreshes it with the list.
  */
-export function SalesSummary({ onOpen }: { onOpen: (orderId: string) => void }) {
+export function SalesSummary({
+  onOpen,
+  status = '',
+}: {
+  onOpen: (orderId: string) => void;
+  /** The Sales list's status filter, so the cards answer for the same orders (2026-10-28). */
+  status?: string;
+}) {
   const t = useTranslations('tabSummary');
   const ts = useTranslations('sales');
   const { formatNumber } = useNumberFormat();
   const { data, isLoading } = useQuery({
-    queryKey: ['sales', 'top-orders'],
-    queryFn: () => api.get('/analytics/top-orders').then(rows<TopOrders>),
+    queryKey: ['sales', 'top-orders', status],
+    queryFn: () =>
+      api.get('/analytics/top-orders', { params: status ? { status } : {} }).then(rows<TopOrders>),
   });
   const buyer = (o: TopOrder) => (o.customer?.isWalkIn ? ts('walkInCustomer') : o.customer?.displayName ?? '—');
   const cards: SummaryCard[] = [];
