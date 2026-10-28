@@ -77,6 +77,10 @@ export async function openCycleByCode(page: Page, code: string, locale: Locale =
   await openNav(page, m.nav.cycles);
   const main = page.getByRole('main');
   await main.getByPlaceholder(m.cycles.search).fill(code);
+  // The search is written to the address once typing rests. A row clicked
+  // before that (a new cycle is already on page one) starts the navigation,
+  // and the late search write then replaces it with the list again.
+  await expect(page).toHaveURL(new RegExp(`[?&]q=${code}(&|$)`), { timeout: 15000 });
   await main.getByTestId('cycle-row').filter({ hasText: code }).locator('td').first().click();
   await expect(page).toHaveURL(/\/cycles\/[0-9a-f-]{36}\/details$/, { timeout: 15000 });
 }
