@@ -63,24 +63,12 @@ import {
   SOLD_LINE_WHERE,
   unitsFigure,
 } from '../../common/units-sold';
+import { unitsOnShelf } from '../../common/repositories/units-on-shelf';
 
 /** A cycle still running: anything but closed or cancelled (CLOSED_CYCLE_STATUSES). */
 export const ACTIVE_CYCLE_WHERE = {
   status: { notIn: [...CLOSED_CYCLE_STATUSES] as CycleStatus[] },
 } satisfies Prisma.ImportCycleWhereInput;
-
-/**
- * Units on the shelf: each batch's remaining quantity, summed — the same
- * "stock on hand" the low-stock rule counts (§3). The dashboard's Units in
- * stock and the Products and Inventory tabs' card read it.
- */
-function unitsOnShelf(batches: { remainingQty: Prisma.Decimal.Value }[]) {
-  return Number(
-    batches
-      .reduce((sum, b) => sum.add(b.remainingQty), new Prisma.Decimal(0))
-      .toDecimalPlaces(2),
-  );
-}
 
 /** How the top products are ranked. */
 export const TOP_PRODUCTS_BY = ['revenue', 'units'] as const;
@@ -752,8 +740,8 @@ export class AnalyticsService {
     // One definition with a product page's Stock value (CLAUDE.md §11).
     const inventoryValue = stockValueEgp(inventoryBatches);
     // Units on the shelf across every product (§3) — one definition with the
-    // Products and Inventory tabs' card (`stockCounts`).
-    const unitsInStock = unitsOnShelf(inventoryBatches);
+    // Products and Inventory tabs' cards (`common/repositories/units-on-shelf.ts`).
+    const unitsInStock = await unitsOnShelf(this.prisma);
 
     // Receivables: sum of outstanding > 0 from confirmed sales orders
     const receivableOrders = await this.prisma.saleOrder.findMany({
@@ -1034,13 +1022,10 @@ export class AnalyticsService {
    * own figures, from the same definitions.
    */
   async getStockSummary() {
-    const batches = await this.prisma.inventoryBatch.findMany({
-      select: { remainingQty: true },
-    });
     return {
       data: {
         totalProducts: await this.productCount(),
-        unitsInStock: unitsOnShelf(batches),
+        unitsInStock: await unitsOnShelf(this.prisma),
       },
     };
   }

@@ -29,6 +29,34 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
   (§8, OPEN); the Rules Review answers; the small UAE costs for CYC-2026-0001.
 State of the product and of production's data: `docs/where-things-stand.md`.
 
+## Built on `feature/product-cards-filters` 2026-10-28 — not merged into `dev`, not on master; no migration
+- 2026-10-28 — **the Products tab's cards follow its filters** (owner 2026-10-28: "in products tab above the table we
+  need cards that responds to filter, so when filter by category, it shows number of products in that category, and
+  total number of units as well"; BUSINESS_LOGIC §12 "The Products tab's cards follow its filters"). Was Next up.
+  **e2e written, not run** (owner: unit and database tests only for now).
+  - `GET /products/summary?search=&categoryId=&status=` (core partners and support): how many products match and the
+    units they hold on the shelf, for the whole filtered set. One where-builder for the table and the cards,
+    `productListWhere` (`apps/api/src/modules/products/product-list-where.ts`); `GET /products` reads it too, so they
+    cannot disagree. Units in stock is one definition, `unitsOnShelf` (`apps/api/src/common/repositories/units-on-shelf.ts`,
+    summed by the database), now read by the dashboard, Inventory's card and the Products cards
+    (`analytics.service.ts`'s private copy removed). `common/list-query.ts` untouched.
+  - Web: `ProductsSummary` (`components/summary/tab-summaries.tsx`) sends the table's own parameters less its page and
+    order; keyed by them, so another page keeps the cards and another filter shows skeletons until its own figures
+    arrive. Inventory keeps `StockSummary`. Two new strings in `tabSummary`, en + ar. No new refusal codes (the list's
+    own: `LIST_FILTER_INVALID`, `VALIDATION_FAILED`, `LIST_SEARCH_TOO_LONG`, `ROLE_NOT_ALLOWED`).
+  - GUESSes (§12): units in stock leave out samples out at shops and count held units (as the existing card and
+    Inventory); a category is that category alone, not its subcategories (as the table); an inactive product's units
+    count when the status filter takes it in; the cards' sub-lines' wording.
+  - Tests: `products-summary.db.spec` (10, real Postgres: category and subcategory, search English/Arabic/SKU, status,
+    empty, 12 products over pages of 5, two cycles, samples and a sale, the dashboard's figures, the second time,
+    refusals), `products-summary.spec` (roles both ways, the where), `products-summary-cards.test.tsx` (8, the screen:
+    every match not the page, category + status pills, search typed in both languages, empty, paging, skeletons, a
+    stale card after the filter changes, Arabic). Break-verified: 10 server mutations and 4 screen mutations, each
+    seen to fail the tests it targets. e2e `107-products-cards-filters.spec.ts` written, and TC-TABSUM-02 (Products)
+    now reads `/products/summary?status=ACTIVE` — neither run.
+  - Totals at commit: API `jest --runInBand` (integration database set) 138 suites, 2,752 passed; web vitest 121 files, 1,637 passed;
+    `node --test apps/web/unit/*.test.mjs` 128 passed; `scripts/check-data.sh` on a fresh database: 79 checks, all 0.
+
 ## Shipped 2026-10-27 (evening) — was on `dev`
 - 2026-10-27 — built on `agent-funding` (no migration), Next-up (1) and (3), **e2e written, not run** (owner:
   unit and database tests only for now):
@@ -403,13 +431,6 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   status filter takes several statuses at once if it does not already (server-side, `?status=CONFIRMED,PARTIALLY_PAID`);
   choosing All, another status, or clearing it is kept in the URL and respected on the second visit (back, refresh).
   The cards above follow the same filter. Tests: the default on first open, clearing it, a link with its own status.
-- Next (2026-10-28, owner: "in products tab above the table we need cards that responds to filter, so when filter by
-  category, it shows number of products in that category, and total number of units as well"): **the Products tab's
-  cards follow its filters** — the same search, category and status the table sends: how many products match and how many
-  units they hold (in stock), worked out by the server for the whole filtered set, not the page shown (LEARNINGS: never
-  sum paged data in the browser). The list endpoint returns the totals beside its page (or one summary endpoint taking the
-  same filters); skeletons while they load; tests for a category filter, search, an empty result, and paging not
-  changing the totals.
 - Next (2026-10-28, owner: "I should be able to pick which sample a shop returned"): **Return some samples, not all** —
   "Returned" on a samples order opens the products the shop holds on it, each with a quantity (default all; lower it
   or 0 for what stays). The chosen units go back to the batches they left at their cost; the rest stay samples on the
