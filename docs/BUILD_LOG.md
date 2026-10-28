@@ -487,6 +487,16 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- **Queued 2026-10-28 (owner: "add the fixes to next up"), not started** — phone-width fixes found while recording the
+  fuel demo video at 390 px: (1) **the Ledger's phone cards don't say who paid** — "Paid by {partner}" is only in the
+  desktop table (`apps/web/src/app/[locale]/ledger/page.tsx` ~270), the mobile card (~450) shows direction, amount,
+  type • category and date; add the tag there, and make `106-expense-paid-by.spec.ts` check the phone list too.
+  (2) **The Partners page's Running accounts explanation leaves out expenses he paid**, though the card shows "Expenses
+  he paid" — add it to the sentence (en + ar). (3) **The ledger search placeholder is cut off** at 390 px ("…category
+  or a…") — shorten it on phones. (4) **The chat button covers the right edge** of the first ledger card and the partner
+  card's "Take money out" row — leave room under it. (5) Also seen: **a list search written to the address just after
+  typing stops can send a click on a row back to the list** (found by the 2026-10-28 full e2e, TC-FUND-01; the tests now
+  wait, the app still does it) — the late write must not navigate once the person has left the list.
 - **Built 2026-10-28 on `feature/sales-default-status`, merged into `dev`** (owner: "start all four, each in its own branch, then merge to dev"): **Sales opens on Confirmed + Partially paid** (BUSINESS_LOGIC §3). One chosen pill for the default, `?status=ALL` for every order, a link's own status kept; the API's status filter takes several values (`filtersOf`), and `/analytics/top-orders` takes the same status so the cards follow the list. No migration. Tests: `list-query.spec` (filtersOf: several, repeats, empty or unknown pieces refused), `sales-list.db.spec` (several statuses on real orders, counts, the cards among them, a draft never a card), `sales-default-status.test.tsx` (4: the default for list and cards, All kept in the address, `?status=ALL`, a link's own status); each seen to fail with its piece undone.
 - **Built 2026-10-27 on `feature/picker-category`, merged into `dev`** (owner: "start both and paid by … each one in its own branch then merge each one to dev"): **New Order's product picker shows each product's category** beside its name, in the reader's language, and the search matches it in either language (BUSINESS_LOGIC §4). No API change — the product list already carried the category. Tests: `SaleOrderForm.test.tsx` (3: beside the name and absent without one, Arabic, search in both languages), each seen to fail with the old label. No migration.
 - (1) and (3) **live 2026-10-27 (evening)**.
