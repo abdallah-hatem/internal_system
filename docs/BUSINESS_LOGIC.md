@@ -1077,7 +1077,8 @@ left, how many days ago, and the day the reminder is due (or "Reminder sent"). T
   one button, **Complete sale** (`POST /sales/orders/:id/samples/convert`, the body a new order sends). The
   below-cost warning is not shown there (GUESS: it costs from the shelf's FIFO, which is not what the kept units cost).
 - **"Returned"** — everything back on the shelf; the order ends **SAMPLES_RETURNED** (not a cancelled sale, not a
-  return of a sale). **Cancel on samples is "Returned"** (`POST …/cancel` does the same, for core partners — cancel
+  return of a sale). Since 2026-10-28 it asks which products and how many came back, and the rest stay samples on the
+  order ("Return some samples, not all", below). **Cancel on samples is "Returned"** (`POST …/cancel` does the same, for core partners — cancel
   is theirs alone, while `POST …/samples/return` is open to the sales roles; the screen does not offer Cancel at all).
 - **"Write off"** (core partners only, like Cancel) — the shop kept them or they were lost. Asks first, showing the
   cost written off; an optional note goes to the audit log.
@@ -1120,6 +1121,7 @@ payment, a return, a contract and the invoice work on it as they are. Per produc
 | Left (SAMPLES) | Off the shelf (`remainingQty`/`saleableQty` fall), counted under **Samples** | Nothing: no sale, no ledger row |
 | Bought (CONFIRMED) | Kept units stay out (sold, same batches); units not kept back to their own batch (`SAMPLE_BACK`); extra drawn FIFO (`SALE`) | A normal sale on its day, with the popup's lines: revenue, COGS, receivable |
 | Returned (SAMPLES_RETURNED) | Every unit back to the batch it left (`SAMPLE_BACK`) | Nothing. Its lines and allocations stay as the record of what went out and count in nothing, as a cancelled sale's do |
+| Part returned (stays SAMPLES, 2026-10-28) | The units named back to the batch each left (`SAMPLE_BACK`); the rest stay out on the order | Nothing |
 | Written off (SAMPLES_WRITTEN_OFF) | Gone for good: never back on the shelf, not at a shop | Their landed cost is a cost of the cycle each unit came from |
 | Bought into other sales (SAMPLES_BOUGHT, 2026-10-27) | Every unit moved, with its allocation, into the sales that bought it — no stock moved | Nothing on the samples order; each sale is a normal sale with those units' cost as its COGS |
 
@@ -1161,7 +1163,7 @@ pushed to phones too (§10).
   overdue instalments).
 
 **Editing.** A samples order's lines cannot be edited while open — there is no edit path for any order (§4); to change
-what is out, record "Returned" and leave the samples again. Changing the lines **when the shop buys** is what the
+what is out, record "Returned" (since 2026-10-28, only the units that came back) and leave more samples if needed. Changing the lines **when the shop buys** is what the
 "They're buying" popup is for (round 2).
 
 **On a product's page** (owner 2026-10-18, round 2). A **Samples** card: the units of the product out on open samples
@@ -1291,6 +1293,57 @@ the third branch, or even one of the 2?" — the proposal below, then "build it"
 - GUESS: the hint lists units out per product on each order (all units of a product summed across the batches they
   left), oldest order first; no price is shown (a noted price is not a decision).
 
+**Return some samples, not all** (owner 2026-10-28: "I should be able to pick which sample a shop returned"; the same
+day a one-off returned one of Ahmad Zogmar's two Y30s by hand, `7e33ddb`). Built 2026-10-28 on
+`feature/partial-sample-return`, **no migration** (every record it writes already existed: the one-off and "They're
+buying" with Keep as sample write the same ones).
+- **"Returned" asks what came back.** It opens the products the shop holds on the order, once each (its lines summed),
+  with the units at the shop and a quantity that **defaults to all of it**; lower it, or 0 for what stays. Below them:
+  "N go back on the shelf; M stay at the shop as samples", or the old sentence when everything comes back. Every unit
+  at 0 says "Nothing is coming back" and **Put back on the shelf** cannot be pressed; more than is at the shop, a
+  negative or an empty field says "From 0 to N" under it and cannot be sent. The server's refusal shows in the dialog,
+  translated, with what was typed kept. **Cancel (or ×, Escape) forgets what was typed**: the next visit opens on all
+  again (CLAUDE.md §13).
+- **`POST /sales/orders/:id/samples/return`** takes `{ lines: [{ productId, quantity }], customerId?, version? }`
+  (sales roles, as before). Without `lines` it is the whole order, exactly as before — Cancel on samples and older
+  clients send none.
+- **The chosen units go back to the batches they left, at their cost**, in one transaction under the order's claim:
+  each comes off the order's draws (`takeFromSamples`), goes back on its batch's shelf with a `SAMPLE_BACK` movement
+  (`sampleBack`), and the lines are written as they stand (`settleSamplesLeft`) — the records the 2026-10-28 one-off
+  made. Which units: `planSamplesReturn` (`common/samples.ts`), which plans what stays exactly as "They're buying"
+  plans what is kept (`planSamplesConversion`).
+- **The rest stay samples on the same order**: same ORD number, `samples_left_at` and `samples_reminded_at` untouched,
+  `samples_decided_at` empty, still counted under Samples, still holding its cycles' settlement (`CYCLE_HAS_SAMPLES_OUT`
+  names the units still out). A cycle none of whose units stay out is free to settle.
+- **Nothing left → SAMPLES_RETURNED, as today** (lines kept as the record of what went out; `samples_decided_at` set).
+  Returning what is left after an earlier part return, or after part was bought, closes it the same way.
+- **History** shows each part return as **"Some samples returned"** (`SAMPLES_PART_RETURNED`, the audit row's
+  products and units, the same event "They're buying" with Returned writes), then "Samples returned" if the rest come
+  back later.
+- **Refused, coded, en + ar** (CLAUDE.md §9): no line at all → `SAMPLES_RETURN_NOTHING` (new); 0 or less →
+  `QTY_NOT_POSITIVE`; a product the order holds none of — never left, or already bought out of it →
+  `SAMPLES_RETURN_PRODUCT_NOT_OUT` (new); more than is out, two lines of a product counted together →
+  `SAMPLES_RETURN_MORE_THAN_OUT` (was the assistant's own, now the service's); a shop named that is not the one they
+  were left with → `SAMPLES_OTHER_SHOP`; the order changed since the screen read it → `ORDER_VERSION_CONFLICT`;
+  returned, written off, bought (in place or into other sales) → `SAMPLES_ALREADY_DECIDED`; never samples →
+  `NOT_SAMPLES`; a quantity that is no number, a line without a product id, lines that are not a list →
+  `VALIDATION_FAILED`; an id that is no order → 404. Nothing moves on any refusal. `SAMPLES_RETURN_NOT_ALL` is gone.
+- **Twice:** a second return reads what the first left (the claim holds the row), so it can never take a unit back
+  twice; the same click twice carries the version the screen showed and the second is `ORDER_VERSION_CONFLICT`.
+- **The assistant:** `return_samples` takes `returned` (product and quantity) as the office's lines — names matched to
+  the products on the order (a close name is a question; a name matching none is `SAMPLES_RETURN_PRODUCT_NOT_OUT`),
+  every amount the service's check. The preview says what comes back and what stays; it binds both, so a return made
+  elsewhere in between is `PREVIEW_CHANGED`.
+- GUESS: **the units that come back are the newest-received; the oldest stay** — as when the shop buys part (the kept
+  units are the oldest, round 1's guess). The 2026-10-28 one-off returned the first draw it found, which on that
+  one-batch order is the same unit.
+- GUESS: **two lines of one product are added together** and checked as one against what is out (not refused).
+- GUESS: **a return is dated when it is recorded** — no day picker; the shelf gets the units back today.
+- GUESS: **the dialog sends the order's version** and a changed order is refused with a reload, not applied to what
+  is there now; the assistant (whose preview binds instead), Cancel and an older client send none. `customerId` is
+  checked only when sent.
+- GUESS: **a fraction of a unit can come back** (quantities are decimals everywhere else).
+
 **The assistant** (§16; tools built 2026-10-20, owner's queue of 2026-10-18): `list_sales` labels each order `kind:
 "SALE"` or `"SAMPLES"` as before. Five tools carry the flow, each the office endpoint's own `SalesService` call,
 previewed by that call rolled back and committed with the confirmation token (`tools/samples.ts`):
@@ -1301,16 +1354,16 @@ previewed by that call rolled back and committed with the confirmation token (`t
 - `complete_samples_sale` (= `…/samples/convert`): the lines the shop buys, or none for "exactly what was left"; a
   line without a price takes the price noted when left, else the list price, marked for the partner to confirm; a
   `PRICE_NEEDED` question when neither exists.
-- `return_samples` (= `…/samples/return`): always the whole order — quantities the partner names must be exactly what
-  went out: more is `SAMPLES_RETURN_MORE_THAN_OUT`, less is `SAMPLES_RETURN_NOT_ALL` (which points at recording the
-  rest as a sale).
+- `return_samples` (= `…/samples/return`): the whole order, or — since 2026-10-28 — the products and quantities the
+  partner names, the rest staying samples ("Return some samples, not all", above). More than went out is
+  `SAMPLES_RETURN_MORE_THAN_OUT` (the service's check now); `SAMPLES_RETURN_NOT_ALL` is gone.
 - `write_off_samples` (= `…/samples/write-off`): the preview shows the cost written off.
 Roles are the office endpoints', defined once in `modules/sales/sales-roles.ts` (`SALES_ROLES`; write-off
 `SALES_PARTNER_ROLES`). Guesses, open until confirmed (2026-10-20):
 - A noted price of 0 is read as "no price noted" (the service stores 0 when none was given).
 - With no noted, list or default price the assistant asks (`PRICE_NEEDED`); the office popup falls back to 0.
 - `complete_samples_sale` keeps the samples order's channel and currency; the assistant offers no channel change.
-- The quantity check on `return_samples` and its two codes are the assistant's own; the service has no partial return.
+- (Superseded 2026-10-28: the quantity check on `return_samples` is the service's, which takes part returns.)
 - `list_samples` reads at most 20 pages of 100 open samples orders.
 - `leave_samples` uses the B2B channel for a B2B customer and B2C otherwise, as `record_sale` does.
 

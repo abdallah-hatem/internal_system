@@ -175,15 +175,18 @@ test.describe('samples at shops through the assistant (§4, §16)', () => {
     expect(await saleable(request, headers, product.id)).toBe(3);
   });
 
-  test('TC-ASM-07: returning more than was left, or only part → refused; still at the shop', async ({ request }) => {
+  test('TC-ASM-07: returning more than was left → refused; only part (2026-10-28) → those units back, the rest still at the shop', async ({ request }) => {
     const { headers, product, shop, orderNo } = await leave(request, 'ASM07', 4);
     const more = await tool('return_samples', { order: orderNo, returned: [{ product: product.name, qty: 5 }] });
     expect(codeOf(more)).toBe('SAMPLES_RETURN_MORE_THAN_OUT');
-    const part = await tool('return_samples', { order: orderNo, returned: [{ product: product.name, qty: 1 }] });
-    expect(codeOf(part)).toBe('SAMPLES_RETURN_NOT_ALL');
+    expect(await saleable(request, headers, product.id)).toBe(6);
+    const args = { order: orderNo, returned: [{ product: product.name, qty: 1 }] };
+    const part = await tool('return_samples', args);
+    expect(part.structuredContent?.data.statusAfter).toBe('SAMPLES');
+    await tool('return_samples', { ...args, confirmationToken: part.structuredContent?.confirmationToken });
     const [order] = await ordersOf(request, headers, shop.id);
     expect(order.status).toBe('SAMPLES');
-    expect(await saleable(request, headers, product.id)).toBe(6);
+    expect(await saleable(request, headers, product.id)).toBe(7);
   });
 
   test('TC-ASM-08: buying more than went out with an empty shelf → SAMPLES_EXTRA_NOT_IN_STOCK', async ({ request }) => {

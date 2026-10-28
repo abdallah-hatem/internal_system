@@ -16,6 +16,7 @@ import {
   type CreateSaleOrderInput,
   type PriceCheckInput,
   type SamplesConversionInput,
+  type SamplesReturnInput,
 } from './sales.service';
 import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -222,10 +223,15 @@ export class SalesController {
   @Post(':id/samples/return')
   @HttpCode(200)
   @ApiOperation({
-    summary: 'Every sample came back: all units back on the shelf.',
+    summary:
+      'The samples came back: with no `lines`, every unit back on the shelf (the order ends returned); with `lines`, only those units, each to the batch it left, and the rest stay samples on the order. `customerId` and `version` are what the screen showed.',
   })
-  returnSamples(@Param('id') id: string, @CurrentUser() user: { id: string }) {
-    return this.salesService.returnSamples(id, user.id);
+  returnSamples(
+    @Param('id') id: string,
+    @Body() body: SamplesReturnInput | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.salesService.returnSamples(id, user.id, body);
   }
 
   /** The units are gone for good and their cost lands on their cycles: a partner's call. */

@@ -185,7 +185,7 @@ const returnShape = {
     .min(1)
     .optional()
     .describe(
-      'What came back, ONLY when the partner names quantities. "Returned" takes back every unit on the order: anything less is refused (SAMPLES_RETURN_NOT_ALL), more than went out too (SAMPLES_RETURN_MORE_THAN_OUT). Leave out when everything came back.',
+      'What came back, ONLY when the partner names products or quantities: those units go back to the shelf and the rest stay at the shop as samples on the same order. More than went out is refused (SAMPLES_RETURN_MORE_THAN_OUT), so is a product not on the order (SAMPLES_RETURN_PRODUCT_NOT_OUT). Leave out when everything came back.',
     ),
 };
 
@@ -1069,29 +1069,30 @@ export function registerSamplesTools(
   // ─── return_samples ─────────────────────────────────────────────────
 
   /**
-   * "Returned" takes back every unit on the order (the service's rule). When
-   * the partner names what came back, it must be exactly that — or the
-   * assistant would record a full return the partner did not describe.
+   * The products the partner named as come back, matched to the products on
+   * the order — the same lines the office's "Returned" sends (owner
+   * 2026-10-28: some may come back and the rest stay). A close name is a
+   * question, never assumed; a name matching nothing on the order is
+   * `SAMPLES_RETURN_PRODUCT_NOT_OUT`. Every amount — 0 or less, more than is
+   * out — is the service's check, not a second copy here.
    */
-  function checkReturned(order: OrderRead, returned: ReturnInput['returned']) {
-    if (!returned) return [];
-    const out = unitsOut(order.items);
-    const items = out.map((r) => ({
+  function returnedLines(
+    order: OrderRead,
+    returned: ReturnInput['returned'],
+  ):
+    | { questions: SaleQuestion[] }
+    | { lines: { productId: string; quantity: number }[] | undefined } {
+    if (!returned) return { lines: undefined };
+    const items = unitsOut(order.items).map((r) => ({
       id: r.productId,
       name: r.product,
       nameAr: r.productAr,
       sku: r.sku,
     }));
     const questions: SaleQuestion[] = [];
-    const back = new Map<string, Prisma.Decimal>();
+    const lines: { productId: string; quantity: number }[] = [];
     returned.forEach((l, i) => {
       const line = i + 1;
-      if (!(l.qty > 0)) {
-        throw badRequest(
-          'QTY_NOT_POSITIVE',
-          `Invalid quantity for ${l.product}: must be greater than 0`,
-        );
-      }
       const match = matchByName(
         { id: l.product, name: l.product, sku: l.product },
         items,
@@ -1099,14 +1100,9 @@ export function registerSamplesTools(
       );
       if (match.status === 'unknown') {
         throw badRequest(
-          'SAMPLES_RETURN_MORE_THAN_OUT',
-          `No ${l.product} went out on ${order.orderNo}, so none can come back.`,
-          {
-            order: order.orderNo,
-            product: l.product,
-            out: '0',
-            returned: String(l.qty),
-          },
+          'SAMPLES_RETURN_PRODUCT_NOT_OUT',
+          `${order.orderNo} holds no ${l.product} as a sample, so none can come back.`,
+          { order: order.orderNo, product: l.product },
         );
       }
       if (match.status !== 'matched') {
@@ -1119,67 +1115,72 @@ export function registerSamplesTools(
         });
         return;
       }
-      const id = match.match.item.id;
-      back.set(id, (back.get(id) ?? D(0)).add(l.qty));
+      lines.push({ productId: match.match.item.id, quantity: l.qty });
     });
-    if (questions.length) return questions;
-    for (const r of out) {
-      const qty = back.get(r.productId) ?? D(0);
-      if (qty.gt(r.qty)) {
-        throw badRequest(
-          'SAMPLES_RETURN_MORE_THAN_OUT',
-          `Only ${r.qty.toString()} of ${r.product} went out on ${order.orderNo}; ${qty.toString()} cannot come back.`,
-          {
-            order: order.orderNo,
-            product: r.product,
-            out: r.qty.toString(),
-            returned: qty.toString(),
-          },
-        );
-      }
-    }
-    for (const r of out) {
-      const qty = back.get(r.productId) ?? D(0);
-      if (qty.lt(r.qty)) {
-        throw badRequest(
-          'SAMPLES_RETURN_NOT_ALL',
-          `${r.qty.toString()} of ${r.product} went out on ${order.orderNo} and ${qty.toString()} came back. "Returned" takes back everything; if the shop kept the rest, record it as a sale from the samples.`,
-          {
-            order: order.orderNo,
-            product: r.product,
-            out: r.qty.toString(),
-            returned: qty.toString(),
-          },
-        );
-      }
-    }
-    return [];
+    return questions.length ? { questions } : { lines };
   }
 
   async function previewReturn(input: ReturnInput): Promise<ToolOutcome> {
     assertRole(SALES_ROLES);
     const id = await orderId(input.order);
     const order = await readOrder(id);
-    // The office's own "Returned", rolled back: decided already, not samples.
-    await previewByRollback(() =>
-      dryService(() => Promise.resolve(null)).returnSamples(id, actor),
+    const asked = returnedLines(order, input.returned);
+    // The office's own "Returned", rolled back — every refusal is its own:
+    // decided already, not samples, 0 or less, more than is out.
+    const seen = await previewByRollback<SeenOrder>(() =>
+      dryService(seenOrder(id)).returnSamples(id, actor, {
+        lines: 'lines' in asked ? asked.lines : undefined,
+      }),
     );
-    const questions = checkReturned(order, input.returned);
-    if (questions.length) return questionsOutcome('This return', questions);
+    if ('questions' in asked) {
+      return questionsOutcome('This return', asked.questions);
+    }
     const lines = outLines(order);
+    const all = seen.status === 'SAMPLES_RETURNED';
+    const stays = all
+      ? []
+      : lines
+          .map((l) => ({
+            ...l,
+            qty: seen.items
+              .filter((i) => i.productId === l.productId)
+              .reduce((s, i) => s.add(i.quantity), D(0))
+              .toString(),
+          }))
+          .filter((l) => D(l.qty).gt(0));
+    const back = lines
+      .map((l) => ({
+        ...l,
+        qty: D(l.qty)
+          .sub(stays.find((s) => s.productId === l.productId)?.qty ?? 0)
+          .toString(),
+      }))
+      .filter((l) => D(l.qty).gt(0));
     const shop = order.customer.displayName;
     return {
       summary: [
-        `${order.orderNo}: every sample left with ${shop} on ${order.samples?.leftOn ?? businessDay(order.orderedAt)} comes back to the shelf:`,
-        ...lines.map((l) => `- ${l.product} (${l.sku}): ${formatQty(l.qty)}`),
-        'No sale, nothing owed; the order ends as returned samples.',
+        all
+          ? `${order.orderNo}: every sample left with ${shop} on ${order.samples?.leftOn ?? businessDay(order.orderedAt)} comes back to the shelf:`
+          : `${order.orderNo}: these samples left with ${shop} on ${order.samples?.leftOn ?? businessDay(order.orderedAt)} come back to the shelf:`,
+        ...back.map((l) => `- ${l.product} (${l.sku}): ${formatQty(l.qty)}`),
+        ...(all
+          ? ['No sale, nothing owed; the order ends as returned samples.']
+          : [
+              'Still at the shop as samples, on the same order (its day left and reminder unchanged):',
+              ...stays.map(
+                (l) => `- ${l.product} (${l.sku}): ${formatQty(l.qty)}`,
+              ),
+              'No sale, nothing owed.',
+            ]),
       ].join('\n'),
       data: {
         orderId: id,
         orderNo: order.orderNo,
         customer: { id: order.customerId, name: shop },
         lines,
-        statusAfter: 'SAMPLES_RETURNED',
+        returned: back,
+        stays,
+        statusAfter: all ? 'SAMPLES_RETURNED' : SAMPLES_OPEN_STATUS,
       },
     };
   }
@@ -1191,8 +1192,8 @@ export function registerSamplesTools(
     {
       title: 'Samples returned',
       description:
-        'Every sample on a samples order came back from the shop: all its units go back to the shelf, to the batch each left; no sale, nothing owed. It is the whole order — if the shop kept some, use complete_samples_sale with what it kept. ' +
-        'Refused when the order was already decided (SAMPLES_ALREADY_DECIDED) or is not samples (NOT_SAMPLES). Call without a confirmationToken to preview.',
+        'Samples came back from the shop: the units go back to the shelf, to the batch each left; no sale, nothing owed. Without `returned`, every unit on the order comes back and it ends as returned samples. With `returned`, only those units come back and the rest stay samples on the same order (its day left and reminder unchanged) — the same lines the office\'s "Returned" takes. If the shop kept some and is paying for them, use complete_samples_sale. ' +
+        'Refused when the order was already decided (SAMPLES_ALREADY_DECIDED) or is not samples (NOT_SAMPLES), a product is not on the order (SAMPLES_RETURN_PRODUCT_NOT_OUT), more comes back than went out (SAMPLES_RETURN_MORE_THAN_OUT), or a quantity is 0 or less (QTY_NOT_POSITIVE). Call without a confirmationToken to preview.',
       inputSchema: returnShape,
     },
     {
@@ -1202,18 +1203,27 @@ export function registerSamplesTools(
         const d = shown.data as {
           orderId: string;
           lines: { productId: string; qty: string }[];
+          returned: { productId: string; qty: string }[];
         };
         return {
           order: d.orderId,
           lines: d.lines.map((l) => [l.productId, l.qty]),
+          returned: d.returned.map((l) => [l.productId, l.qty]),
         };
       },
       async commit(input) {
         assertRole(SALES_ROLES);
         const id = await orderId(input.order);
-        const { data } = await sales().returnSamples(id, actor);
+        const asked = returnedLines(await readOrder(id), input.returned);
+        if ('questions' in asked) throw previewChanged();
+        const { data } = await sales().returnSamples(id, actor, {
+          lines: asked.lines,
+        });
+        const all = data.status === 'SAMPLES_RETURNED';
         return {
-          summary: `Recorded ${data.orderNo} as returned: every sample is back on the shelf.`,
+          summary: all
+            ? `Recorded ${data.orderNo} as returned: every sample is back on the shelf.`
+            : `Recorded the samples that came back on ${data.orderNo}: they are back on the shelf, and ${data.samples?.unitsOut ?? '0'} unit(s) stay at the shop as samples.`,
           data: {
             orderId: data.id,
             orderNo: data.orderNo,

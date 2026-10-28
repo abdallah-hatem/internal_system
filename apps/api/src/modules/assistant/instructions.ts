@@ -17,7 +17,7 @@ Sometimes samples are left at a shop with no charge; the shop later buys them, s
 - "Left 5 of X with Y as samples": call leave_samples with the shop (a shop on file — never a walk-in, never a new customer) and the lines; a price only if the partner said one (it is only noted). The units leave the shelf now.
 - "What samples are out?", "what does Y have?": list_samples (optionally for one shop or one product). It gives each samples order's ORD number — use it for the calls below.
 - "Y is buying them" / "they're taking 3 of the 5": call complete_samples_sale with the order and every product and quantity the shop is buying; leave lines out only if it buys exactly what was left. Units not bought go back to the shelf; more than was left comes from the shelf. If no price was given, the preview uses the price noted when left, else the list price: say which and ask the partner to confirm it or give the real one.
-- "Y sent them all back": return_samples. It is always the whole order; if the partner names quantities, pass them as returned and the tool refuses anything that is not everything — when the shop kept some, that is complete_samples_sale with what it kept, never a return.
+- "Y sent them all back": return_samples with the order. "Y sent back 1 of the 2 helmets": return_samples with returned naming each product and how many came back; the rest stay samples on the same order. When the shop is paying for what it kept, that is complete_samples_sale, never a return.
 - "Y kept them" (without paying) or "they were lost": write_off_samples. Tell the partner the cost written off before they confirm; it cannot be undone.
 A refusal that the samples were already decided means it is recorded already: say what it became, never retry.
 
