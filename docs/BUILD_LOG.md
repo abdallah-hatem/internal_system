@@ -19,8 +19,9 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
   history holds no Edit order commit, so the branch can still be merged later.
 - **`dev`** is ahead of `master` (2026-10-28): the product picker's category, the Preparing status (migration
   `20261028100000_cycle_status_preparing`) and "Paid by" on an expense (migration `20261027180000_expense_paid_by`),
-  awaiting the owner's test before they ship. Edit order lives only on `feature/edit-order`. **What made a P&L bar**
-  is built on `feature/pnl-drilldown` (2026-10-28, no migration), merged into `dev` 2026-10-28.
+  and, merged 2026-10-28 with no migration, Sales opening on Confirmed + Partially paid, what made a P&L bar,
+  the Products tab's cards following its filters and returning some samples, not all — awaiting the owner's test
+  before they ship. Edit order lives only on `feature/edit-order`.
   Nothing is held on another machine as far as git shows.
 - Tests at the release: API, web and unit suites green (counts in History, "Stage on 2026-10-26/27"); e2e not run
   (owner, 2026-10-25: unit and database tests only).
@@ -56,6 +57,38 @@ State of the product and of production's data: `docs/where-things-stand.md`.
     `components/sales/return-samples-dialog.test.tsx` (11: default all, some, none, the range, the second visit,
     a refusal, the toast, Arabic). Each broken and seen to fail.
   - Totals: API `jest --runInBand` on a fresh database, 138 suites / 2,760 tests, all passed (an earlier run on a database reused across many runs failed one business-wide P&L comparison, which passes on a fresh one); `node --test unit` 128/128; `scripts/check-data.sh` on a fresh database, before and after the suite: 79 checks, all zero. The whole web run is in the combined run after merging into `dev`.
+
+## Built on `feature/product-cards-filters` 2026-10-28, merged into `dev` 2026-10-28 (owner: "start all four, each in its own branch, then merge to dev") — not on master; no migration
+- 2026-10-28 — **the Products tab's cards follow its filters** (owner 2026-10-28: "in products tab above the table we
+  need cards that responds to filter, so when filter by category, it shows number of products in that category, and
+  total number of units as well"; BUSINESS_LOGIC §12 "The Products tab's cards follow its filters"). Was Next up.
+  **e2e written, not run** (owner: unit and database tests only for now).
+  - `GET /products/summary?search=&categoryId=&status=` (core partners and support): how many products match and the
+    units they hold on the shelf, for the whole filtered set. One where-builder for the table and the cards,
+    `productListWhere` (`apps/api/src/modules/products/product-list-where.ts`); `GET /products` reads it too, so they
+    cannot disagree. Units in stock is one definition, `unitsOnShelf` (`apps/api/src/common/repositories/units-on-shelf.ts`,
+    summed by the database), now read by the dashboard, Inventory's card and the Products cards
+    (`analytics.service.ts`'s private copy removed). `common/list-query.ts` untouched.
+  - Web: `ProductsSummary` (`components/summary/tab-summaries.tsx`) sends the table's own parameters less its page and
+    order; keyed by them, so another page keeps the cards and another filter shows skeletons until its own figures
+    arrive. Inventory keeps `StockSummary`. Two new strings in `tabSummary`, en + ar. No new refusal codes (the list's
+    own: `LIST_FILTER_INVALID`, `VALIDATION_FAILED`, `LIST_SEARCH_TOO_LONG`, `ROLE_NOT_ALLOWED`).
+  - GUESSes (§12): units in stock leave out samples out at shops and count held units (as the existing card and
+    Inventory); a category is that category alone, not its subcategories (as the table); an inactive product's units
+    count when the status filter takes it in; the cards' sub-lines' wording.
+  - Tests: `products-summary.db.spec` (10, real Postgres: category and subcategory, search English/Arabic/SKU, status,
+    empty, 12 products over pages of 5, two cycles, samples and a sale, the dashboard's figures, the second time,
+    refusals), `products-summary.spec` (roles both ways, the where), `products-summary-cards.test.tsx` (8, the screen:
+    every match not the page, category + status pills, search typed in both languages, empty, paging, skeletons, a
+    stale card after the filter changes, Arabic). Break-verified: 10 server mutations and 4 screen mutations, each
+    seen to fail the tests it targets. e2e `107-products-cards-filters.spec.ts` written, and TC-TABSUM-02 (Products)
+    now reads `/products/summary?status=ACTIVE` — neither run.
+  - Totals at commit: API `jest --runInBand` (integration database set) 138 suites, 2,752 passed; web vitest 121 files, 1,637 passed;
+    `node --test apps/web/unit/*.test.mjs` 128 passed; `scripts/check-data.sh` on a fresh database: 79 checks, all 0.
+
+## Shipped 2026-10-27 (evening) — was on `dev`
+- 2026-10-27 — built on `agent-funding` (no migration), Next-up (1) and (3), **e2e written, not run** (owner:
+  unit and database tests only for now):
   - **A new temporary investor from the Funding card** (BUSINESS_LOGIC §8 "A new temporary investor from the Funding
     card"): a `+` beside "+ Add investor"'s person picker (`FieldWithQuickCreate`, the registry's `investor` entry)
     makes an investor from a name alone, refreshes the list and selects him. `POST /users/investors` (core partners
@@ -449,13 +482,6 @@ _(none)_
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
 - **Built 2026-10-28 on `feature/sales-default-status`, merged into `dev`** (owner: "start all four, each in its own branch, then merge to dev"): **Sales opens on Confirmed + Partially paid** (BUSINESS_LOGIC §3). One chosen pill for the default, `?status=ALL` for every order, a link's own status kept; the API's status filter takes several values (`filtersOf`), and `/analytics/top-orders` takes the same status so the cards follow the list. No migration. Tests: `list-query.spec` (filtersOf: several, repeats, empty or unknown pieces refused), `sales-list.db.spec` (several statuses on real orders, counts, the cards among them, a draft never a card), `sales-default-status.test.tsx` (4: the default for list and cards, All kept in the address, `?status=ALL`, a link's own status); each seen to fail with its piece undone.
-- Next (2026-10-28, owner: "in products tab above the table we need cards that responds to filter, so when filter by
-  category, it shows number of products in that category, and total number of units as well"): **the Products tab's
-  cards follow its filters** — the same search, category and status the table sends: how many products match and how many
-  units they hold (in stock), worked out by the server for the whole filtered set, not the page shown (LEARNINGS: never
-  sum paged data in the browser). The list endpoint returns the totals beside its page (or one summary endpoint taking the
-  same filters); skeletons while they load; tests for a category filter, search, an empty result, and paging not
-  changing the totals.
 - **Built 2026-10-27 on `feature/picker-category`, merged into `dev`** (owner: "start both and paid by … each one in its own branch then merge each one to dev"): **New Order's product picker shows each product's category** beside its name, in the reader's language, and the search matches it in either language (BUSINESS_LOGIC §4). No API change — the product list already carried the category. Tests: `SaleOrderForm.test.tsx` (3: beside the name and absent without one, Arabic, search in both languages), each seen to fail with the old label. No migration.
 - (1) and (3) **live 2026-10-27 (evening)**.
 - (2) **Live 2026-10-27 (evening)** (migration `20261027120000_samples_into_order` applied). Was: built 2026-10-27, merged into `dev` at the owner's word ("merge samples into dev and push"); production needed the migration first; migration `20261027120000_samples_into_order`; e2e written, not run; its guesses in that branch's BUSINESS_LOGIC §4).** (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current

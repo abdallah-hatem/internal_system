@@ -86,10 +86,38 @@ export interface StockSummaryData {
   unitsInStock: number;
 }
 
+/** The two stock cards: a count of products and the units they hold, in the dashboard's icons and colours. */
+function stockCards(
+  t: (key: 'products' | 'unitsInStock') => string,
+  formatNumber: ReturnType<typeof useNumberFormat>['formatNumber'],
+  figures: { products: number; unitsInStock: number; productsSub: string; unitsSub: string },
+): SummaryCard[] {
+  return [
+    {
+      key: 'products',
+      label: t('products'),
+      value: formatNumber(figures.products),
+      sub: figures.productsSub,
+      href: '/products',
+      icon: Package,
+      color: 'bg-indigo-500',
+    },
+    {
+      key: 'units-in-stock',
+      label: t('unitsInStock'),
+      value: formatNumber(figures.unitsInStock, UNITS),
+      sub: figures.unitsSub,
+      href: '/inventory',
+      icon: Boxes,
+      color: 'bg-orange-400',
+    },
+  ];
+}
+
 /**
- * Products and Inventory: how many products there are and how many units are
- * on the shelf (owner 2026-10-22, replacing the best sellers) — the
- * dashboard's Units in stock, in its icon and colour.
+ * Inventory: how many products there are and how many units are on the shelf
+ * (owner 2026-10-22, replacing the best sellers) — the dashboard's Units in
+ * stock, in its icon and colour.
  */
 export function StockSummary({ testId = 'stock-summary' }: { testId?: string }) {
   const t = useTranslations('tabSummary');
@@ -99,26 +127,67 @@ export function StockSummary({ testId = 'stock-summary' }: { testId?: string }) 
     queryFn: () => api.get('/analytics/stock-summary').then(rows<StockSummaryData>),
   });
   const cards: SummaryCard[] = data
-    ? [
-        {
-          key: 'products',
-          label: t('products'),
-          value: formatNumber(data.totalProducts),
-          sub: t('productsSub'),
-          href: '/products',
-          icon: Package,
-          color: 'bg-indigo-500',
-        },
-        {
-          key: 'units-in-stock',
-          label: t('unitsInStock'),
-          value: formatNumber(data.unitsInStock, UNITS),
-          sub: t('unitsInStockSub'),
-          href: '/inventory',
-          icon: Boxes,
-          color: 'bg-orange-400',
-        },
-      ]
+    ? stockCards(t, formatNumber, {
+        products: data.totalProducts,
+        unitsInStock: data.unitsInStock,
+        productsSub: t('productsSub'),
+        unitsSub: t('unitsInStockSub'),
+      })
+    : [];
+  return (
+    <SummaryStrip
+      cards={cards}
+      isLoading={isLoading}
+      label={t('stockLabel')}
+      testId={testId}
+      skeletonCount={2}
+      skeletonSubject={false}
+    />
+  );
+}
+
+/** GET /products/summary: the products the list's filters match, and their units in stock. */
+export interface ProductsSummaryData {
+  products: number;
+  unitsInStock: number;
+}
+
+/**
+ * Products: how many products the list's search, category and status match,
+ * and how many units they hold on the shelf (owner 2026-10-28: "cards that
+ * respond to filter") — worked out by the server for the whole filtered set,
+ * never summed from the page on screen (LEARNINGS).
+ *
+ * `filters` are the API parameters the table sends, without its page
+ * (`list.exportParams`), so both ask for the same products. The cards are
+ * keyed by them alone: another page keeps them, another filter shows
+ * skeletons until its own figures arrive — never the last filter's figures
+ * under the new filter. A change to any product (the `products` key)
+ * refreshes them with the table.
+ */
+export function ProductsSummary({
+  filters,
+  testId = 'products-summary',
+}: {
+  filters: Record<string, string | number>;
+  testId?: string;
+}) {
+  const t = useTranslations('tabSummary');
+  const { formatNumber } = useNumberFormat();
+  const { data, isLoading } = useQuery({
+    queryKey: ['products', 'summary', filters],
+    queryFn: () => api.get('/products/summary', { params: filters }).then(rows<ProductsSummaryData>),
+    // Read again on every visit, as the table is (useServerList).
+    staleTime: 0,
+  });
+  // A count of 0 is shown, not hidden: "nothing matches" is the answer.
+  const cards: SummaryCard[] = data
+    ? stockCards(t, formatNumber, {
+        products: data.products,
+        unitsInStock: data.unitsInStock,
+        productsSub: t('productsMatchSub'),
+        unitsSub: t('unitsHeldSub'),
+      })
     : [];
   return (
     <SummaryStrip

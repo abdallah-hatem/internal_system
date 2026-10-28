@@ -5,7 +5,6 @@ import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
-  filterOf,
   listRows,
   type ListQuery,
   pageOfIds,
@@ -28,11 +27,15 @@ import {
 } from '../../common/units-sold';
 import {
   arabicText,
-  bilingualProductSearch,
   DESCRIPTION_AR_MAX,
   NAME_AR_MAX,
   nameArSearchFor,
 } from '../../common/arabic-names';
+import { unitsOnShelf } from '../../common/repositories/units-on-shelf';
+import {
+  productListWhere,
+  type ProductListFilters,
+} from './product-list-where';
 import {
   parseProductStatus,
   type ProductStatus,
@@ -62,29 +65,10 @@ export class ProductsService {
     private notifications: NotificationsService,
   ) {}
 
-  async findAll(
-    query: ListQuery & {
-      categoryId?: string;
-      status?: string;
-    },
-    viewer: ScopeViewer = 'internal',
-  ) {
-    const { categoryId } = query;
-    if (categoryId) assertUuid(categoryId, 'categoryId');
-    // INACTIVE is anything not on (§3): the list's "Inactive" filter.
-    const status = filterOf(query.status, 'status', [
-      'ACTIVE',
-      'INACTIVE',
-    ] as const);
-    const search = searchOf(query);
+  async findAll(query: ProductListFilters, viewer: ScopeViewer = 'internal') {
+    // Search, category and status: the one where the cards read too.
+    const where = productListWhere(query);
     const { orderBy } = sortOf(query, PRODUCT_SORTS);
-    const where: Prisma.ProductWhereInput = {};
-    if (categoryId) where.categoryId = categoryId;
-    if (status === 'ACTIVE') where.status = 'ACTIVE';
-    if (status === 'INACTIVE') where.status = { not: 'ACTIVE' };
-    // Either language, and the SKU (§3, owner 2026-10-14): "تيل" finds the
-    // brake pads whose Arabic name says so, and "خوذه" the "خوذة" (2026-10-15).
-    if (search) where.OR = bilingualProductSearch(search);
 
     const { rows: page, meta } = await listRows(query, {
       rows: (window) =>
@@ -120,6 +104,22 @@ export class ProductsService {
       ...(inventoryBatches ? { onHand: stockOnHand(inventoryBatches) } : {}),
     }));
     return { data, meta };
+  }
+
+  /**
+   * The Products tab's cards (owner 2026-10-28: "cards that respond to the
+   * filter"): how many products the list's search, category and status match,
+   * and how many units they hold on the shelf — for the whole filtered set,
+   * whichever page the table shows. The same `where` as the table
+   * (`productListWhere`), and the dashboard's units in stock (`unitsOnShelf`).
+   */
+  async summary(query: ProductListFilters) {
+    const where = productListWhere(query);
+    const [products, unitsInStock] = await Promise.all([
+      this.prisma.product.count({ where }),
+      unitsOnShelf(this.prisma, where),
+    ]);
+    return { data: { products, unitsInStock } };
   }
 
   async findById(id: string, viewer: ScopeViewer = 'internal') {

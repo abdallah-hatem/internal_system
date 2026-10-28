@@ -2771,6 +2771,8 @@
     "productsSub": "النشطة في الكتالوج",
     "unitsInStock": "الوحدات في المخزون",
     "unitsInStockSub": "على الرف الآن",
+    "productsMatchSub": "تطابق البحث والتصفية",
+    "unitsHeldSub": "لدى هذه المنتجات على الرف",
     "productKinds": "{count, plural, one {منتج واحد} two {منتجان} few {{products} منتجات} other {{products} منتج}}",
     "customersLabel": "العملاء باختصار",
     "customers": "العملاء",

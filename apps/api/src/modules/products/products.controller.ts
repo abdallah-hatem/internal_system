@@ -17,6 +17,7 @@ import { type ListQuery, pageOf } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import type { Viewer } from '../../common/investor-scope';
+import type { ProductListFilters } from './product-list-where';
 
 @ApiTags('Products')
 @ApiBearerAuth()
@@ -36,6 +37,22 @@ export class ProductsController {
     @CurrentUser() user: Viewer,
   ) {
     return this.productsService.findAll(query, user);
+  }
+
+  /**
+   * The Products tab's cards: how many products the list's filters match and
+   * the units they hold in stock, for the whole filtered set. Stock is the
+   * office's, as the Inventory tab's card (core partners and support).
+   */
+  @Get('summary')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({
+    summary:
+      'Products matching the list’s search, category and status, and their units in stock',
+  })
+  summary(@Query() query: ProductListFilters) {
+    return this.productsService.summary(query);
   }
 
   @Get(':id')

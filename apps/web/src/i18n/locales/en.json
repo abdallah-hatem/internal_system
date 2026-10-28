@@ -2771,6 +2771,8 @@
     "productsSub": "active in the catalogue",
     "unitsInStock": "Units in stock",
     "unitsInStockSub": "on the shelf now",
+    "productsMatchSub": "match the search and filters",
+    "unitsHeldSub": "held by these on the shelf",
     "productKinds": "{count, plural, one {{products} product} other {{products} products}}",
     "customersLabel": "Customers at a glance",
     "customers": "Customers",
