@@ -167,6 +167,10 @@ State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-29 — production data: **Shady's CYC-2026-0002 advances corrected to 63,100** (owner: "its 45,600 not 44,600,
+  and i added 10,000 by mistake"): 45,600 recorded for 24 Oct, the 44,600 and the 10,000 entered on 27 Oct reversed with
+  their reasons, through `PartnerAccountsService`. Now 10,000 · 45,600 · 7,500. `prisma/one-off/2026-10-29-shady-cyc-0002-advances.ts`,
+  rehearsed on a copy (check-data all zero); backup `.backups/prod-20261029-000840.sql`.
 - 2026-10-28 — production data: **Abdallah's 10,000 untied from CYC-2026-0001** (owner: "I put 65,000 in cycle 1, but I
   should only put 55,000 … it stays in my account until i take it back"). The standing 10,000 advance of 15 Aug on cycle 1
   now names no cycle, so it is untied money he can take out or put into any cycle; his balance (60,775) and cycle 1's
