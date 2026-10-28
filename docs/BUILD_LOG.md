@@ -487,6 +487,13 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- **Built 2026-10-28 on `feature/partner-cards-put-in`, NOT merged** (owner, from production: the cards were "not
+  synced" with the Funding card and the Running accounts): the Partners page's cards, its first total and the export
+  show **Put in so far** — capital + advances on a cycle not yet drawn, the Funding card's `putInSoFar` over the same
+  pots, from `GET /users/participation` (`putInEgp`, `undrawnAdvancesEgp`). A sub-line "Capital x · y paid, not drawn
+  yet" when they differ; money logic unchanged. No migration. BUSINESS_LOGIC §8 "The Partners page's cards show Put in
+  so far", its GUESSes and one OPEN ("Still in play"). Tests: `users/participation.db.spec.ts` (9),
+  `partners-view.test.tsx` (+5); each seen to fail with its piece undone.
 - **Queued 2026-10-28 (owner: "add the fixes to next up"), not started** — phone-width fixes found while recording the
   fuel demo video at 390 px: (1) **the Ledger's phone cards don't say who paid** — "Paid by {partner}" is only in the
   desktop table (`apps/web/src/app/[locale]/ledger/page.tsx` ~270), the mobile card (~450) shows direction, amount,

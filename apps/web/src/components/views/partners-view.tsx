@@ -24,6 +24,9 @@ interface PartnerCycle {
   code: string;
   status: string;
   contributionEgp: number;
+  /** Put in so far on this cycle: his contribution + his advances on it not yet drawn (§8). */
+  putInEgp?: number;
+  undrawnAdvancesEgp?: number;
   profitShareEgp: number;
   accruedProfitEgp: number;
 }
@@ -37,6 +40,9 @@ interface Participation {
   cycleCount: number;
   openCycleCount: number;
   contributedEgp: number;
+  /** Put in so far, over his cycles: capital + advances paid for a cycle and not yet drawn (§8, 2026-10-28). */
+  putInEgp?: number;
+  undrawnAdvancesEgp?: number;
   returnedEgp: number;
   profitShareEgp: number;
   accruedProfitEgp: number;
@@ -94,13 +100,15 @@ export default function PartnersPage() {
 
   const totals = corePartners.reduce(
     (acc, p) => ({
+      putIn: acc.putIn + putInOf(p),
+      undrawn: acc.undrawn + (p.undrawnAdvancesEgp ?? 0),
       contributed: acc.contributed + p.contributedEgp,
       profit: acc.profit + p.profitShareEgp,
       accrued: acc.accrued + p.accruedProfitEgp,
       atRisk: acc.atRisk + p.atRiskEgp,
       runningCosts: acc.runningCosts + (p.runningCostsEgp ?? 0),
     }),
-    { contributed: 0, profit: 0, accrued: 0, atRisk: 0, runningCosts: 0 },
+    { putIn: 0, undrawn: 0, contributed: 0, profit: 0, accrued: 0, atRisk: 0, runningCosts: 0 },
   );
 
   // ── Render ────────────────────────────────────────────────────────
@@ -127,6 +135,9 @@ export default function PartnersPage() {
                 { header: t('role'), value: (r) => codeLabel('role', r.person.role) },
                 { header: t('cycleHistory'), value: (r) => r.cycle?.code ?? '' },
                 { header: t('status'), value: (r) => (r.cycle?.status ? codeLabel('cycleStatus', r.cycle.status) : '') },
+                // Both: put in so far is what agrees with the Funding card,
+                // capital is what settlement hands back.
+                { header: t('putInSoFar'), value: (r) => (r.cycle ? putInOf(r.cycle) : putInOf(r.person)) },
                 { header: t('capitalIn'), value: (r) => r.cycle?.contributionEgp ?? r.person.contributedEgp },
                 { header: t('profitEarned'), value: (r) => r.cycle?.profitShareEgp ?? r.person.profitShareEgp },
                 { header: t('accrued'), value: (r) => r.cycle?.accruedProfitEgp ?? r.person.accruedProfitEgp },
@@ -159,7 +170,17 @@ export default function PartnersPage() {
         // is worth stating once rather than making it a mental sum of the
         // cards below.
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-          <Total label={t('capitalIn')} value={egp(totals.contributed)} icon={Wallet} tone="text-emerald-600" />
+          <Total
+            label={t('putInSoFar')}
+            value={egp(totals.putIn)}
+            icon={Wallet}
+            tone="text-emerald-600"
+            hint={
+              totals.putIn !== totals.contributed
+                ? t('putInBreakdown', { capital: isolate(egp(totals.contributed)), undrawn: isolate(egp(totals.undrawn)) })
+                : undefined
+            }
+          />
           <Total label={t('profitEarned')} value={egp(totals.profit)} icon={TrendingUp} tone="text-blue-600" />
           <Total
             label={t('accrued')}
@@ -249,6 +270,19 @@ export default function PartnersPage() {
 }
 
 // ─── Pieces ───────────────────────────────────────────────────────────
+/**
+ * Put in so far (§8, owner 2026-10-28): the API's figure — the Funding card's
+ * own `putInSoFar` over each cycle — or capital from an API that predates it.
+ */
+function putInOf(x: { putInEgp?: number; contributedEgp?: number; contributionEgp?: number }) {
+  return x.putInEgp ?? x.contributedEgp ?? x.contributionEgp ?? 0;
+}
+
+/** A money figure kept a left-to-right run inside a sentence in either language (§11). */
+function isolate(money: string) {
+  return `\u2066${money}\u2069`;
+}
+
 function Empty({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200">
@@ -394,7 +428,7 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
           money anyone has been paid, and it can still fall if the rest of the
           stock sells badly. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <Figure label={t('capitalIn')} value={egp(person.contributedEgp)} tone="text-gray-900" />
+        <Figure label={t('putInSoFar')} value={egp(putInOf(person))} tone="text-gray-900" />
         <Figure label={t('profitEarned')} value={egp(person.profitShareEgp)} tone="text-blue-600" />
         <Figure
           label={t('accrued')}
@@ -407,6 +441,16 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
           tone={person.atRiskEgp > 0 ? 'text-amber-600' : 'text-gray-400'}
         />
       </div>
+      {/* Only when they differ: advances paid for a cycle and not drawn into
+          his capital yet. Capital is what settlement hands back. */}
+      {putInOf(person) !== person.contributedEgp && (
+        <p data-testid="put-in-breakdown" className="-mt-2 mb-4 text-xs text-muted-foreground text-start">
+          {t('putInBreakdown', {
+            capital: isolate(egp(person.contributedEgp)),
+            undrawn: isolate(egp(person.undrawnAdvancesEgp ?? 0)),
+          })}
+        </p>
+      )}
 
       {/* Cycles */}
       <div className="border-t border-gray-100 pt-3">
@@ -432,8 +476,8 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
                 >
                   {c.code}
                 </Link>
-                <span className="text-gray-500">
-                  {egp(c.contributionEgp)}
+                <span className="text-gray-500" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+                  {egp(putInOf(c))}
                   {c.profitShareEgp > 0 && (
                     <span className="text-blue-600"> → +{egp(c.profitShareEgp)}</span>
                   )}
@@ -460,7 +504,10 @@ function Figure({ label, value, tone }: { label: string; value: string; tone: st
   return (
     <div>
       <p className="text-[11px] text-gray-500 mb-0.5">{label}</p>
-      <p className={`text-sm font-semibold ${tone}`}>{value}</p>
+      {/* Money is a left-to-right run in both languages (§11), as on the totals. */}
+      <p className={`text-sm font-semibold ${tone}`}>
+        <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{value}</span>
+      </p>
     </div>
   );
 }

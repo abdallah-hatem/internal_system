@@ -972,6 +972,8 @@
     "tempInvestor": "مستثمر مؤقت",
     "search": "ابحث عن شريك بالاسم أو البريد أو الدور",
     "capitalIn": "رأس المال المدفوع",
+    "putInSoFar": "ما وضعه حتى الآن",
+    "putInBreakdown": "رأس المال {capital} · {undrawn} مدفوع ولم يُسحب بعد",
     "profitEarned": "الأرباح المحققة",
     "atRisk": "ما زال قائمًا",
     "returned": "رأس المال المسترد",
