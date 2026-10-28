@@ -13,6 +13,7 @@ import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/u
 import { InputField } from '@/components/ui/fields';
 import { useToast } from '@/components/ui/toast';
 import { Plus, Store } from '@/components/ui/icons';
+import { SkeletonGroup, SkeletonText } from '@/components/ui/skeleton';
 
 /** What the orders and the statement are narrowed to: a branch id, `none`, or all. */
 export type BranchFilter = string | null;
@@ -27,6 +28,39 @@ export const NO_BRANCH = 'none';
  * Every figure is the server's (`GET /customers/:id/branches`) — the total is
  * not summed here, so it cannot disagree with the balance tile.
  */
+/**
+ * The Branches card before the customer and its branches arrive, traced from
+ * its usual state — a shop with no branches: the real title, the Add link's
+ * place, and the empty note's two lines. Without it the card landed above the
+ * orders once the customer loaded and pushed every row down (e2e TC-SKEL-08,
+ * 2026-10-28). A shop with branches still grows by its table when they land.
+ */
+export function BranchesCardSkeleton() {
+  const t = useTranslations('branches');
+  const canEdit = useCan('customer.editBranches');
+  return (
+    <div data-testid="customer-branches-loading" className="rounded-xl border border-border bg-card p-5 print:hidden">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Store className="h-4 w-4 text-muted-foreground" />
+          {t('title')}
+        </h2>
+        {canEdit && (
+          <span aria-hidden="true" className="inline-flex min-h-11 items-center sm:min-h-0">
+            <SkeletonText size="xs" className="w-12" />
+          </span>
+        )}
+      </div>
+      <SkeletonGroup className="py-2">
+        <SkeletonText size="sm" className="w-40" />
+        <SkeletonText size="xs" className="w-72 max-w-full" lineClassName="mt-0.5" />
+        {/* The note wraps to a second line on a phone. */}
+        <SkeletonText size="xs" className="w-40" lineClassName="sm:hidden" />
+      </SkeletonGroup>
+    </div>
+  );
+}
+
 export function BranchesCard({
   customerId,
   data,
