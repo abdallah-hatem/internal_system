@@ -23,6 +23,12 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
   the Products tab's cards following its filters and returning some samples, not all — awaiting the owner's test
   before they ship. Edit order lives only on `feature/edit-order`.
   Nothing is held on another machine as far as git shows.
+- **Full e2e on `dev` (owner 2026-10-28 "full e2e")**, on branch `fix/e2e-dev` (not merged): baseline 1,219 passed,
+  60 failed, 22 skipped (data-dependent `test.skip`) of 1,301; after the fixes 1,279 passed, 0 failed, 22 skipped,
+  every group re-run green. Most failures were specs behind agreed changes (Sales' default filter, Preparing, tied
+  account money, Delete delivery switched off) or racing streamed pages and server-side search. Three page fixes:
+  the cycle and customer pages' skeletons trace the page again, and Collapse all sits beside the categories search
+  on a phone. Web vitest 1,666, API jest 2,806 (with database specs), tsc, lint and `next build` clean.
 - Tests at the release: API, web and unit suites green (counts in History, "Stage on 2026-10-26/27"); e2e not run
   (owner, 2026-10-25: unit and database tests only).
 - The office chat runs on the API's `AI_PROVIDER`/`AI_API_KEY` (the owner set Groq on Vercel).

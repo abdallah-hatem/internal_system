@@ -87,7 +87,10 @@ test.describe('Arabic names — the storefront', () => {
     // The category filter: on /en, typing the Arabic name still finds it.
     await page.goto('/en');
     await page.getByRole('combobox').filter({ visible: true }).first().click();
-    await page.getByPlaceholder('Find a category by name').fill(`فرامل ${tag}`);
+    // On a touch screen the box is read-only until tapped (owner 2026-10-26), so tap it first, as a person does.
+    const find = page.getByPlaceholder('Find a category by name');
+    await find.tap();
+    await find.fill(`فرامل ${tag}`);
     await expect(page.getByRole('option', { name: category.name })).toBeVisible();
 
     const res = await (await request.get(`${API}/portal/catalogue?search=${encodeURIComponent(`تيل فرامل ${tag}`)}`)).json();

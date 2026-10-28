@@ -265,7 +265,11 @@ test.describe('When stock arrived', () => {
 
     await login(page);
     await page.goto(`${BASE}/en/products/${product.id}`);
-    // Skeletons, not a spinner, since 2026-10-15: wait for the batches themselves.
+    // Skeletons, not a spinner, since 2026-10-15: wait for the product itself —
+    // its name, which no skeleton and no other page carries — then its batches.
+    // Waiting for the word "Arrived" alone once matched before the skeleton
+    // was even replaced, and the read below found "Loading...".
+    await expect(page.getByRole('main').getByText(product.name).first()).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('main')).toContainText('Arrived', { timeout: 15_000 });
 
     const body = await page.locator('main').innerText();

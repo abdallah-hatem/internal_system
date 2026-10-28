@@ -101,7 +101,7 @@ test.describe('Return some samples, not all (§4, 2026-10-28)', () => {
     await login(page);
     let dialog = await openReturned(page, shop.displayName, held.orderNo);
     await qty(dialog, helmet.id).fill('1');
-    await page.getByRole('button', { name: en.common.cancel }).click();
+    await page.getByRole('button', { name: en.common.cancel, exact: true }).click(); // exact: the Cancelled chip also reads "Cancel…"
     await expect(dialog).toBeHidden();
     await page.getByTestId('samples-returned').click();
     dialog = page.getByTestId('samples-return-dialog');
@@ -126,7 +126,7 @@ test.describe('Return some samples, not all (§4, 2026-10-28)', () => {
     await qty(dialog, gloves.id).fill('0');
     await expect(dialog.getByTestId('samples-return-summary')).toHaveText(en.sales.samples.returnNothing);
     await expect(page.getByTestId('samples-return-confirm')).toBeDisabled();
-    await page.getByRole('button', { name: en.common.cancel }).click();
+    await page.getByRole('button', { name: en.common.cancel, exact: true }).click(); // exact: the Cancelled chip also reads "Cancel…"
     expect((await order(request, headers, held.id)).status).toBe('SAMPLES');
   });
 

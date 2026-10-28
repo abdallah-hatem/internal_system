@@ -20,7 +20,7 @@
  */
 import { test, expect, type Page, type APIRequestContext, type Locator } from '@playwright/test';
 import { API, apiCtx, stockedProduct } from './support/fixtures';
-import { login, openNav } from './support/ui';
+import { login, openNav, showAllSales } from './support/ui';
 import en from '../src/i18n/locales/en.json';
 
 const stamp = () => `${Date.now()}${Math.floor(performance.now() % 1000)}`;
@@ -120,8 +120,11 @@ test.describe('Samples into the current order (§4, 2026-10-27)', () => {
     await form.getByRole('button', { name: en.sales.createAndConfirm }).click();
     await expect(form).toBeHidden();
     expect((await order(request, headers, held.id)).status).toBe('SAMPLES_BOUGHT');
-    // The samples order's popup says where its units went.
-    await page.getByText(held.orderNo).first().click();
+    // The samples order's popup says where its units went. Sales opens on
+    // Confirmed + Partially paid (2026-10-28), so a bought samples order is under All.
+    await showAllSales(page);
+    await page.getByPlaceholder(en.sales.search).fill(held.orderNo);
+    await page.getByTestId('sale-row').filter({ hasText: held.orderNo }).first().click();
     await expect(page.getByTestId('samples-panel')).toContainText('every unit went into');
   });
 

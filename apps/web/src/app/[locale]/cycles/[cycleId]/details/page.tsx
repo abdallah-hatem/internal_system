@@ -2,6 +2,7 @@
 import { GoodsLocationCards, GoodsLocationSkeleton } from '@/components/cycles/goods-location-cards';
 import { CycleTransfersSection, MoveLeftoversButton, useCycleTransfers } from '@/components/cycles/cycle-transfers';
 import { LatinText } from '@/components/ui/latin-text';
+import { cachedListRow } from '@/lib/server-list';
 
 /**
  * Everything a cycle contains, at any point in its life.
@@ -110,7 +111,7 @@ export default function CycleDetailsPage() {
         <BackLink onClick={() => router.push(`/${locale}/cycles`)} />
         {/* The list the person came from already knows the route: a China cycle's six places, or a UAE one's four. */}
         <CycleDetailSkeleton
-          direct={queryClient.getQueryData<{ items: { id: string; originType?: string }[] }>(['cycles'])?.items.find((c) => c.id === id)?.originType === 'UAE_DIRECT'}
+          direct={cachedListRow<{ id: string; originType?: string }>(queryClient, 'cycles', id)?.originType === 'UAE_DIRECT'}
         />
       </div>
     );

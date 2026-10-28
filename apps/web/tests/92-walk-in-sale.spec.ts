@@ -17,6 +17,7 @@ import { API, EMAIL, PASSWORD, apiCtx, refusedCallers, stockedProduct, today } f
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
 import { WEB as BASE } from './support/env';
+import { showAllSales } from './support/ui';
 
 const walkIn = (productId: string, quantity: number, extra: Record<string, unknown> = {}) => ({
   walkIn: true,
@@ -369,6 +370,8 @@ test.describe('Walk-in on the sale form (§4, W2)', () => {
     expect(detail.paymentAllocations[0].payment.method).toBe('MOBILE_WALLET');
 
     // The list, reached by the click that closed the form: Walk-in, no balance.
+    // A paid order is under All (Sales opens on Confirmed + Partially paid, 2026-10-28).
+    await showAllSales(page);
     await page.getByPlaceholder(en.sales.search).fill(orders[0].orderNo);
     const row = page.getByTestId('sale-row').filter({ hasText: orders[0].orderNo });
     await expect(row.getByTestId('walk-in-customer')).toHaveText(en.sales.walkInCustomer);
@@ -407,6 +410,7 @@ test.describe('Walk-in on the sale form (§4, W2)', () => {
     const sold = await post(request, headers, walkIn(product.id, 2));
     await loginIn(page, 'en');
     await openSales(page);
+    await showAllSales(page);
     await page.getByPlaceholder(en.sales.search).fill(sold.body.data.orderNo);
     await page.getByTestId('sale-row').filter({ hasText: sold.body.data.orderNo }).locator('td').nth(6).click();
     await page.getByRole('button', { name: en.sales.recordReturn }).click();

@@ -212,14 +212,20 @@ export default function CategoriesPage() {
         )}
       </div>
 
-      {/* Search + Expand All */}
-      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}>
+      {/* Search + Expand All — one row on a phone too: the button exists only
+          for a tree, which the skeleton cannot know about before the data
+          lands, so stacked under the search it pushed every row down by a line
+          the moment the list arrived (TC-SKEL-03 at 390px, 2026-10-28). */}
+      <ListToolbar
+        search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}
+        className="flex-row items-center"
+      >
         {parentIds.length > 0 && !search && (
           <button
             type="button"
             data-testid="toggle-all"
             onClick={toggleExpandAll}
-            className="self-start whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted sm:self-auto"
+            className="shrink-0 whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
           >
             {allOpen ? t('collapseAll') : t('expandAll')}
           </button>

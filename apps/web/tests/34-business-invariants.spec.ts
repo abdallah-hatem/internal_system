@@ -2711,7 +2711,11 @@ test.describe('A partner’s running account (§8, owner 2026-10-25: "equal thir
     expect(lines.map((l) => l.amountEgp)).toEqual(['333.33', '333.33', '333.34']);
     const left = await w.balance(w.f);
     const out = await request.post(`${API}/partner-accounts/${w.f}/withdrawals`, { headers: w.headers, data: { amountEgp: left + 0.01 } });
-    expect(await errCode(out)).toBe('ACCOUNT_BALANCE_TOO_LOW');
+    // What is left of his 400 was advanced for this cycle, so it is tied to it
+    // and cannot be taken out at all (§8, GUESS 2026-10-26) — refused with that
+    // reason rather than the plain "too low", and nothing is drawn.
+    expect(await errCode(out)).toBe('ACCOUNT_MONEY_TIED_TO_CYCLES');
+    expect(await w.balance(w.f)).toBe(left);
   });
 
   test('TC-INV-88: partners only — an investor is refused every account endpoint, coded', async ({ request }) => {
@@ -2779,6 +2783,13 @@ test.describe('Preparing', () => {
 
   test('TC-INV-90: Purchasing cannot skip Preparing to In transit, nor Preparing jump to Arrived Egypt', async ({ request }) => {
     const { headers, cycle } = await purchasingCycle(request, true);
+    // A first leg, not yet departed: with no legs at all nothing is checked
+    // (TC-LEG-06), so In transit would be let through and prove nothing.
+    const leg = await request.post(`${API}/cycles/${cycle.id}/shipping-legs`, {
+      headers,
+      data: { sequence: 1, origin: 'Guangzhou, CN', destination: 'Dubai, UAE', costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1 },
+    });
+    expect(leg.ok(), await leg.text()).toBeTruthy();
     expect(await errCode(await move(request, headers, cycle.id, 'IN_TRANSIT'))).toBe('BAD_STATUS_TRANSITION');
     expect((await move(request, headers, cycle.id, 'PREPARING')).ok()).toBeTruthy();
     expect(await errCode(await move(request, headers, cycle.id, 'ARRIVED_EGYPT'))).toBe('BAD_STATUS_TRANSITION');

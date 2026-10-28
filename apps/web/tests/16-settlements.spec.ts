@@ -40,7 +40,7 @@ const money = (text: string | null) =>
  * user does, so the test exercises the real interaction.
  */
 async function pickCycle(page: Page, code: string) {
-  await page.locator('#cycle-select').click();
+  await page.getByRole('main').locator('#cycle-select').click();
   const list = page.getByRole('listbox');
   await list.waitFor({ state: 'visible' });
 
@@ -53,7 +53,7 @@ async function pickCycle(page: Page, code: string) {
   }
 
   await list.getByRole('option', { name: new RegExp(code) }).first().click();
-  await expect(page.locator('#cycle-select')).toContainText(code);
+  await expect(page.getByRole('main').locator('#cycle-select')).toContainText(code);
 }
 
 test.describe('Settlements', () => {
@@ -73,7 +73,7 @@ test.describe('Settlements', () => {
     const total = (await allPages(request, { Authorization: `Bearer ${t}` }, 'cycles')).length;
 
     await page.goto(`${BASE}/en/settlements`);
-    await page.locator('#cycle-select').click();
+    await page.getByRole('main').locator('#cycle-select').click();
     const options = page.getByRole('listbox').getByRole('option');
     // The custom picker has no placeholder row, so the counts match exactly.
     await expect.poll(() => options.count(), { timeout: 10000 }).toBe(total);

@@ -20,7 +20,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import en from '../src/i18n/locales/en.json';
 import { API, apiCtx, owedOrder, stockedProduct } from './support/fixtures';
-import { login, openNav } from './support/ui';
+import { login, openNav, showAllSales } from './support/ui';
 import { WEB } from './support/env';
 
 test.describe.configure({ timeout: 300_000 });
@@ -234,7 +234,8 @@ test.describe('Sales: filter by customer (owner 2026-10-25)', () => {
 
     // The second visit: a refresh keeps the shop chosen, and the picker says so.
     await page.reload();
-    await expect(page.getByTestId('sales-customer-filter')).toContainText(f.many.displayName);
+    // In main: a reload streams the page, and its hidden copy holds a second picker for a moment.
+    await expect(page.getByRole('main').getByTestId('sales-customer-filter')).toContainText(f.many.displayName);
     await expect(table.getByTestId('sale-row')).toHaveCount(2);
 
     // Walk-in is a choice of its own.
@@ -242,6 +243,8 @@ test.describe('Sales: filter by customer (owner 2026-10-25)', () => {
     await expect(page).toHaveURL(/[?&]customer=walk-in(&|$)/);
     await expect(page).not.toHaveURL(/[?&]page=/);
     await expect(table.getByText(f.many.displayName)).toHaveCount(0);
+    // A walk-in sale is paid on the spot, and Sales opens on Confirmed + Partially paid (2026-10-28).
+    await showAllSales(page);
     await expect(table.getByTestId('sale-row').first()).toContainText(en.sales.walkInCustomer);
 
     // Clear: every shop again.

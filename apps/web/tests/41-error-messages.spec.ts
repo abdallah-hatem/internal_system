@@ -58,6 +58,11 @@ const thrownCodes = (() => {
       const one = rest.match(/^'([A-Z_0-9]+)'/);
       if (one) found.add(one[1]);
     }
+    // A Nest exception built with its body by hand, for a status the helpers
+    // do not make (429, 503 — the office chat's AI_* refusals, 2026-10-25):
+    // `new HttpException({ code: 'X', message }, …)`. Missed here, those codes
+    // read as translations nothing throws.
+    for (const m of src.matchAll(/new \w*Exception\(\s*\{\s*code:\s*'([A-Z_0-9]+)'/g)) found.add(m[1]);
   }
   return found;
 })();

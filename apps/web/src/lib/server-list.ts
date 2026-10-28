@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { api } from './api';
 import { PAGE_SIZE } from '@/components/ui/pagination';
@@ -51,6 +51,28 @@ export interface ServerListOptions {
   /** Parameters every request carries, not in the URL (a fixed scope). */
   fixed?: ApiParams;
   enabled?: boolean;
+}
+
+/**
+ * A row any cached page of a server list holds, by id — what a detail screen
+ * can know before its own request answers (the cycle page traces a China
+ * cycle's six places or a UAE one's four from the list it was opened from).
+ *
+ * The pages are cached under `[queryKey, path, params]` and answer
+ * `{ data: rows }`, so `getQueryData([queryKey])` — an exact key no page has —
+ * finds nothing. Reading that key is what the cycle page did after the lists
+ * moved to the server, and every UAE cycle's skeleton drew six places.
+ */
+export function cachedListRow<T extends { id: string }>(
+  client: QueryClient,
+  queryKey: string,
+  id: string,
+): T | undefined {
+  for (const [, answer] of client.getQueriesData<Answer<T>>({ queryKey: [queryKey] })) {
+    const row = answer?.data?.find((r) => r?.id === id);
+    if (row) return row;
+  }
+  return undefined;
 }
 
 /** How long typing rests before the search is sent. */

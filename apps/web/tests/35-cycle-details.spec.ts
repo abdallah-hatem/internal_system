@@ -12,7 +12,7 @@
  *  reported "No participants found for this cycle" with no way to fix it.
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { API, aCorePartnerUser, anInvestorUser, apiCtx, today } from './support/fixtures';
+import { API, aCorePartnerUser, anInvestorUser, apiCtx, stockedProduct, today } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 import en from '../src/i18n/locales/en.json';
 
@@ -48,6 +48,24 @@ async function aCycle(request: APIRequestContext) {
   return { headers, mk, cycle, users };
 }
 
+/**
+ * A cycle that ran its course and closed. Since 2026-10-27 (§1, Preparing) a
+ * cycle cannot pass Purchasing with nothing ordered, and one that ordered
+ * something cannot settle while its goods are unaccounted for — so it is built
+ * the way the business closes one: ordered, shipped, received, then settled.
+ */
+async function aClosedCycle(request: APIRequestContext, label: string) {
+  const { headers, mk } = await apiCtx(request);
+  const { cycle } = await stockedProduct(request, headers, mk, `${label} ${Date.now()}`, 1);
+  const rest = ['VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED'];
+  for (const status of rest) {
+    const now = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data.status;
+    if (rest.indexOf(now) >= rest.indexOf(status)) continue;
+    await mk(`cycles/${cycle.id}/transition`, { status });
+  }
+  return cycle as { id: string; code: string };
+}
+
 test.describe('Cycle details', () => {
   test('TC-CYC-D1: a cycle in any status opens its details', async ({ page, request }) => {
     const { cycle } = await aCycle(request);
@@ -58,10 +76,7 @@ test.describe('Cycle details', () => {
 
   test('TC-CYC-D2: a closed cycle is still readable', async ({ page, request }) => {
     // The point of the complaint. History is exactly what you want to reread.
-    const { mk, cycle } = await aCycle(request);
-    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED']) {
-      await mk(`cycles/${cycle.id}/transition`, { status });
-    }
+    const cycle = await aClosedCycle(request, 'CYC-D2');
 
     await login(page);
     await page.goto(`${BASE}/en/cycles/${cycle.id}/details`);
@@ -136,10 +151,8 @@ test.describe('Cycle details', () => {
     request,
   }) => {
     // The button is hidden, which is not the same as the rule existing.
-    const { headers, mk, cycle, users } = await aCycle(request);
-    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED']) {
-      await mk(`cycles/${cycle.id}/transition`, { status });
-    }
+    const { headers, users } = await aCycle(request);
+    const cycle = await aClosedCycle(request, 'CYC-D5');
 
     const res = await request.post(`${API}/cycles/${cycle.id}/participants`, {
       headers,
@@ -315,7 +328,7 @@ test.describe('Settlement button carries its cycle', () => {
     // Reached by clicking, the way a partner gets there — not by typing the address.
     await page.getByRole('main').getByRole('button', { name: /^settlement$/i }).click();
     await expect(page).toHaveURL(new RegExp(`/en/partners\?.*cycle=${cycle.id}`), { timeout: 15000 });
-    const picker = page.locator('#cycle-select');
+    const picker = page.getByRole('main').locator('#cycle-select');
     await expect(picker).toContainText(cycle.code, { timeout: 15000 });
     await expect(page.getByRole('button', { name: /calculate/i })).toBeEnabled();
 
@@ -326,13 +339,13 @@ test.describe('Settlement button carries its cycle', () => {
     await expect(picker).toContainText(other.code);
     await expect(page).toHaveURL(new RegExp(`cycle=${other.id}`));
     await page.reload();
-    await expect(page.locator('#cycle-select')).toContainText(other.code, { timeout: 15000 });
+    await expect(page.getByRole('main').locator('#cycle-select')).toContainText(other.code, { timeout: 15000 });
   });
 
   test('TC-CYC-D-SET2: an address naming a cycle that does not exist picks nothing', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/partners?view=settlements&cycle=00000000-0000-0000-0000-000000000000`);
-    await expect(page.locator('#cycle-select')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('main').locator('#cycle-select')).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('button', { name: /calculate/i })).toBeDisabled();
   });
 });

@@ -50,6 +50,8 @@ test.describe('Paid by on an expense', () => {
 
     await page.getByPlaceholder(en.ledger.search).fill(note);
     const row = page.locator('table tbody tr').filter({ visible: true });
+    // The search is sent once typing rests (lists on the server, 2026-10-26).
+    await expect(row).toHaveCount(1);
     await expect(row).toContainText(en.ledger.paidByTag.replace('{partner}', 'Shady'));
 
     expect(await cashOnHand(request, headers)).toBe(cashBefore);
