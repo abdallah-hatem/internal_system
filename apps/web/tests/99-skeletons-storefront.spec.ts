@@ -16,9 +16,12 @@
  *    never brings the skeleton back.
  *
  *  The catalogue is sorted by name, so the two products made here start with
- *  "Aaaa" and are the first row. Their names are a real part's length: two
- *  lines in a phone's two columns, one in the wider grid — as the skeleton
- *  card assumes.
+ *  "0001" and "0002" and are the first row. "Aaaa" was not enough: in a full
+ *  run other specs leave parts named from a timestamp ("1793… Part", spec 69),
+ *  and digits sort before letters, so a one-line name took the first card's
+ *  place and measured 20px short (2026-10-28 full run). Their names are a real
+ *  part's length: two lines in a phone's two columns, one in the wider grid —
+ *  as the skeleton card assumes.
  */
 import { test, expect, type Page } from '@playwright/test';
 import { apiCtx } from './support/fixtures';
@@ -28,7 +31,7 @@ const LOADING = 'جارٍ التحميل…';
 const stamp = () =>
   Array.from({ length: 6 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
 const run = stamp();
-const NAMES = [`Aaaa ${run} rear pad CB150R`, `Aaab ${run} front pad CB150R`];
+const NAMES = [`0001 ${run} rear pad CB150R`, `0002 ${run} front pad CB150R`];
 let firstSku = '';
 
 test.beforeAll(async ({ request }) => {

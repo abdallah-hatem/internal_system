@@ -92,10 +92,11 @@ test.describe('New Order — the shop holds samples (§4, 2026-10-25)', () => {
 
     await choose(page, combo(form, 0), holder.displayName);
     await expect(hint).toBeVisible();
-    await expect(hint).toContainText(`(${held.orderNo}, left`);
-    await expect(hint).toContainText(`1 ${helmet.name}`);
-    await expect(hint).toContainText(`2 ${gloves.name}`);
-    await expect(hint).toContainText('as samples');
+    // A short heading per samples order and a row per product (owner 2026-10-27, b13b81d):
+    // the rows say what is out, so the sentence that repeated them is gone from New Order.
+    await expect(hint.getByTestId('samples-at-shop-heading')).toHaveText(new RegExp(`^${held.orderNo} · left `));
+    await expect(hint).toContainText(`1 × ${helmet.name}`);
+    await expect(hint).toContainText(`2 × ${gloves.name}`);
     // Above the lines.
     const hintBox = (await hint.boundingBox())!;
     const lineBox = (await line(form, 0).boundingBox())!;
@@ -168,8 +169,8 @@ test.describe('New Order — the shop holds samples (§4, 2026-10-25)', () => {
     const form = page.getByTestId('sale-order-form');
     await choose(page, combo(form, 0), holder.displayName);
     const hint = form.getByTestId('samples-at-shop-hint');
-    await expect(hint).toContainText('هذا المحل لديه');
-    await expect(hint).toContainText(held.orderNo);
+    // The heading, in Arabic (owner 2026-10-27: a short heading, not the sentence).
+    await expect(hint.getByTestId('samples-at-shop-heading')).toHaveText(new RegExp(`^${held.orderNo} · تُركت `));
     // New Order lists what can be added (owner 2026-10-27).
     await expect(hint).toContainText(ar.sales.samples.holdsAddHint);
   });
