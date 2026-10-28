@@ -25,7 +25,7 @@
 import { test, expect, Page, APIRequestContext, Locator } from '@playwright/test';
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
-import { API, apiCtx, PASSWORD, EMAIL, aCorePartnerUser, investorSession } from './support/fixtures';
+import { API, apiCtx, PASSWORD, EMAIL, aCorePartnerUser, investorSession, orderSomething } from './support/fixtures';
 import { measureFieldRows, worst } from './support/row-alignment';
 import { WEB as BASE } from './support/env';
 
@@ -264,8 +264,10 @@ test.describe('The wizard stops when the goods leave (owner, 2026-10-12)', () =>
     const { headers, mk } = await apiCtx(request);
     const { planning } = await cycles(request);
     // A UAE-direct cycle arrives in the UAE with nothing asked of its leg:
-    // the shortest honest way past Purchasing.
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE']) {
+    // the shortest honest way past Purchasing — once something is ordered,
+    // which Preparing needs (§1, 2026-10-27).
+    await orderSomething(mk, planning.id, 'NAV-05');
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE']) {
       await mk(`cycles/${planning.id}/transition`, { status });
     }
     expect(await statusOf(request, headers, planning.id)).toBe('ARRIVED_UAE');

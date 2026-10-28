@@ -13,7 +13,7 @@
 import { test, expect } from '@playwright/test';
 import { API, apiCtx } from './support/fixtures';
 import { usersByEmail } from './support/running-costs';
-import { login, messages, openNav } from './support/ui';
+import { login, messages, openCycleByCode, openNav } from './support/ui';
 
 const en = messages('en') as any;
 
@@ -28,8 +28,7 @@ test.describe('Running accounts', () => {
     }
 
     await login(page);
-    await openNav(page, en.nav.importCycles);
-    await page.getByText(cycle.code, { exact: true }).first().click();
+    await openCycleByCode(page, cycle.code);
     // One Funding card since 2026-10-26: a row per partner under "paid so far on this cycle".
     const panel = page.getByTestId('funding-card');
     await expect(panel.getByTestId('paid-so-far')).toContainText('900.00 EGP');
@@ -57,8 +56,7 @@ test.describe('Running accounts', () => {
     const { headers, mk } = await apiCtx(request);
     const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
     await login(page);
-    await openNav(page, en.nav.importCycles);
-    await page.getByText(cycle.code, { exact: true }).first().click();
+    await openCycleByCode(page, cycle.code);
     await page.getByTestId('funding-card').getByTestId('contribute-thirds').click();
     const panel = page.getByTestId('contribute-dialog');
     await panel.locator('#contribute-total').fill('999999999');

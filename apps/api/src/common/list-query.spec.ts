@@ -2,6 +2,7 @@
 import { HttpException } from '@nestjs/common';
 import {
   filterOf,
+  filtersOf,
   listRows,
   pageOf,
   pageOfIds,
@@ -143,6 +144,41 @@ describe('filterOf — a filter from the values a list offers', () => {
       'LIST_FILTER_INVALID',
     );
     expect(codeOf(() => filterOf(['PAID'], 'status', statuses))).toBe(
+      'LIST_FILTER_INVALID',
+    );
+  });
+});
+
+describe('filtersOf — several values of one filter (Sales opens on two statuses, 2026-10-28)', () => {
+  const statuses = ['PAID', 'DRAFT', 'CONFIRMED'] as const;
+
+  it('absent is no filter; one value or several, each offered, repeats once', () => {
+    expect(filtersOf(undefined, 'status', statuses)).toBeUndefined();
+    expect(filtersOf('', 'status', statuses)).toBeUndefined();
+    expect(filtersOf('PAID', 'status', statuses)).toEqual(['PAID']);
+    expect(filtersOf('CONFIRMED,PAID', 'status', statuses)).toEqual([
+      'CONFIRMED',
+      'PAID',
+    ]);
+    expect(
+      filtersOf(' CONFIRMED , PAID ,CONFIRMED', 'status', statuses),
+    ).toEqual(['CONFIRMED', 'PAID']);
+  });
+
+  it('an unknown or empty piece is refused, never dropped', () => {
+    for (const bad of [
+      'CONFIRMED,paid',
+      'CONFIRMED,',
+      ',PAID',
+      'CONFIRMED,,PAID',
+      ',',
+    ]) {
+      expect([bad, codeOf(() => filtersOf(bad, 'status', statuses))]).toEqual([
+        bad,
+        'LIST_FILTER_INVALID',
+      ]);
+    }
+    expect(codeOf(() => filtersOf(['PAID'], 'status', statuses))).toBe(
       'LIST_FILTER_INVALID',
     );
   });

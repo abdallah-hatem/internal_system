@@ -12,6 +12,8 @@ import { formatMoney } from './money';
  *
  *   + an advance — he paid a supplier for a cycle from his own pocket;
  *   + a settlement payout he left in;
+ *   + a business expense he paid from his own pocket (`EXPENSE_PAID`, §9
+ *     "Paid by", 2026-10-27) — the business owes it him back;
  *   − a contribution to a cycle, drawn from the account;
  *   − money he took out.
  *
@@ -28,15 +30,22 @@ import { formatMoney } from './money';
  * `contribution` row an entered contribution always has
  * (`common/contribution-ledger.ts`). So cash on hand, profit and analytics
  * cannot move on an advance, a withdrawal or a payout left in.
+ *
+ * An expense he paid is the one movement with a ledger row behind it — the
+ * expense itself, booked as any expense is, but named as paid by him
+ * (`paidByUserId`), which is what keeps it out of cash
+ * (`common/cash-position.ts`). The movement is only the credit: the business
+ * owes him that much back.
  */
 
 export type MovementKind =
-  'ADVANCE' | 'PAYOUT_LEFT_IN' | 'CONTRIBUTION' | 'WITHDRAWAL';
+  'ADVANCE' | 'PAYOUT_LEFT_IN' | 'CONTRIBUTION' | 'WITHDRAWAL' | 'EXPENSE_PAID';
 
 /** Which way each kind moves his balance. */
 export const MOVEMENT_SIGN: Record<MovementKind, 1 | -1> = {
   ADVANCE: 1,
   PAYOUT_LEFT_IN: 1,
+  EXPENSE_PAID: 1,
   CONTRIBUTION: -1,
   WITHDRAWAL: -1,
 };
@@ -116,7 +125,8 @@ export async function accountBalance(
  * - **a cycle's pot** — his standing advances on that cycle, less what his
  *   contributions to that cycle drew from them. Only that cycle can draw it:
  *   an advance paid a supplier for that cycle's goods.
- * - **untied money** — payouts he left in, less what he took out, less what
+ * - **untied money** — payouts he left in and expenses he paid for the
+ *   business, less what he took out, less what
  *   his contributions drew beyond their own cycle's advances. Any cycle can
  *   draw it.
  *
@@ -180,6 +190,12 @@ export function potsOf(
         break;
       case 'PAYOUT_LEFT_IN':
         // Its cycleId names the settled cycle it came from; it is tied to none.
+        untied = untied.add(amount);
+        break;
+      case 'EXPENSE_PAID':
+        // The business owes it him back: money he may take out or leave in
+        // for any cycle, whatever the expense was charged to (GUESS
+        // 2026-10-27). Written with no cycle.
         untied = untied.add(amount);
         break;
       case 'WITHDRAWAL':

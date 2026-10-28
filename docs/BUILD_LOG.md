@@ -17,15 +17,80 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
 - **Edit order** (on a confirmed order) is not shipped: saved on `feature/edit-order` (`4bdbf1e`) with its migration
   `20261026100000_sale_order_edits`, which must not be applied to production until that branch ships. Master's
   history holds no Edit order commit, so the branch can still be merged later.
-- **`dev`** = `master` (2026-10-27, after shipping it); Edit order lives only on `feature/edit-order`.
+- **`dev`** is ahead of `master` (2026-10-28): the product picker's category, the Preparing status (migration
+  `20261028100000_cycle_status_preparing`) and "Paid by" on an expense (migration `20261027180000_expense_paid_by`),
+  and, merged 2026-10-28 with no migration, Sales opening on Confirmed + Partially paid, what made a P&L bar,
+  the Products tab's cards following its filters and returning some samples, not all — awaiting the owner's test
+  before they ship. Edit order lives only on `feature/edit-order`.
   Nothing is held on another machine as far as git shows.
+- **Full e2e on `dev` (owner 2026-10-28 "full e2e")**, on branch `fix/e2e-dev` (not merged): baseline 1,219 passed,
+  60 failed, 22 skipped (data-dependent `test.skip`) of 1,301; after the fixes 1,279 passed, 0 failed, 22 skipped,
+  every group re-run green. Most failures were specs behind agreed changes (Sales' default filter, Preparing, tied
+  account money, Delete delivery switched off) or racing streamed pages and server-side search. Three page fixes:
+  the cycle and customer pages' skeletons trace the page again, and Collapse all sits beside the categories search
+  on a phone. Web vitest 1,666, API jest 2,806 (with database specs), tsc, lint and `next build` clean.
 - Tests at the release: API, web and unit suites green (counts in History, "Stage on 2026-10-26/27"); e2e not run
   (owner, 2026-10-25: unit and database tests only).
 - The office chat runs on the API's `AI_PROVIDER`/`AI_API_KEY` (the owner set Groq on Vercel).
-- Waiting on the owner: Ahmad Zogmar's default branch (Mokattam / Master / LS2) and the names' spelling; the
+- Waiting on the owner: the
   branches GUESSes (BUSINESS_LOGIC §7); the Funding card GUESSes (§8); an advance left undrawn on a settled cycle
   (§8, OPEN); the Rules Review answers; the small UAE costs for CYC-2026-0001.
 State of the product and of production's data: `docs/where-things-stand.md`.
+
+## Built on `feature/partial-sample-return` (cut from `dev` at `7d6dab9`), merged into `dev` 2026-10-28 (owner: "start all four, each in its own branch, then merge to dev") — no migration
+- 2026-10-28 — **Return some samples, not all** (owner 2026-10-28: "I should be able to pick which sample a shop
+  returned"; was Next up). BUSINESS_LOGIC §4 "Return some samples, not all", its GUESSes there. **E2e written, not
+  run** (owner: not for now): `tests/107-partial-sample-return.spec.ts` (TC-PSR-01…04), TC-INV-93 in
+  `34-business-invariants`, TC-ASM-07 in `101-assistant-samples` rewritten for part returns.
+  - "Returned" on a samples order opens the products the shop holds on it, each at all its units; lower it or 0 for
+    what stays (`components/sales/return-samples-dialog.tsx`; the sales page's change is the samples panel's Returned
+    dialog only). Cancel forgets what was typed. `POST …/samples/return` takes `{ lines, customerId?, version? }`;
+    without lines it is the whole order as before.
+  - The chosen units go back to the batches they left, at their cost — `takeFromSamples`, `sampleBack` (SAMPLE_BACK),
+    `settleSamplesLeft`, the records the ORD-2026-00006 one-off (`7e33ddb`) made, with a `SAMPLES_PART_RETURNED`
+    audit row History already reads (the one-off logged `UPDATE`). Which units: `planSamplesReturn` (common/samples.ts),
+    built on `planSamplesConversion`. The rest stay samples on the same order (day left, reminder kept); nothing left
+    → SAMPLES_RETURNED as before.
+  - Refusals, en + ar: `SAMPLES_RETURN_NOTHING`, `SAMPLES_RETURN_PRODUCT_NOT_OUT` (new), `SAMPLES_RETURN_MORE_THAN_OUT`
+    (now the service's), `QTY_NOT_POSITIVE`, `SAMPLES_OTHER_SHOP`, `ORDER_VERSION_CONFLICT` (the version the screen
+    showed), `SAMPLES_ALREADY_DECIDED`; `SAMPLES_RETURN_NOT_ALL` removed. The office chat's `return_samples` takes the
+    same lines (its own quantity checks removed; the preview shows what comes back and what stays and binds both).
+  - Tests: `sales/samples-part-return.db.spec.ts` (17, real Postgres, stock via cycle → PO → leg → delivery →
+    verified receipt: some/all/none, twice, a stale version and two at once, then They're buying / Add to order the
+    rest, more than out, 0/negative, not a number, a product not on the order, decided orders, another shop, a
+    branch, stock, the gate, each batch at its cost, History), `common/samples.spec.ts` (+5, `planSamplesReturn`),
+    `assistant/tools/samples.db.spec.ts` (part return through the tool, PREVIEW_CHANGED, the new not-out code),
+    `components/sales/return-samples-dialog.test.tsx` (11: default all, some, none, the range, the second visit,
+    a refusal, the toast, Arabic). Each broken and seen to fail.
+  - Totals: API `jest --runInBand` on a fresh database, 138 suites / 2,760 tests, all passed (an earlier run on a database reused across many runs failed one business-wide P&L comparison, which passes on a fresh one); `node --test unit` 128/128; `scripts/check-data.sh` on a fresh database, before and after the suite: 79 checks, all zero. The whole web run is in the combined run after merging into `dev`.
+
+## Built on `feature/product-cards-filters` 2026-10-28, merged into `dev` 2026-10-28 (owner: "start all four, each in its own branch, then merge to dev") — not on master; no migration
+- 2026-10-28 — **the Products tab's cards follow its filters** (owner 2026-10-28: "in products tab above the table we
+  need cards that responds to filter, so when filter by category, it shows number of products in that category, and
+  total number of units as well"; BUSINESS_LOGIC §12 "The Products tab's cards follow its filters"). Was Next up.
+  **e2e written, not run** (owner: unit and database tests only for now).
+  - `GET /products/summary?search=&categoryId=&status=` (core partners and support): how many products match and the
+    units they hold on the shelf, for the whole filtered set. One where-builder for the table and the cards,
+    `productListWhere` (`apps/api/src/modules/products/product-list-where.ts`); `GET /products` reads it too, so they
+    cannot disagree. Units in stock is one definition, `unitsOnShelf` (`apps/api/src/common/repositories/units-on-shelf.ts`,
+    summed by the database), now read by the dashboard, Inventory's card and the Products cards
+    (`analytics.service.ts`'s private copy removed). `common/list-query.ts` untouched.
+  - Web: `ProductsSummary` (`components/summary/tab-summaries.tsx`) sends the table's own parameters less its page and
+    order; keyed by them, so another page keeps the cards and another filter shows skeletons until its own figures
+    arrive. Inventory keeps `StockSummary`. Two new strings in `tabSummary`, en + ar. No new refusal codes (the list's
+    own: `LIST_FILTER_INVALID`, `VALIDATION_FAILED`, `LIST_SEARCH_TOO_LONG`, `ROLE_NOT_ALLOWED`).
+  - GUESSes (§12): units in stock leave out samples out at shops and count held units (as the existing card and
+    Inventory); a category is that category alone, not its subcategories (as the table); an inactive product's units
+    count when the status filter takes it in; the cards' sub-lines' wording.
+  - Tests: `products-summary.db.spec` (10, real Postgres: category and subcategory, search English/Arabic/SKU, status,
+    empty, 12 products over pages of 5, two cycles, samples and a sale, the dashboard's figures, the second time,
+    refusals), `products-summary.spec` (roles both ways, the where), `products-summary-cards.test.tsx` (8, the screen:
+    every match not the page, category + status pills, search typed in both languages, empty, paging, skeletons, a
+    stale card after the filter changes, Arabic). Break-verified: 10 server mutations and 4 screen mutations, each
+    seen to fail the tests it targets. e2e `107-products-cards-filters.spec.ts` written, and TC-TABSUM-02 (Products)
+    now reads `/products/summary?status=ACTIVE` — neither run.
+  - Totals at commit: API `jest --runInBand` (integration database set) 138 suites, 2,752 passed; web vitest 121 files, 1,637 passed;
+    `node --test apps/web/unit/*.test.mjs` 128 passed; `scripts/check-data.sh` on a fresh database: 79 checks, all 0.
 
 ## Shipped 2026-10-27 (evening) — was on `dev`
 - 2026-10-27 — built on `agent-funding` (no migration), Next-up (1) and (3), **e2e written, not run** (owner:
@@ -51,8 +116,76 @@ State of the product and of production's data: `docs/where-things-stand.md`.
   - Totals at the commit: API `jest --runInBand` 130 suites / 2,601 tests passed (database suites included); web
     `vitest` 116 files / 1,537 tests passed; `node --test unit` 128/128.
 
+## Built on `feature/preparing-status`, merged into `dev` 2026-10-27 (owner: "each one in its own branch then merge each one to dev") — not on master; production needs migration `20261028100000_cycle_status_preparing` first
+- 2026-10-27 — **a Preparing cycle status** between Purchasing and In transit (owner 2026-10-27: "it now should be in
+  preparation (a new status its where the website or factory prepares your order, then next its in transit to uae)";
+  BUSINESS_LOGIC §1 "a Preparing status", §15). Migration `20261028100000_cycle_status_preparing` (one enum value,
+  after PURCHASING; additive). **e2e written, not run** (owner: unit and database tests only for now).
+  - Purchasing → Preparing is the only way on from Purchasing (and the move that confirms the drafts, §15); Preparing →
+    In transit / Arrived UAE (UAE direct) / back to Purchasing (only while nothing has departed, `CYCLE_HAS_DEPARTED`) /
+    Cancelled. Into Preparing needs an order line (`CYCLE_HAS_NO_ORDER`). A departure on a cycle in Purchasing walks it
+    through Preparing (L3); the first departure still moves it on to In transit. Undoing the shipment's last departure
+    returns the cycle to Preparing (the panel says so first, the toast after; `undoReturnsTo` on each departure).
+  - One definition: `apps/api/src/common/cycle-statuses.ts` — every status in order and `BEFORE_SHIPPING`; the walk
+    (`forwardPath`), the assistant's filters and targets read it; the office app's copy `src/lib/cycle-statuses.ts`
+    and the stranded-drafts scripts are pinned to it by tests.
+  - Where the status was added: the schema enum; the transition table (API and web copy); the shipment walk; the
+    assistant's `list_cycles` filter, `transition_cycle` targets, its description and instructions (office chat);
+    en/ar `codes.cycleStatus` and two `errors`; the cycles list's filter chips and badge colour; the wizard's walk;
+    the Shipment panel's undo dialog and toast; `confirm-stranded-orders.sh`, `ship-prod.sh stranded`,
+    `stock-products.mjs`. Analytics, settlements, receiving and funding read statuses by exclusion or by later
+    statuses and needed no change; the server's status filter reads the enum. The cycles list now also shows a
+    Cancelled chip (it was missing from the chip order).
+  - Tests: `cycles/preparing-status.db.spec.ts` (30, real Postgres: every transition by hand and by itself, illegal
+    jumps, no order, two orders one a draft, undo, parts, cancelled, twice, an old B1 leg),
+    `common/cycle-statuses.spec.ts` (every enum value in every API map, the scripts' lists),
+    `web src/lib/cycle-statuses.test.ts` (reads schema.prisma's enum: en/ar names, badge, chip, transition table, the
+    wizard), `departures.test.tsx` (the undo dialog and toast); existing walk/transition specs updated for the new
+    step. Each new test broken and seen to fail. e2e: `tests/106-preparing-status.spec.ts`, TC-INV-89…91 in
+    `34-business-invariants`, and the hand-walked status lists of ~20 specs given the Preparing step — not run.
+  - Totals at the commit: API `jest --runInBand` 135 suites / 2,714 tests passed (database suites included, against
+    the agent database); web `vitest` 120 files / 1,616 tests passed; `node --test unit` 128/128;
+    `scripts/check-data.sh` on a fresh agent database: 76 checks, all zero.
+## Built on `feature/expense-paid-by`, merged into `dev` 2026-10-27 — not on master; production needs migration `20261027180000_expense_paid_by` first
+- 2026-10-27 — **"Paid by" on an expense** (owner 2026-10-26, "build it" 2026-10-27; was in "Later"), built on
+  **`feature/expense-paid-by`** (cut from `dev` at `4a583f2`), migration `20261027180000_expense_paid_by` (additive: an
+  enum value, `financial_transactions.paid_by_user_id`, `partner_account_movements.expense_entry_id`). **E2e written,
+  not run** (owner: not for now): `106-expense-paid-by.spec.ts`, 34 TC-INV-92. BUSINESS_LOGIC §9 "Paid by" on an
+  expense (and a line in §8's running account), its guesses there.
+  - The Ledger form and the Fuel quick action get **Paid by** (default: the business; an expense only). Paid by a
+    partner: the same expense row (operating expense, a cycle's cost, a running cost with its shares as today), named
+    as his, left out of cash by the one cash definition (`CASH_ROWS_WHERE`, `common/cash-position.ts`), and his account
+    credited (`EXPENSE_PAID`, untied money) in the same transaction. Reversing the expense reverses the credit, refused
+    (`EXPENSE_CREDIT_ALREADY_TAKEN`) once he has withdrawn it or drawn it into a contribution. Payer: active core
+    partners only. The ledger row says "Paid by {partner}"; the Partners page shows the credit, not reversible there.
+  - Tests: `ledger/expense-paid-by.db.spec.ts` (15, real Postgres), `ledger-entry.spec.ts` (+2),
+    `common/partner-account.spec.ts` (+1), `LedgerEntryDialog.test.tsx` (+3), `ledger-quick-actions.test.tsx` (+5),
+    `partner-accounts-section.test.tsx` (+2); each broken and seen to fail. Data checks 28.3–28.5 added (28, 28.6 count
+    the new kind).
+  - Found, not changed: a cycle's "investment" on Cycle profitability sums money-out rows without netting an undone
+    pair (business-paid too) — OPEN in §9.
+
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-28 — production data: CYC-2026-0002's friend repaid **100 USD at 56.07 = 5,607 EGP** (367.25 AED at 3.6725,
+  rate 15.2675), exchange difference +24.80; **2,092.15 AED still owed** (the remaining 581 USD).
+- 2026-10-28 — production data: **1 Y30 Headset back from Ahmad Zogmar's samples** (ORD-2026-00006 held 2; owner: "just
+  return one in prod"). Partial returns are not built yet (Next up), so a one-off did it with the samples code "They're
+  buying" uses — `takeFromSamples`, `sampleBack` (SAMPLE_BACK to the batch it left), `settleSamplesLeft`
+  (`apps/api/prisma/one-off/2026-10-28-ord-00006-return-one-y30.ts`), rehearsed on a production copy (check-data all 0).
+  The order stays open with 4 units (1 each of Y30, Y20, Y20 MAX 2, Q58 Max), left 19 Oct, reminder 2 Nov.
+- 2026-10-27 — production data, **CYC-2026-0002's Alibaba receipt** (#320154802001024016, Shenzhen Yixi): **PO-2026-0002**,
+  ordered 23 Oct, 9,854.71 AED — SU8 headset ×100, Y50 headset ×100, Q08 headset ×50, Y06 headset ×50, Q30 PRO headset ×20
+  (new, Bluetooth headsets, PRD-000015…19), Q58 Max ×60, Y20 (PRD-000004) ×20; **leg 1** China → Ajman, Alibaba's shipping
+  2,767.02 + card fee 377.40 = 3,144.42 AED (as cycle 1's fee). Rate 14.8026 = USD 3,476.43 × 55.35 / AED 12,999.13
+  (owner: "we bought them for 55.35"); 192,420.92 EGP in all. Paid with AED the partners bought with their own pounds,
+  through a friend's card. **Corrected the same day** (owner: "we bought 6500 aed at 15.20, and 1100 usd at 55.25,
+  and 681 usd that are not payed till now"): order and leg 1 at **15.20** (`update_leg_cost`; the order by
+  `apps/api/prisma/one-off/2026-10-27-po-0002-rate.ts`, checked, audited) = 197,586.77 EGP. The friend's card payment
+  is recorded as a lender financing on PO-2026-0002 (12,999.13 AED on 25 Oct at 15.20) with two repayments dated
+  27 Oct: 98,800 EGP (6,500 AED at 15.20) and 60,775 EGP (1,100 USD at 55.25, i.e. 15.0443 per dirham). 2,459.40 AED
+  is still owed (the 681 USD, recorded when paid at that day's rate); exchange difference so far −628.90 EGP. The
+  owner set the cycle's funding target at about 197,800. PO-2026-0002 is still a DRAFT — to confirm in the office.
 - 2026-10-27 — production data: Ahmad Zogmar's samples order **ORD-2026-00006** (5 units, left 18 Oct, before branches
   existed) moved from the owner to his **Mokattam** branch, at the owner's word
   (`apps/api/prisma/one-off/2026-10-27-ord-00006-to-mokattam.ts`: starting facts checked, audit row written). His branches
@@ -93,7 +226,7 @@ Older history: "History" at the foot of this file, and `git log`.
   (`apps/api/prisma/one-off/2026-10-26-reverse-cyc-0001-advance.ts`).
 - 2026-10-26 (evening) — shipped, no migration: **each cycle's funding is its own** — an advance funds only its own
   cycle, untied money (a payout left in) any cycle, refusals `ACCOUNT_MONEY_FOR_OTHER_CYCLE` /
-  `ACCOUNT_MONEY_TIED_TO_CYCLES` / `ADVANCE_ALREADY_DRAWN`, check-data 27.3 (`b8ab447`); **an undone entry and its undo
+  `ACCOUNT_MONEY_TIED_TO_CYCLES` / `ADVANCE_ALREADY_DRAWN`, check-data 28.6 (`b8ab447`; numbered 27.3 until 2026-10-27, when it was found sharing that number with the branches' check); **an undone entry and its undo
   leave every period** (`common/undone-entries.ts`, shared with cash on hand) — This month's Expenses no longer −3,338.82;
   the funding skeleton; **one Funding card** replaces the Participants card and the funding panel — target and paid so
   far, contributions in equal thirds with covered/short, the profit split with a new Change split, Add investor
@@ -317,9 +450,45 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 
 ## Blocked
 _(none)_
+## Built on `feature/pnl-drilldown` (cut from `dev` at `7d6dab9`), merged into `dev` 2026-10-28 (owner: "start all four, each in its own branch, then merge to dev") — no migration
+- 2026-10-28 — **click a bar in Analytics' profit and loss to see what made it** (owner 2026-10-28: "in the Profit and
+  loss analytics chart, maybe clicking on a day or a month should open a popup or show me the details of loss"; was
+  Next up, first). BUSINESS_LOGIC §12 "What made a bar", its guesses there. **E2e written, not run** (owner: not for
+  now): `tests/107-pnl-drilldown.spec.ts`, TC-INV-94/95 in `34-business-invariants` (renumbered on merge: partial sample returns took 93).
+  - A day, a week or a month bar opens a popup: the bar's totals (Sales − COGS = Gross − Expenses ± Recovered / Other
+    income / Exchange difference = Net), then revenue and cost of goods **by order** (returns and price cuts in the
+    period as their own figures with their days), **every expense** (category, note, Paid by — a partner or the
+    business — and its cycle; goods lost; samples written off), **the exchange difference by repayment**, and
+    refunds recovered / other income. Each row links to its order (`/sales?order=`), expense (`/ledger?entry=`, new:
+    the ledger opens the entry a link names) or cycle. Skeleton while loading; an empty period says so. On a phone
+    an opened week's days, and the week itself, open theirs.
+  - One definition (CLAUDE.md §11): `GET /analytics/profit-and-loss/breakdown?from=&to=` reads the bar's days through
+    `profitParts` — the parts the chart's buckets add up, now each carrying the record it came from — and groups them
+    (`analytics/profit-breakdown.ts`); totals by `figuresOf`, the bar's own arithmetic. Validated on the server: both
+    days, real, in order, not after today, at most 31 days; each list paged on its own (`section`, `page`,
+    `pageSize`, 25 a page). New codes `PNL_BREAKDOWN_NEEDS_PERIOD`, `PNL_BREAKDOWN_TOO_LONG` (en + ar). Core
+    partners and support only.
+  - Tests: `analytics/profit-breakdown.db.spec.ts` (20, real Postgres, fixtures cycle → PO → leg → departure →
+    delivery → receipt → sale: every day of a month, every week of 60 days and every month of a year equal their bar;
+    this month and all time with whatever the database holds; a loss day; an empty day; paging; a return and a price
+    cut on later days than the sale; an expense paid by a partner; a sale at 23:30 UTC on the next Cairo day; the
+    period's limits; the second time; an undone expense; the wrong role), `profit-breakdown.spec.ts` (6, the
+    grouping), `investor-scope.spec.ts` (+1 route), web `pnl-breakdown.test.tsx` (9), `ledger-entry-link.test.tsx`
+    (2), `profit-and-loss-section.test.tsx` (a desktop tap now opens the breakdown). Each new test broken and seen to
+    fail (20 mutations: the breakdown reading its own parts, net without expenses, never empty, no paging, a blank
+    page size, a return as a sale, Paid by dropped, a UTC day, no roles, no longest period, any section; no click,
+    no skeleton, no empty state, the same page again, the business unnamed, a stale query key, two dialogs, the
+    code ignored, `?entry=` ignored).
+  - Totals at the commit: API `jest --runInBand` 138 suites / 2,760 tests passed (database suites included, against
+    a fresh agent database; on one that had held many earlier runs, `expense-paid-by.db`'s two all-time readings
+    took over 30 s and timed out — as slow with `dev`'s analytics service, so the data's size, not this change); web
+    `vitest` 122 files / 1,640 tests passed; `node --test unit` 128/128; `scripts/check-data.sh` on a fresh agent
+    database: 79 checks, all zero.
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- **Built 2026-10-28 on `feature/sales-default-status`, merged into `dev`** (owner: "start all four, each in its own branch, then merge to dev"): **Sales opens on Confirmed + Partially paid** (BUSINESS_LOGIC §3). One chosen pill for the default, `?status=ALL` for every order, a link's own status kept; the API's status filter takes several values (`filtersOf`), and `/analytics/top-orders` takes the same status so the cards follow the list. No migration. Tests: `list-query.spec` (filtersOf: several, repeats, empty or unknown pieces refused), `sales-list.db.spec` (several statuses on real orders, counts, the cards among them, a draft never a card), `sales-default-status.test.tsx` (4: the default for list and cards, All kept in the address, `?status=ALL`, a link's own status); each seen to fail with its piece undone.
+- **Built 2026-10-27 on `feature/picker-category`, merged into `dev`** (owner: "start both and paid by … each one in its own branch then merge each one to dev"): **New Order's product picker shows each product's category** beside its name, in the reader's language, and the search matches it in either language (BUSINESS_LOGIC §4). No API change — the product list already carried the category. Tests: `SaleOrderForm.test.tsx` (3: beside the name and absent without one, Arabic, search in both languages), each seen to fail with the old label. No migration.
 - (1) and (3) **live 2026-10-27 (evening)**.
 - (2) **Live 2026-10-27 (evening)** (migration `20261027120000_samples_into_order` applied). Was: built 2026-10-27, merged into `dev` at the owner's word ("merge samples into dev and push"); production needed the migration first; migration `20261027120000_samples_into_order`; e2e written, not run; its guesses in that branch's BUSINESS_LOGIC §4).** (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
   order, and auto handle the rest … a shop can also have 3 samples of 3 different products, but he decides to make an order
@@ -342,13 +511,6 @@ Later — queued, not to be built until the owner says:
   samples. No migration. Tests: `confirm-and-pay.db.spec` (21, real Postgres), `confirm-and-pay.spec` (5, roles and
   body), `confirm-and-paid.test.tsx` (14, popup and New Order) — each broken and seen to fail. GUESSes: cash, the
   order's day, walk-in, a zero order (§4).
-- Later (owner, 2026-10-26; queued only, not to be built until he says): **"Paid by" on an expense** — the business or
-  one of the partners. E.g. fuel for a delivery paid from a partner's own pocket: still booked as the same expense
-  (charged to a cycle, or a running cost shared from payouts, as today), but no business cash leaves (cash on hand does
-  not move) and the partner's running account is credited with it (the business owes it back; he withdraws it or
-  leaves it in for a contribution). The Ledger form and the Fuel quick action get the choice (a picker, default the
-  business); reversing the expense reverses the credit; the partner account may not go negative. Tests: cash on hand
-  unchanged, profit and running-cost shares as before, the account credited and reversed, the wrong partner refused.
 - Later (owner, 2026-10-25; built 2026-10-26, NOT shipped — saved on `feature/edit-order` (`4bdbf1e`), owner 2026-10-27): **Edit order** on a confirmed order — add a
   product, change a quantity, change a price (up or down). It feels like editing; underneath, each change is a dated,
   recorded event (never an overwrite of what was confirmed): more units drawn FIFO that day, fewer units back to their

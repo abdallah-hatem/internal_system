@@ -23,6 +23,8 @@ const state = vi.hoisted(() => ({
   shipment: null as unknown,
   writes: [] as Array<{ method: string; url: string; body?: unknown }>,
   answer: 'ok' as 'ok' | 'refuse' | 'hang',
+  /** What a write says the cycle's status did (L3; an undo back to Preparing). */
+  cycleStatus: null as unknown,
 }));
 
 vi.mock('@/lib/auth-context', () => ({
@@ -48,7 +50,7 @@ vi.mock('@/lib/api', () => {
         },
       });
     }
-    return Promise.resolve({ data: { data: {}, cycleStatus: null } });
+    return Promise.resolve({ data: { data: {}, cycleStatus: state.cycleStatus } });
   };
   return {
     api: {
@@ -73,6 +75,7 @@ beforeEach(() => {
   state.role = 'CORE_PARTNER';
   state.writes = [];
   state.answer = 'ok';
+  state.cycleStatus = null;
 });
 afterEach(() => cleanup());
 
@@ -325,6 +328,33 @@ describe('the leg in the Shipment panel', () => {
     expect(state.writes).toEqual([]);
     fireEvent.click(within(confirm).getByRole('button', { name: en.shipment.undoDeparture }));
     await waitFor(() => expect(state.writes).toEqual([{ method: 'delete', url: '/shipping/departures/dep-1', body: undefined }]));
+  });
+
+  // Preparing (§1, 2026-10-27): undoing the shipment's last departure takes the
+  // cycle back to Preparing — the dialog says so first, the toast after.
+  it('the last departure: Undo says the cycle goes back to Preparing, and the toast says it did', async () => {
+    state.cycleStatus = { cycleId: 'c-1', from: 'IN_TRANSIT', to: 'PREPARING', moved: true, steps: ['PREPARING'], stoppedAt: null, ordersConfirmed: [] };
+    const last = leg({
+      departures: [
+        { id: 'dep-1', departedOn: '2026-09-01', lines: [{ purchaseOrderItemId: 'poi-2', qty: 10 }], undoable: true, undoBlockedBy: null, undoReturnsTo: 'PREPARING' },
+      ],
+    });
+    const block = await panelLeg(last, 'IN_TRANSIT');
+    fireEvent.click(within(block).getByTestId('undo-departure'));
+    const confirm = dialog('undo-departure')!;
+    expect(confirm.textContent).toContain(en.shipment.undoDepartureToPreparing);
+    fireEvent.click(within(confirm).getByRole('button', { name: en.shipment.undoDeparture }));
+    await screen.findByText(`${en.shipment.departureUndone} — cycle is now ${en.codes.cycleStatus.PREPARING}`);
+  });
+
+  it('any other departure: no word of Preparing, and a plain toast', async () => {
+    const block = await panelLeg(leg(), 'IN_TRANSIT');
+    fireEvent.click(within(block).getByTestId('undo-departure'));
+    const confirm = dialog('undo-departure')!;
+    expect(confirm.textContent).not.toContain(en.shipment.undoDepartureToPreparing);
+    fireEvent.click(within(confirm).getByRole('button', { name: en.shipment.undoDeparture }));
+    await screen.findByText(en.shipment.departureUndone);
+    expect(screen.queryByText(/cycle is now/)).toBeNull();
   });
 
   it('Undo is hidden on a cycle being settled, closed or cancelled, even where the departure itself is free', async () => {

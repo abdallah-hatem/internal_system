@@ -16,6 +16,7 @@ import { API, EMAIL, PASSWORD, apiCtx, owedOrder, outstandingOf, stockedProduct 
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
 import { WEB as BASE } from './support/env';
+import { showAllSales } from './support/ui';
 
 type Messages = typeof en;
 
@@ -49,6 +50,8 @@ async function openNav(page: Page, name: string) {
 async function openOrder(page: Page, orderNo: string, m: Messages = en) {
   await openNav(page, m.nav.sales);
   await expect(page.getByRole('heading', { name: m.sales.title })).toBeVisible();
+  // Sales opens on Confirmed + Partially paid (owner 2026-10-28); All finds an order in any status.
+  await showAllSales(page, m === en ? 'en' : 'ar');
   await page.getByPlaceholder(m.sales.search).fill(orderNo);
   await page.getByTestId('sale-row').filter({ hasText: orderNo }).locator('td').nth(6).click();
   await expect(page.getByRole('heading', { name: orderNo })).toBeVisible();

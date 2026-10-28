@@ -37,7 +37,7 @@ async function dirhamCycle(request: APIRequestContext, label: string) {
     costBasis: 'FLAT', amount: 13000, currency: 'EGP', fxRateToEgp: 1,
     departedOn: daysAgo(20), arrivedOn: daysAgo(10),
   });
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
   }
   const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -175,7 +175,7 @@ test.describe('A purchase paid by a friend, repaid in pounds', () => {
 
     // ── The settlement waits for him ───────────────────────────────────
     await openView(page, 'settlements');
-    await page.locator('#cycle-select').click();
+    await page.getByRole('main').locator('#cycle-select').click();
     const list = page.getByRole('listbox');
     const search = list.locator('[cmdk-input]');
     if (await search.count()) await search.fill(cycle.code);
@@ -196,7 +196,7 @@ test.describe('A purchase paid by a friend, repaid in pounds', () => {
     await repay(page, page.getByTestId('financing-card'), '13', 'all');
     await expect(page.getByTestId('financing-card').getByTestId('financing-owed')).toHaveText('0.00 AED');
     await openView(page, 'settlements');
-    await page.locator('#cycle-select').click();
+    await page.getByRole('main').locator('#cycle-select').click();
     const again = page.getByRole('listbox');
     if (await again.locator('[cmdk-input]').count()) await again.locator('[cmdk-input]').fill(cycle.code);
     await again.getByRole('option', { name: new RegExp(cycle.code) }).first().click();

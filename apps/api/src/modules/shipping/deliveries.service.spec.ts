@@ -944,8 +944,9 @@ describe('cycle transitions read deliveries', () => {
   // I3: the cycle page's Change status offers the fix for exactly the leg
   // named, so the refusal carries its id beside the readable route.
   it('LEG_NOT_DEPARTED and LEG_NOT_ARRIVED name the leg by id as well as by route', async () => {
+    // Preparing: the only status a cycle moves to In transit from (2026-10-27).
     const { cycle, items } = cycleWithOrder(db, {
-      status: 'PURCHASING',
+      status: 'PREPARING',
       originType: 'CHINA',
     });
     const leg1 = addLeg(db, cycle, 1, { departedOn: null });

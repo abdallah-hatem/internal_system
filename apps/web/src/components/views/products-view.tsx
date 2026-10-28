@@ -5,7 +5,7 @@ import { ProductLink } from '@/components/ui/entity-link';
 import { Money } from '@/components/ui/money';
 
 import { useTranslations } from 'next-intl';
-import { StockSummary } from '@/components/summary/tab-summaries';
+import { ProductsSummary } from '@/components/summary/tab-summaries';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -186,6 +186,11 @@ export default function ProductsPage() {
   const { rows: products, isLoading, reloading } = list;
   const categoryFilter = list.get('category');
   const statusFilter = list.get('status') as StatusFilter;
+  // The cards ask for the table's own search, category and status — the
+  // parameters it sends, less its page and its order.
+  const cardFilters = Object.fromEntries(
+    Object.entries(list.exportParams).filter(([name]) => name !== 'sort'),
+  );
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -393,8 +398,8 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {/* How many products, and units on the shelf (owner 2026-10-22). */}
-      <StockSummary testId="products-summary" />
+      {/* How many products match the filters, and the units they hold (owner 2026-10-28). */}
+      <ProductsSummary filters={cardFilters} />
 
       {/* Search + Filters — the shared toolbar every list uses. */}
       <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}>

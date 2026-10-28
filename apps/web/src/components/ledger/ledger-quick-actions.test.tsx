@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -43,6 +43,12 @@ const ROW = {
   id: 'l1', type: 'EXPENSE', category: 'rent', direction: 'OUTFLOW', amount: 1000, currency: 'EGP',
   createdAt: '2026-10-01T10:00:00.000Z', occurredOn: '2026-10-01',
 };
+/** The partners the Paid by picker offers: active ones only (§9 "Paid by"). */
+const HOLDERS = [
+  { partnerUserId: 'u-abdallah', name: 'Abdallah', active: true },
+  { partnerUserId: 'u-shady', name: 'Shady', active: true },
+  { partnerUserId: 'u-left', name: 'Gone Partner', active: false },
+];
 
 beforeEach(() => {
   auth.role = 'CORE_PARTNER';
@@ -52,10 +58,20 @@ beforeEach(() => {
     if (url === '/ledger') return Promise.resolve({ data: { data: [ROW], meta: { total: 1, totalPages: 1 } } });
     if (url.startsWith('/cycles')) return Promise.resolve({ data: { data: [] } });
     if (url.startsWith('/currency-rates')) return Promise.resolve({ data: { data: {} } });
+    if (url === '/partner-accounts') return Promise.resolve({ data: { data: HOLDERS } });
     return Promise.reject(new Error(`unexpected GET ${url}`));
   });
 });
 afterEach(cleanup);
+beforeAll(() => {
+  // The pickers' popovers measure themselves.
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+  Element.prototype.scrollIntoView ??= () => {};
+});
 
 function wrap(children: ReactNode, locale: 'en' | 'ar' = 'en') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -180,6 +196,83 @@ describe('the ledger page has the Fuel quick action', () => {
     expect(amount().value).toBe('');
     expect(category()).toBe('fuel');
     expect(post).not.toHaveBeenCalled();
+  });
+
+  // ─── Paid by (§9, owner 2026-10-26, built 2026-10-27) ───────────────
+  const paidBy = () => document.querySelector<HTMLInputElement>('input[type="hidden"][name="paidBy"]')?.value;
+  const pickPayer = async (name: string) => {
+    fireEvent.click(document.querySelector<HTMLButtonElement>('#ledger-paid-by')!);
+    fireEvent.click(await screen.findByRole('option', { name: new RegExp(name) }));
+  };
+  const typeAmount = (v: string) => {
+    fireEvent.focus(amount());
+    fireEvent.change(amount(), { target: { value: v } });
+    fireEvent.blur(amount());
+  };
+
+  it('Fuel opens on Paid by: the business, and saving sends no payer', async () => {
+    post.mockResolvedValue({ data: { data: { id: 'tx' } } });
+    await renderLedger();
+    fireEvent.click(fuel()!);
+    expect(paidBy()).toBe('BUSINESS');
+    expect(document.querySelector('#ledger-paid-by')?.textContent).toContain(en.ledger.paidByBusiness);
+    typeAmount('400');
+    fireEvent.click(screen.getByRole('button', { name: en.common.save }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][1]).not.toHaveProperty('paidByUserId');
+  });
+
+  it('Fuel paid by a partner: sends his id, says his account is credited, and refreshes the accounts', async () => {
+    post.mockResolvedValue({ data: { data: { id: 'tx' } } });
+    await renderLedger();
+    fireEvent.click(fuel()!);
+    await pickPayer('Shady');
+    expect(screen.getByTestId('paid-by-hint').textContent).toBe(en.ledger.paidByHint.replace('{partner}', 'Shady'));
+    typeAmount('650');
+    fireEvent.click(screen.getByRole('button', { name: en.common.save }));
+    await waitFor(() => expect(dialog()).toBeNull());
+    expect(post.mock.calls[0][1]).toMatchObject({ category: 'fuel', amount: 650, paidByUserId: 'u-shady' });
+  });
+
+  it('offers the business and the active partners only — never one who left', async () => {
+    await renderLedger();
+    fireEvent.click(fuel()!);
+    fireEvent.click(document.querySelector<HTMLButtonElement>('#ledger-paid-by')!);
+    await screen.findAllByRole('option');
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([en.ledger.paidByBusiness, 'Abdallah', 'Shady']);
+  });
+
+  it('the second visit: a partner chosen and cancelled is gone, the business is back, and nothing names him', async () => {
+    post.mockResolvedValue({ data: { data: { id: 'tx' } } });
+    await renderLedger();
+    fireEvent.click(fuel()!);
+    await pickPayer('Shady');
+    expect(paidBy()).toBe('u-shady');
+    fireEvent.click(screen.getByRole('button', { name: en.common.cancel }));
+    expect(dialog()).toBeNull();
+    fireEvent.click(fuel()!);
+    expect(paidBy()).toBe('BUSINESS');
+    expect(screen.queryByTestId('paid-by-hint')).toBeNull();
+    typeAmount('120');
+    fireEvent.click(screen.getByRole('button', { name: en.common.save }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][1]).not.toHaveProperty('paidByUserId');
+  });
+
+  it('the ledger says who paid an expense a partner paid', async () => {
+    get.mockImplementation((url: string) => {
+      if (url === '/ledger') {
+        return Promise.resolve({
+          data: {
+            data: [{ ...ROW, category: 'fuel', paidBy: { id: 'u-shady', partner: { displayName: 'Shady' } } }],
+            meta: { total: 1, totalPages: 1 },
+          },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await renderLedger();
+    expect((await screen.findAllByTestId('ledger-paid-by'))[0].textContent).toBe(en.ledger.paidByTag.replace('{partner}', 'Shady'));
   });
 
   it('reads in Arabic', async () => {

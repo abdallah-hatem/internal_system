@@ -309,7 +309,7 @@ test.describe('Departures through the API', () => {
     expect((await deliver(request, headers, legs[1].id, padItem, 5, daysAgo(5))).status).toBeLessThan(300);
   });
 
-  test('TC-L8-08: undo — refused once goods from it arrived, and when the cycle’s status rests on it; a free one goes, twice is 404', async ({ request }) => {
+  test('TC-L8-08: undo — refused once goods from it arrived, and when the cycle’s status rests on it; a free one goes, twice is 404; the shipment’s only departure goes back to Preparing', async ({ request }) => {
     const { headers, mk, cycle, legs, padItem } = await cycleWithLegs(request, 'UAE_DIRECT');
     const first = await depart(request, headers, legs[0].id, daysAgo(20), [[padItem, 20]]);
     const second = await depart(request, headers, legs[0].id, daysAgo(18), [[padItem, 20]]);
@@ -324,15 +324,29 @@ test.describe('Departures through the API', () => {
     expect((await api(request, 'delete', headers, `shipping/departures/${second.body.data.id}`)).status).toBeLessThan(300);
     expect((await api(request, 'delete', headers, `shipping/departures/${second.body.data.id}`)).status).toBe(404);
 
-    // A fresh cycle whose only departure put it in transit to Egypt.
-    const b = await cycleWithLegs(request, 'UAE_DIRECT');
-    const only = await depart(request, b.headers, b.legs[0].id, daysAgo(20), [[b.padItem, 1]]);
-    const status = await api(request, 'delete', b.headers, `shipping/departures/${only.body.data.id}`);
+    // A China cycle whose leg 2 has its one departure, which put it in transit
+    // to Egypt; leg 1's goods arrived, so the shipment is not "nothing left".
+    const c = await cycleWithLegs(request, 'CHINA');
+    await depart(request, c.headers, c.legs[0].id, daysAgo(30));
+    await deliver(request, c.headers, c.legs[0].id, c.padItem, 20, daysAgo(15));
+    const onward = await depart(request, c.headers, c.legs[1].id, daysAgo(15), [[c.padItem, 5]]);
+    expect(await statusOf(request, c.headers, c.cycle.id)).toBe('IN_TRANSIT_TO_EGYPT');
+    const status = await api(request, 'delete', c.headers, `shipping/departures/${onward.body.data.id}`);
     expect(status.code).toBe('DEPARTURE_IN_USE');
     expect(status.params).toEqual({ why: 'status' });
     // Refused, so the cycle stays where the departure put it; never moved back.
-    expect(await statusOf(request, b.headers, b.cycle.id)).toBe('IN_TRANSIT_TO_EGYPT');
+    expect(await statusOf(request, c.headers, c.cycle.id)).toBe('IN_TRANSIT_TO_EGYPT');
     expect(await statusOf(request, headers, cycle.id)).toBe('ARRIVED_EGYPT');
+
+    // The shipment's only departure, nothing delivered: since 2026-10-27 (§1,
+    // Preparing) undoing it is allowed and takes the cycle back to Preparing —
+    // nothing has left, and the order stays confirmed (TC-PREP-02 on screen).
+    const b = await cycleWithLegs(request, 'UAE_DIRECT');
+    const only = await depart(request, b.headers, b.legs[0].id, daysAgo(20), [[b.padItem, 1]]);
+    expect(await statusOf(request, b.headers, b.cycle.id)).toBe('IN_TRANSIT_TO_EGYPT');
+    const undone = await api(request, 'delete', b.headers, `shipping/departures/${only.body.data.id}`);
+    expect(undone.status).toBeLessThan(300);
+    expect(await statusOf(request, b.headers, b.cycle.id)).toBe('PREPARING');
     void mk;
   });
 

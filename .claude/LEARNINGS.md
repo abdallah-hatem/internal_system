@@ -387,3 +387,11 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - What is typed before the page hydrates was reset by controlled inputs and the form went out blank ("not valid:
   email, password"): ~60 e2e logins failed on a slower Windows laptop. The office login reads its fields on submit and
   keeps Login disabled until hydrated. Check a form a person fills the moment it appears the same way. — 2026-10-21
+
+## check-data.sh and apostrophes
+
+- The SQL in `scripts/check-data.sh` sits inside a single-quoted shell string, so an apostrophe in a SQL **comment**
+  ("shop's", "partner's") ends the string and the script dies with "unexpected EOF". It happened twice on 2026-10-27/28
+  from two machines. Doubled quotes inside SQL string literals (`'friend''s'`) are fine; a lone `'` in a `--` comment is
+  not. Run `bash -n scripts/check-data.sh` after editing it. — 2026-10-28
+

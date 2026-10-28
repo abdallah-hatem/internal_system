@@ -55,6 +55,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { ContractButton, ContractPlanDialog, type ContractSale } from '@/components/sales/contract-plan';
 import { AdjustPriceButton, AdjustPriceDialog } from '@/components/sales/adjust-price';
 import { OrderHistory } from '@/components/sales/order-history';
+import { ReturnSamplesDialog } from '@/components/sales/return-samples-dialog';
 import { LineHeldNote, LineTotalNow, LineUnitPrice, OrderTotal } from '@/components/sales/value-now';
 import { TabBar } from '@/components/ui/tab-bar';
 import { isSamplesStatus, samplesUnits } from '@/lib/samples';
@@ -163,7 +164,7 @@ const STATUS_COLORS: Record<string, string> = {
   SAMPLES_BOUGHT: 'bg-muted text-muted-foreground',
 };
 
-const FILTER_TABS = ['all', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled', 'samplesFilter'] as const;
+const FILTER_TABS = ['all', 'owing', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled', 'samplesFilter'] as const;
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // The table's skeleton rows are drawn by DataTable from each column's
@@ -191,7 +192,16 @@ function SaleCardSkeleton() {
 }
 
 /** A status pill and the order status it narrows the list to (sent to the API). */
+/**
+ * What Sales opens on with no `?status=` (owner 2026-10-28: "make the default
+ * filter confirmed and partially paid") — the orders still being paid for.
+ * `?status=ALL` is every order, kept in the address so it holds on the second visit.
+ */
+export const SALES_DEFAULT_STATUS = 'CONFIRMED,PARTIALLY_PAID';
+
 const STATUS_FILTER: Record<string, string> = {
+  all: 'ALL',
+  owing: SALES_DEFAULT_STATUS,
   draft: 'DRAFT',
   confirmed: 'CONFIRMED',
   partiallyPaid: 'PARTIALLY_PAID',
@@ -253,7 +263,14 @@ function SalesPageContent() {
   const list = useServerList<SaleOrder>({
     queryKey: 'sales',
     path: '/sales/orders',
-    filters: { status: 'status', customer: 'customerId', branch: 'branchId', from: 'from', to: 'to' },
+    filters: {
+      status: { param: 'status', toApi: (v) => (v === 'ALL' ? '' : v) },
+      customer: 'customerId',
+      branch: 'branchId',
+      from: 'from',
+      to: 'to',
+    },
+    defaults: { status: SALES_DEFAULT_STATUS },
   });
   const { rows: orders, isLoading, error: listError, reloading } = list;
   // Days the order was placed, both included, filtered by the API (I1).
@@ -262,7 +279,9 @@ function SalesPageContent() {
   const dated = Boolean(dates.from || dates.to);
   const statusFilter =
     Object.keys(STATUS_FILTER).find((k) => STATUS_FILTER[k] === list.get('status')) ?? 'all';
-  const setStatusFilter = (key: string) => list.set('status', key === 'all' ? null : STATUS_FILTER[key]);
+  const setStatusFilter = (key: string) => list.set('status', STATUS_FILTER[key]);
+  /** The status the API is asked for — the cards above answer for the same orders. */
+  const statusParam = list.get('status') === 'ALL' ? '' : list.get('status');
   const customerFilter = list.get('customer');
   /** Any filter beyond the search: the empty state offers to clear them too. */
   const narrowed = statusFilter !== 'all' || dated || Boolean(customerFilter) || Boolean(list.get('branch'));
@@ -433,18 +452,17 @@ function SalesPageContent() {
     },
   });
 
-  /** "Returned" and "Write off" (§4): the samples come back, or never will. */
+  /** "Write off" (§4): the samples never come back. "Returned" is `ReturnSamplesDialog`'s. */
   const samplesMutation = useMutation({
-    mutationFn: ({ id, action, reason }: { id: string; action: 'return' | 'write-off'; reason?: string }) =>
-      api.post(`/sales/orders/${id}/samples/${action}`, action === 'write-off' ? { reason } : undefined),
-    onSuccess: (_res, { action }) => {
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      api.post(`/sales/orders/${id}/samples/write-off`, { reason }),
+    onSuccess: () => {
       for (const key of ['sales', 'sale', 'inventory', 'analytics']) {
         void queryClient.invalidateQueries({ queryKey: [key] });
       }
-      setReturningSamples(null);
       setWritingOffSamples(null);
       setViewingOrder(null);
-      addToast(action === 'return' ? tsm('returnedToast') : tsm('writtenOffToast'), 'success');
+      addToast(tsm('writtenOffToast'), 'success');
     },
     onError: (error: unknown) => {
       addToast(apiError(error, tc('error')), 'error');
@@ -829,7 +847,7 @@ function SalesPageContent() {
       </div>
 
       {/* The sale that brought in the most and the largest one (owner 2026-10-18). */}
-      <SalesSummary onOpen={(id) => void openOrderById(id).catch((e) => addToast(apiError(e, tc('error')), 'error'))} />
+      <SalesSummary status={statusParam} onOpen={(id) => void openOrderById(id).catch((e) => addToast(apiError(e, tc('error')), 'error'))} />
 
       {/* Search + Filter Tabs */}
       <ListToolbar
@@ -1306,37 +1324,19 @@ function SalesPageContent() {
         );
       })()}
 
-      {returningSamples && (
-        <Dialog
-          title={tsm('returnTitle', { orderNo: returningSamples.orderNo })}
-          onClose={() => setReturningSamples(null)}
-          size="sm"
-          busy={samplesMutation.isPending}
-          footer={
-            <>
-              <button
-                type="button"
-                onClick={() => setReturningSamples(null)}
-                className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
-              >
-                {tc('cancel')}
-              </button>
-              <button
-                type="button"
-                data-testid="samples-return-confirm"
-                onClick={() => samplesMutation.mutate({ id: returningSamples.id, action: 'return' })}
-                disabled={samplesMutation.isPending}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                {samplesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
-                {tsm('returnConfirm')}
-              </button>
-            </>
+      {/* Some or all of the samples back (§4, owner 2026-10-28). Always
+          mounted: its own close forgets what was typed. */}
+      <ReturnSamplesDialog
+        order={returningSamples}
+        onClose={() => setReturningSamples(null)}
+        onReturned={(status) => {
+          for (const key of ['sales', 'sale', 'inventory', 'analytics']) {
+            void queryClient.invalidateQueries({ queryKey: [key] });
           }
-        >
-          <p className="text-sm text-muted-foreground">{tsm('returnBody')}</p>
-        </Dialog>
-      )}
+          setViewingOrder(null);
+          addToast(status === 'SAMPLES' ? tsm('partReturnedToast') : tsm('returnedToast'), 'success');
+        }}
+      />
 
       {writingOffSamples && (
         <Dialog
@@ -1347,7 +1347,7 @@ function SalesPageContent() {
           onSubmit={(e) => {
             e.preventDefault();
             const reason = String(new FormData(e.currentTarget).get('reason') || '').trim();
-            samplesMutation.mutate({ id: writingOffSamples.id, action: 'write-off', reason: reason || undefined });
+            samplesMutation.mutate({ id: writingOffSamples.id, reason: reason || undefined });
           }}
           footer={
             <>

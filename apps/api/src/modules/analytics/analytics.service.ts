@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { stockValueEgp } from '../../common/stock-value';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma, type CycleStatus } from '@prisma/client';
+import { OrderStatus, Prisma, type CycleStatus } from '@prisma/client';
+import { filtersOf } from '../../common/list-query';
 import {
   COST_RECOVERY_CATEGORIES,
   NOT_OPERATING_EXPENSE,
@@ -35,7 +36,17 @@ import {
   exchangeDifferenceWhere,
 } from '../../common/lender-debt';
 import {
+  BREAKDOWN_MAX_DAYS,
+  BREAKDOWN_PAGE_SIZE,
+  BREAKDOWN_SECTIONS,
+  breakdownOf,
+  sectionTotals,
+  type BreakdownSection,
+} from './profit-breakdown';
+import { filterOf, pageOf } from '../../common/list-query';
+import {
   bucketIndexOf,
+  daysInPeriod,
   granularityOf,
   periodBuckets,
   type Granularity,
@@ -63,24 +74,12 @@ import {
   SOLD_LINE_WHERE,
   unitsFigure,
 } from '../../common/units-sold';
+import { unitsOnShelf } from '../../common/repositories/units-on-shelf';
 
 /** A cycle still running: anything but closed or cancelled (CLOSED_CYCLE_STATUSES). */
 export const ACTIVE_CYCLE_WHERE = {
   status: { notIn: [...CLOSED_CYCLE_STATUSES] as CycleStatus[] },
 } satisfies Prisma.ImportCycleWhereInput;
-
-/**
- * Units on the shelf: each batch's remaining quantity, summed — the same
- * "stock on hand" the low-stock rule counts (§3). The dashboard's Units in
- * stock and the Products and Inventory tabs' card read it.
- */
-function unitsOnShelf(batches: { remainingQty: Prisma.Decimal.Value }[]) {
-  return Number(
-    batches
-      .reduce((sum, b) => sum.add(b.remainingQty), new Prisma.Decimal(0))
-      .toDecimalPlaces(2),
-  );
-}
 
 /** How the top products are ranked. */
 export const TOP_PRODUCTS_BY = ['revenue', 'units'] as const;
@@ -133,7 +132,22 @@ export interface ProfitPart {
   amount: Prisma.Decimal;
   /** A ledger row's category (expenses by category). */
   category?: string;
+  /**
+   * The record it was read from — itemised only. What a bar's breakdown
+   * groups by (`profit-breakdown.ts`), so its rows are these very parts.
+   */
+  source?: ProfitSource;
 }
+
+/** Which record a profit part came from (Analytics' bar breakdown, 2026-10-28). */
+export type ProfitSource =
+  | { kind: 'sale'; orderId: string }
+  | { kind: 'return'; orderId: string; id: string }
+  | { kind: 'priceCut'; orderId: string; id: string }
+  | { kind: 'ledger'; id: string }
+  | { kind: 'loss'; id: string }
+  | { kind: 'samples'; orderId: string }
+  | { kind: 'repayment'; id: string };
 
 type LedgerRowLike = {
   direction: string;
@@ -303,7 +317,8 @@ export class AnalyticsService {
       day: string | null,
       amount: unknown,
       category?: string,
-    ) => parts.push({ line, day, amount: D(amount), category });
+      source?: ProfitSource,
+    ) => parts.push({ line, day, amount: D(amount), category, source });
 
     const REALISED = REALISED_SALE_STATUSES;
     const instants = period ? instantRange(period.from, period.to) : undefined;
@@ -316,9 +331,12 @@ export class AnalyticsService {
     if (itemised) {
       for (const o of await this.prisma.saleOrder.findMany({
         where: saleWhere,
-        select: { orderedAt: true, total: true },
+        select: { id: true, orderedAt: true, total: true },
       })) {
-        add('revenue', businessDay(o.orderedAt), o.total);
+        add('revenue', businessDay(o.orderedAt), o.total, undefined, {
+          kind: 'sale',
+          orderId: o.id,
+        });
       }
     } else {
       const { _sum } = await this.prisma.saleOrder.aggregate({
@@ -339,11 +357,22 @@ export class AnalyticsService {
     if (itemised) {
       for (const r of await this.prisma.saleReturn.findMany({
         where: returnWhere,
-        select: { returnedOn: true, refundEgp: true, cogsReversedEgp: true },
+        select: {
+          id: true,
+          saleOrderId: true,
+          returnedOn: true,
+          refundEgp: true,
+          cogsReversedEgp: true,
+        },
       })) {
         const day = dateColumnDay(r.returnedOn);
-        add('revenue', day, D(r.refundEgp).neg());
-        add('cogs', day, D(r.cogsReversedEgp).neg());
+        const source: ProfitSource = {
+          kind: 'return',
+          orderId: r.saleOrderId,
+          id: r.id,
+        };
+        add('revenue', day, D(r.refundEgp).neg(), undefined, source);
+        add('cogs', day, D(r.cogsReversedEgp).neg(), undefined, source);
       }
     } else {
       const { _sum } = await this.prisma.saleReturn.aggregate({
@@ -363,9 +392,20 @@ export class AnalyticsService {
     if (itemised) {
       for (const a of await this.prisma.salePriceAdjustment.findMany({
         where: adjustmentWhere,
-        select: { adjustedOn: true, amountEgp: true },
+        select: {
+          id: true,
+          saleOrderId: true,
+          adjustedOn: true,
+          amountEgp: true,
+        },
       })) {
-        add('revenue', dateColumnDay(a.adjustedOn), D(a.amountEgp).neg());
+        add(
+          'revenue',
+          dateColumnDay(a.adjustedOn),
+          D(a.amountEgp).neg(),
+          undefined,
+          { kind: 'priceCut', orderId: a.saleOrderId, id: a.id },
+        );
       }
     } else {
       const { _sum } = await this.prisma.salePriceAdjustment.aggregate({
@@ -385,10 +425,21 @@ export class AnalyticsService {
         where: cogsWhere,
         select: {
           cogsEgp: true,
-          saleItem: { select: { saleOrder: { select: { orderedAt: true } } } },
+          saleItem: {
+            select: {
+              saleOrderId: true,
+              saleOrder: { select: { orderedAt: true } },
+            },
+          },
         },
       })) {
-        add('cogs', businessDay(a.saleItem.saleOrder.orderedAt), a.cogsEgp);
+        add(
+          'cogs',
+          businessDay(a.saleItem.saleOrder.orderedAt),
+          a.cogsEgp,
+          undefined,
+          { kind: 'sale', orderId: a.saleItem.saleOrderId },
+        );
       }
     } else {
       const { _sum } = await this.prisma.saleItemAllocation.aggregate({
@@ -420,6 +471,7 @@ export class AnalyticsService {
         for (const t of await this.prisma.financialTransaction.findMany({
           where,
           select: {
+            id: true,
             direction: true,
             category: true,
             amount: true,
@@ -431,7 +483,7 @@ export class AnalyticsService {
           const day = t.occurredOn
             ? dateColumnDay(t.occurredOn)
             : businessDay(t.createdAt);
-          add(line, day, read(t), t.category);
+          add(line, day, read(t), t.category, { kind: 'ledger', id: t.id });
         }
       } else {
         const { _sum } = await this.prisma.financialTransaction.aggregate({
@@ -502,9 +554,12 @@ export class AnalyticsService {
     if (itemised) {
       for (const l of await this.prisma.shipmentLoss.findMany({
         where: shipmentLossWhere(null, instants),
-        select: { createdAt: true, costEgp: true },
+        select: { id: true, createdAt: true, costEgp: true },
       })) {
-        add('losses', businessDay(l.createdAt), l.costEgp);
+        add('losses', businessDay(l.createdAt), l.costEgp, undefined, {
+          kind: 'loss',
+          id: l.id,
+        });
       }
       for (const a of await this.prisma.saleItemAllocation.findMany({
         where: samplesWrittenOffWhere(null, instants),
@@ -512,6 +567,7 @@ export class AnalyticsService {
           cogsEgp: true,
           saleItem: {
             select: {
+              saleOrderId: true,
               saleOrder: {
                 select: { samplesDecidedAt: true, orderedAt: true },
               },
@@ -526,6 +582,8 @@ export class AnalyticsService {
           'samples',
           businessDay(o.samplesDecidedAt ?? o.orderedAt),
           a.cogsEgp,
+          undefined,
+          { kind: 'samples', orderId: a.saleItem.saleOrderId },
         );
       }
     } else {
@@ -540,9 +598,15 @@ export class AnalyticsService {
     if (itemised) {
       for (const r of await this.prisma.lenderRepayment.findMany({
         where: exchangeDifferenceWhere(null, days),
-        select: { paidOn: true, exchangeDiffEgp: true },
+        select: { id: true, paidOn: true, exchangeDiffEgp: true },
       })) {
-        add('exchangeDiff', dateColumnDay(r.paidOn), r.exchangeDiffEgp);
+        add(
+          'exchangeDiff',
+          dateColumnDay(r.paidOn),
+          r.exchangeDiffEgp,
+          undefined,
+          { kind: 'repayment', id: r.id },
+        );
       }
     } else {
       add(
@@ -698,6 +762,333 @@ export class AnalyticsService {
   }
 
   /**
+   * What made one bar of the profit and loss chart (owner 2026-10-28;
+   * BUSINESS_LOGIC §9 "What made a bar"): the bar's days, `from`–`to`, read by
+   * `profitParts` exactly as the chart reads them, and grouped by the record
+   * each part came from — revenue and cost of goods by order (returns and
+   * price cuts shown), every expense, the exchange difference by repayment,
+   * and money recovered or other income. The totals are `figuresOf` those
+   * parts, the bar's own arithmetic, so the popup cannot disagree with it.
+   *
+   * Asked by period: both days required, a real range, starting no later than
+   * today, at most `BREAKDOWN_MAX_DAYS` long (a month, the widest bar). A `to`
+   * after today is kept, not cut: all time's last bar may end on a row dated
+   * forward (check-data 25), and the breakdown must still equal it.
+   *
+   * Each section is paged on its own (`section`, `page`, `pageSize`); its
+   * totals are always of all its rows. With `section`, only that section is
+   * answered — the popup's "Show more".
+   */
+  async getProfitBreakdown(
+    query: {
+      from?: unknown;
+      to?: unknown;
+      section?: unknown;
+      page?: unknown;
+      pageSize?: unknown;
+    },
+    now = new Date(),
+  ) {
+    const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
+    const from = dayParam(query.from);
+    const to = dayParam(query.to);
+    if (!from || !to) {
+      throw badRequest(
+        'PNL_BREAKDOWN_NEEDS_PERIOD',
+        'A breakdown is of one bar: say its first and last day (from, to).',
+      );
+    }
+    assertDayRange(from, to);
+    if (from > businessToday(now)) {
+      throw badRequest(
+        'PERIOD_NOT_STARTED',
+        `The period starts on ${from}, which has not come yet.`,
+        { from },
+      );
+    }
+    if (daysInPeriod(from, to) > BREAKDOWN_MAX_DAYS) {
+      throw badRequest(
+        'PNL_BREAKDOWN_TOO_LONG',
+        `A breakdown covers at most ${BREAKDOWN_MAX_DAYS} days (${from} to ${to} is ${daysInPeriod(from, to)}).`,
+        { max: BREAKDOWN_MAX_DAYS, days: daysInPeriod(from, to) },
+      );
+    }
+    const only = filterOf(query.section, 'section', BREAKDOWN_SECTIONS);
+    // Always a page: no size asked for is the breakdown's own default.
+    const paging = pageOf({
+      page: query.page,
+      pageSize:
+        query.pageSize === undefined ||
+        query.pageSize === null ||
+        query.pageSize === ''
+          ? BREAKDOWN_PAGE_SIZE
+          : query.pageSize,
+    })!;
+
+    const parts = await this.profitParts({ from, to }, true);
+    const f = figuresOf(parts);
+    const b = breakdownOf(parts);
+    const sums = sectionTotals(b);
+
+    const pageOfRows = <T>(rows: T[]) => ({
+      page: paging.page,
+      pageSize: paging.pageSize,
+      total: rows.length,
+      totalPages: Math.ceil(rows.length / paging.pageSize),
+      rows: rows.slice(paging.skip, paging.skip + paging.take),
+    });
+    const wanted = (s: BreakdownSection) => !only || only === s;
+    const orders = pageOfRows(wanted('orders') ? b.orders : []);
+    const expenses = pageOfRows(wanted('expenses') ? b.expenses : []);
+    const exchange = pageOfRows(wanted('exchange') ? b.exchange : []);
+    const other = pageOfRows(wanted('other') ? b.other : []);
+
+    // What the rows on these pages are, for the reader: names and links.
+    const orderIds = [
+      ...orders.rows.map((r) => r.orderId),
+      ...expenses.rows.filter((r) => r.kind === 'samples').map((r) => r.id),
+    ];
+    const ledgerIds = [
+      ...expenses.rows.filter((r) => r.kind === 'ledger').map((r) => r.id),
+      ...other.rows.map((r) => r.id),
+    ];
+    const lossIds = expenses.rows
+      .filter((r) => r.kind === 'loss')
+      .map((r) => r.id);
+    const [orderInfo, ledgerInfo, lossInfo, repaymentInfo] = await Promise.all([
+      orderIds.length
+        ? this.prisma.saleOrder.findMany({
+            where: { id: { in: orderIds } },
+            select: {
+              id: true,
+              orderNo: true,
+              orderedAt: true,
+              status: true,
+              customer: { select: { id: true, displayName: true } },
+              branch: { select: { name: true } },
+            },
+          })
+        : [],
+      ledgerIds.length
+        ? this.prisma.financialTransaction.findMany({
+            where: { id: { in: ledgerIds } },
+            select: {
+              id: true,
+              type: true,
+              category: true,
+              reason: true,
+              cycle: { select: { id: true, code: true } },
+              paidBy: {
+                select: {
+                  id: true,
+                  email: true,
+                  partner: { select: { displayName: true } },
+                },
+              },
+            },
+          })
+        : [],
+      lossIds.length
+        ? this.prisma.shipmentLoss.findMany({
+            where: { id: { in: lossIds } },
+            select: {
+              id: true,
+              qty: true,
+              reason: true,
+              leg: {
+                select: {
+                  sequence: true,
+                  cycle: { select: { id: true, code: true } },
+                },
+              },
+              purchaseOrderItem: {
+                select: { product: { select: { name: true, sku: true } } },
+              },
+            },
+          })
+        : [],
+      exchange.rows.length
+        ? this.prisma.lenderRepayment.findMany({
+            where: { id: { in: exchange.rows.map((r) => r.id) } },
+            select: {
+              id: true,
+              amountEgp: true,
+              rateToEgp: true,
+              financing: {
+                select: {
+                  currency: true,
+                  lender: { select: { name: true } },
+                  cycle: { select: { id: true, code: true } },
+                  purchaseOrder: { select: { id: true, reference: true } },
+                },
+              },
+            },
+          })
+        : [],
+    ]);
+    const byId = <T extends { id: string }>(rows: T[]) =>
+      new Map(rows.map((r) => [r.id, r]));
+    const ordersById = byId(orderInfo);
+    const ledgerById = byId(ledgerInfo);
+    const lossesById = byId(lossInfo);
+    const repaymentsById = byId(repaymentInfo);
+    const orderOf = (id: string) => {
+      const o = ordersById.get(id);
+      return o
+        ? {
+            id: o.id,
+            orderNo: o.orderNo,
+            soldOn: businessDay(o.orderedAt),
+            status: o.status,
+            customer: o.customer.displayName,
+            customerId: o.customer.id,
+            branch: o.branch?.name ?? null,
+          }
+        : null;
+    };
+    const entryOf = (id: string) => {
+      const t = ledgerById.get(id);
+      return t
+        ? {
+            id: t.id,
+            type: t.type,
+            reason: t.reason,
+            cycle: t.cycle,
+            // Paid by (§9, 2026-10-27): null is the business.
+            paidBy: t.paidBy
+              ? {
+                  id: t.paidBy.id,
+                  name: t.paidBy.partner?.displayName ?? t.paidBy.email,
+                }
+              : null,
+          }
+        : null;
+    };
+
+    const sections: Record<string, unknown> = {};
+    if (wanted('orders')) {
+      sections.orders = {
+        ...orders,
+        totals: {
+          saleEgp: money(sums.orders.saleEgp),
+          returnsEgp: money(sums.orders.returnsEgp),
+          priceCutsEgp: money(sums.orders.priceCutsEgp),
+          revenueEgp: money(sums.orders.revenueEgp),
+          cogsEgp: money(sums.orders.cogsEgp),
+          grossProfitEgp: money(sums.orders.grossEgp),
+        },
+        rows: orders.rows.map((r) => ({
+          day: r.day,
+          order: orderOf(r.orderId),
+          orderId: r.orderId,
+          saleEgp: money(r.saleEgp),
+          returnsEgp: money(r.returnsEgp),
+          priceCutsEgp: money(r.priceCutsEgp),
+          revenueEgp: money(r.revenueEgp),
+          cogsEgp: money(r.cogsEgp),
+          grossProfitEgp: money(r.grossEgp),
+          events: r.events.map((e) => ({
+            kind: e.kind,
+            id: e.id,
+            day: e.day,
+            revenueEgp: money(e.revenueEgp),
+            cogsEgp: money(e.cogsEgp),
+          })),
+        })),
+      };
+    }
+    if (wanted('expenses')) {
+      sections.expenses = {
+        ...expenses,
+        totals: { amountEgp: money(sums.expenses.amountEgp) },
+        rows: expenses.rows.map((r) => {
+          const loss = r.kind === 'loss' ? lossesById.get(r.id) : undefined;
+          return {
+            kind: r.kind,
+            id: r.id,
+            day: r.day,
+            category: r.category,
+            amountEgp: money(r.amountEgp),
+            entry: r.kind === 'ledger' ? entryOf(r.id) : null,
+            order: r.kind === 'samples' ? orderOf(r.id) : null,
+            loss: loss
+              ? {
+                  qty: Number(loss.qty),
+                  reason: loss.reason,
+                  product: loss.purchaseOrderItem.product.name,
+                  leg: loss.leg.sequence,
+                  cycle: loss.leg.cycle,
+                }
+              : null,
+          };
+        }),
+      };
+    }
+    if (wanted('exchange')) {
+      sections.exchange = {
+        ...exchange,
+        totals: { amountEgp: money(sums.exchange.amountEgp) },
+        rows: exchange.rows.map((r) => {
+          const rep = repaymentsById.get(r.id);
+          return {
+            id: r.id,
+            day: r.day,
+            amountEgp: money(r.amountEgp),
+            repayment: rep
+              ? {
+                  paidEgp: money(rep.amountEgp),
+                  rateToEgp: Number(rep.rateToEgp),
+                  currency: rep.financing.currency,
+                  lender: rep.financing.lender.name,
+                  cycle: rep.financing.cycle,
+                  purchaseOrder: rep.financing.purchaseOrder,
+                }
+              : null,
+          };
+        }),
+      };
+    }
+    if (wanted('other')) {
+      sections.other = {
+        ...other,
+        totals: {
+          recoveredEgp: money(sums.other.recoveredEgp),
+          otherIncomeEgp: money(sums.other.otherIncomeEgp),
+        },
+        rows: other.rows.map((r) => ({
+          line: r.line,
+          id: r.id,
+          day: r.day,
+          category: r.category,
+          amountEgp: money(r.amountEgp),
+          entry: entryOf(r.id),
+        })),
+      };
+    }
+
+    return {
+      data: {
+        from,
+        to,
+        /** Nothing at all was recorded on these days. */
+        empty: parts.length === 0,
+        // The bar's own figures, through the bar's own arithmetic.
+        totals: {
+          salesEgp: money(f.revenue),
+          cogsEgp: money(f.cogs),
+          grossProfitEgp: money(f.revenue.sub(f.cogs)),
+          expensesEgp: money(f.operatingExpenses),
+          recoveredEgp: money(f.recovered),
+          otherIncomeEgp: money(f.otherIncome),
+          exchangeDifferenceEgp: money(f.exchangeDiff),
+          netProfitEgp: money(f.netProfit),
+        },
+        sections,
+      },
+    };
+  }
+
+  /**
    * What customers paid: payments not undone, on the day each was received
    * (`receivedOn`, a Cairo calendar day). No period is all time. One reading
    * for the dashboard's all-time Collected and its This month (rule 11).
@@ -752,8 +1143,8 @@ export class AnalyticsService {
     // One definition with a product page's Stock value (CLAUDE.md §11).
     const inventoryValue = stockValueEgp(inventoryBatches);
     // Units on the shelf across every product (§3) — one definition with the
-    // Products and Inventory tabs' card (`stockCounts`).
-    const unitsInStock = unitsOnShelf(inventoryBatches);
+    // Products and Inventory tabs' cards (`common/repositories/units-on-shelf.ts`).
+    const unitsInStock = await unitsOnShelf(this.prisma);
 
     // Receivables: sum of outstanding > 0 from confirmed sales orders
     const receivableOrders = await this.prisma.saleOrder.findMany({
@@ -1034,13 +1425,10 @@ export class AnalyticsService {
    * own figures, from the same definitions.
    */
   async getStockSummary() {
-    const batches = await this.prisma.inventoryBatch.findMany({
-      select: { remainingQty: true },
-    });
     return {
       data: {
         totalProducts: await this.productCount(),
-        unitsInStock: unitsOnShelf(batches),
+        unitsInStock: await unitsOnShelf(this.prisma),
       },
     };
   }
@@ -1131,12 +1519,19 @@ export class AnalyticsService {
     };
   }
 
-  async getTopOrders() {
+  async getTopOrders(status?: string) {
     const D = (v: unknown) =>
       new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    // The Sales list's status filter, so its cards answer for the same orders
+    // (owner 2026-10-28). Only a sale is a sale: a draft, a cancelled order or
+    // samples asked for add nothing to the cards.
+    const asked = filtersOf(status, 'status', Object.values(OrderStatus));
+    const counted = REALISED_SALE_STATUSES.filter(
+      (s) => !asked || asked.includes(s as OrderStatus),
+    );
 
     const orders = await this.prisma.saleOrder.findMany({
-      where: { status: { in: [...REALISED_SALE_STATUSES] } },
+      where: { status: { in: [...counted] } },
       select: {
         id: true,
         orderNo: true,

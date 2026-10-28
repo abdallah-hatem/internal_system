@@ -116,7 +116,7 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-function wrap(status = 'PURCHASING') {
+function wrap(status = 'PREPARING') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <NextIntlClientProvider locale="en" messages={en} timeZone="Africa/Cairo">
@@ -154,7 +154,7 @@ const shipmentDialog = (kind: string) => document.querySelector(`[data-shipment-
 describe('a LEG_NOT_DEPARTED refusal offers Record departure for that leg', () => {
   it('shows the refusal in the dialog with the fix; saving it brings the status dialog back to try again', async () => {
     state.refusal = NOT_DEPARTED;
-    wrap('PURCHASING');
+    wrap('PREPARING');
     const dialog = await tryMove('IN_TRANSIT');
     const refusal = within(dialog).getByTestId('status-refusal');
     expect(refusal.textContent).toContain('has not departed yet');
@@ -247,13 +247,13 @@ describe('a LEG_NOT_ARRIVED refusal offers Record delivery for that leg', () => 
 describe('no fix where there is none to offer', () => {
   it('other refusals show their reason and no fix button — even when the words mention a departure', async () => {
     const others: Refusal[] = [
-      { code: 'BAD_STATUS_TRANSITION', message: 'Leg has not departed', params: { from: 'PURCHASING', to: 'IN_TRANSIT', allowed: 'ARRIVED_UAE' } },
-      { code: 'CYCLE_STATUS_CHANGED', message: 'has not departed', params: { cycle: 'CYC-1', status: 'IN_TRANSIT', expected: 'PURCHASING', legId: 'leg-1' } },
+      { code: 'BAD_STATUS_TRANSITION', message: 'Leg has not departed', params: { from: 'PREPARING', to: 'IN_TRANSIT', allowed: 'ARRIVED_UAE' } },
+      { code: 'CYCLE_STATUS_CHANGED', message: 'has not departed', params: { cycle: 'CYC-1', status: 'IN_TRANSIT', expected: 'PREPARING', legId: 'leg-1' } },
       { code: 'ERROR', message: 'has not departed', params: { legId: 'leg-1' } },
     ];
     for (const r of others) {
       state.refusal = r;
-      wrap('PURCHASING');
+      wrap('PREPARING');
       const dialog = await tryMove('IN_TRANSIT');
       expect(within(dialog).queryByTestId('status-fix'), r!.code).toBeNull();
       cleanup();
@@ -262,7 +262,7 @@ describe('no fix where there is none to offer', () => {
 
   it('a leg refusal without the leg id (an older server) shows the reason and no fix', async () => {
     state.refusal = { ...NOT_DEPARTED!, params: { leg: 'Guangzhou, China → Dubai, UAE' } };
-    wrap('PURCHASING');
+    wrap('PREPARING');
     const dialog = await tryMove('IN_TRANSIT');
     expect(within(dialog).getByTestId('status-refusal').textContent).toContain('has not departed yet');
     expect(within(dialog).queryByTestId('status-fix')).toBeNull();
@@ -270,7 +270,7 @@ describe('no fix where there is none to offer', () => {
 
   it('a leg id the shipment does not have offers no fix', async () => {
     state.refusal = { ...NOT_DEPARTED!, params: { leg: 'X → Y', legId: 'leg-from-another-cycle' } };
-    wrap('PURCHASING');
+    wrap('PREPARING');
     const dialog = await tryMove('IN_TRANSIT');
     // Let the shipment load before asserting absence.
     await new Promise((r) => setTimeout(r, 50));
@@ -286,7 +286,7 @@ describe('the status dialog clears on every way out', () => {
   for (const [name, leave] of ways) {
     it(`${name}: reopening shows the options again with no old refusal and no fix`, async () => {
       state.refusal = NOT_DEPARTED;
-      wrap('PURCHASING');
+      wrap('PREPARING');
       const dialog = await tryMove('IN_TRANSIT');
       await within(dialog).findByTestId('status-fix');
       leave(dialog);
@@ -308,14 +308,14 @@ describe('a fix that moved the cycle on by itself', () => {
     state.refusal = NOT_DEPARTED;
     state.cycleStatus = {
       cycleId: 'c-1',
-      from: 'PURCHASING',
+      from: 'PREPARING',
       to: 'IN_TRANSIT',
       moved: true,
       steps: ['IN_TRANSIT'],
       stoppedAt: null,
-      ordersConfirmed: ['PO-1'],
+      ordersConfirmed: [],
     };
-    wrap('PURCHASING');
+    wrap('PREPARING');
     const dialog = await tryMove('IN_TRANSIT');
     fireEvent.click(await within(within(dialog).getByTestId('status-refusal')).findByTestId('status-fix'));
     const departure = await waitFor(() => {
@@ -333,8 +333,8 @@ describe('a fix that moved the cycle on by itself', () => {
 
   it('a fix that did not move the cycle still brings the status dialog back to try again', async () => {
     state.refusal = NOT_DEPARTED;
-    state.cycleStatus = { cycleId: 'c-1', from: 'PURCHASING', to: 'PURCHASING', moved: false, steps: [], stoppedAt: null, ordersConfirmed: [] };
-    wrap('PURCHASING');
+    state.cycleStatus = { cycleId: 'c-1', from: 'PREPARING', to: 'PREPARING', moved: false, steps: [], stoppedAt: null, ordersConfirmed: [] };
+    wrap('PREPARING');
     const dialog = await tryMove('IN_TRANSIT');
     fireEvent.click(await within(within(dialog).getByTestId('status-refusal')).findByTestId('status-fix'));
     const departure = await waitFor(() => {

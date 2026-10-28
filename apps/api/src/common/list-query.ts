@@ -168,6 +168,26 @@ export function filterOf<V extends string>(
   return value as V;
 }
 
+/**
+ * Several values of one filter, comma-separated — `?status=CONFIRMED,PARTIALLY_PAID`
+ * (Sales opens on the orders still being paid for, owner 2026-10-28). Each is
+ * checked as `filterOf` checks one; an empty piece or an unknown one is refused,
+ * never silently dropped. Repeats count once.
+ */
+export function filtersOf<V extends string>(
+  value: unknown,
+  field: string,
+  allowed: readonly V[],
+): V[] | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string') return [filterOf(value, field, allowed)!];
+  return [
+    ...new Set(
+      value.split(',').map((v) => filterOf(v.trim() || ',', field, allowed)!),
+    ),
+  ];
+}
+
 /** Which rows to read: spread into the list's own `findMany`. */
 export type RowWindow = {
   take: number;

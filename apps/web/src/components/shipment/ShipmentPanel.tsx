@@ -77,7 +77,7 @@ type Open =
   | { kind: 'addLeg' }
   | { kind: 'editLeg'; legId: string }
   | { kind: 'departure'; legId: string }
-  | { kind: 'undoDeparture'; departureId: string }
+  | { kind: 'undoDeparture'; departureId: string; toPreparing: boolean }
   | { kind: 'delivery'; legId: string }
   | { kind: 'lost'; legId: string }
   | { kind: 'receive'; legId: string; deliveryId: string }
@@ -467,7 +467,11 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
         <ConfirmActionDialog
           testId="undo-departure"
           title={t('undoDepartureTitle')}
-          message={t('undoDepartureConfirm')}
+          message={
+            open.toPreparing
+              ? `${t('undoDepartureConfirm')} ${t('undoDepartureToPreparing')}`
+              : t('undoDepartureConfirm')
+          }
           confirmLabel={t('undoDeparture')}
           successMessage={t('departureUndone')}
           failMessage={t('undoDepartureFailed')}
@@ -755,7 +759,13 @@ function LegBlock({
                   <button
                     type="button"
                     data-testid="undo-departure"
-                    onClick={() => onOpen({ kind: 'undoDeparture', departureId: d.id })}
+                    onClick={() =>
+                      onOpen({
+                        kind: 'undoDeparture',
+                        departureId: d.id,
+                        toPreparing: d.undoReturnsTo === 'PREPARING',
+                      })
+                    }
                     className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground sm:min-h-0"
                   >
                     <Undo2 className="h-4 w-4" aria-hidden="true" /> {t('undoDeparture')}

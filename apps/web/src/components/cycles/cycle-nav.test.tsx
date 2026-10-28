@@ -274,7 +274,8 @@ describe('Change status', () => {
     fireEvent.click(screen.getByTestId('change-status'));
     const dialog = await screen.findByTestId('change-status-dialog');
     const offered = within(dialog).getAllByRole('button').map((b) => b.dataset.status).filter(Boolean);
-    expect(offered).toEqual(['IN_TRANSIT', 'ARRIVED_UAE', 'CANCELLED']);
+    // Since 2026-10-27 the only way on is Preparing (the order is confirmed).
+    expect(offered).toEqual(['PREPARING', 'CANCELLED']);
   });
 
   it('is not offered for a closed, cancelled or unknown status — there is nowhere to go', () => {

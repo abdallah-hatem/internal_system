@@ -16,8 +16,9 @@ import { API, apiCtx, daysAgo } from './support/fixtures';
  * landed cost computed — the exact shape of the money bugs CLAUDE.md was
  * written after.
  *
- * PURCHASING -> IN_TRANSIT or ARRIVED_UAE both mean the goods are on their way,
- * so the order exists in the world and can no longer gain lines.
+ * PURCHASING -> PREPARING (since 2026-10-27 the only way on) means the order was
+ * placed and is being prepared, so it exists in the world and can no longer
+ * gain lines.
  */
 
 const stamp = () => Math.random().toString(36).slice(2, 8);
@@ -78,7 +79,7 @@ test.describe('Purchase order confirmation', () => {
     expect(pos).toHaveLength(1);
     expect(pos[0].status, 'should still be a draft during purchasing').toBe('DRAFT');
 
-    await mk(`cycles/${cycle.id}/transition`, { status: 'ARRIVED_UAE' });
+    await mk(`cycles/${cycle.id}/transition`, { status: 'PREPARING' });
 
     pos = await purchaseOrdersOf(request, headers, cycle.id);
     expect(pos[0].status, 'the order was not confirmed when the goods moved').toBe('CONFIRMED');
@@ -101,7 +102,7 @@ test.describe('Purchase order confirmation', () => {
     });
     expect(whileDraft.ok(), await whileDraft.text()).toBeTruthy();
 
-    await mk(`cycles/${cycle.id}/transition`, { status: 'ARRIVED_UAE' });
+    await mk(`cycles/${cycle.id}/transition`, { status: 'PREPARING' });
 
     const afterConfirm = await request.post(`${API}/purchases/items`, {
       headers,
@@ -165,7 +166,7 @@ test.describe('Purchase order confirmation', () => {
     const label = `Twice${stamp()}`;
     const { cycle, leg } = await cycleInPurchasing(request, mk, label);
 
-    await mk(`cycles/${cycle.id}/transition`, { status: 'ARRIVED_UAE' });
+    await mk(`cycles/${cycle.id}/transition`, { status: 'PREPARING' });
     const [first] = await purchaseOrdersOf(request, headers, cycle.id);
     expect(first.status).toBe('CONFIRMED');
 

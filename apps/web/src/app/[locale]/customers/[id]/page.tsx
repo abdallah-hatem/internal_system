@@ -19,7 +19,8 @@ import { ListCapNotice } from '@/components/ui/list-cap-notice';
  */
 
 import { useTranslations } from 'next-intl';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { cachedListRow } from '@/lib/server-list';
 import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { api } from '../../../../lib/api';
@@ -42,7 +43,7 @@ import { CustomerStatement } from '../../../../components/customers/customer-sta
 import { ContractsList } from '@/components/payments/contracts-list';
 import { OrderTotal } from '@/components/sales/value-now';
 import { useCustomerBranches } from '@/lib/customer-branches';
-import { BranchesCard, NO_BRANCH, type BranchFilter } from '@/components/customers/customer-branches';
+import { BranchesCard, BranchesCardSkeleton, NO_BRANCH, type BranchFilter } from '@/components/customers/customer-branches';
 interface SaleOrder {
   id: string;
   orderNo: string;
@@ -84,6 +85,7 @@ export default function CustomerPage() {
   const { formatDate } = useDateFormat();
   const { id, locale } = useParams<{ id: string; locale: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [showPay, setShowPay] = useState(false);
   /** The orders and statement narrowed to one branch, or the owner's whole (§7). */
@@ -292,8 +294,13 @@ export default function CustomerPage() {
       </div>
 
       {/* Its branches (§7, 2026-10-25): what each owes, and the total. */}
-      {customer && !customer.isWalkIn && (
+      {customer && !customer.isWalkIn && !branchData.isLoading ? (
         <BranchesCard customerId={id} data={branchData} selected={branchFilter} onSelect={setBranchFilter} />
+      ) : (
+        // Its place held while the customer or its branches load, unless the
+        // list it was opened from says this is the walk-in, which has none.
+        (isLoading || branchData.isLoading) &&
+        !(customer ?? cachedListRow<{ id: string; isWalkIn?: boolean }>(queryClient, 'customers', id))?.isWalkIn && <BranchesCardSkeleton />
       )}
 
       <Card title={ts('title')} icon={<ShoppingCart className="h-4 w-4 text-gray-400" />}>

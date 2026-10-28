@@ -1,10 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CycleStatus } from '@prisma/client';
 import { isUUID } from 'class-validator';
 import { z } from 'zod';
 
 import { notFound } from '../../../common/api-error';
 import { countryName } from '../../../common/countries';
+// Every cycle status, checked against the schema's enum at compile time there:
+// a status added to the schema and not to that list fails the build rather
+// than becoming a value the tool silently cannot filter by.
+import { CYCLE_STATUSES } from '../../../common/cycle-statuses';
 import { pageSize } from '../../../common/dto/pagination.dto';
 import { AnalyticsService } from '../../analytics/analytics.service';
 import { CurrencyRatesService } from '../../currency-rates/currency-rates.service';
@@ -56,30 +59,6 @@ const dayField = (what: string) =>
     .string()
     .optional()
     .describe(`${what}, as YYYY-MM-DD. Both ends of the range are included.`);
-
-/**
- * Every cycle status, checked against the schema's enum at compile time: a
- * status added to the schema and not here fails the build rather than
- * becoming a value the tool silently cannot filter by.
- */
-const CYCLE_STATUSES = [
-  'PLANNING',
-  'FUNDING',
-  'PURCHASING',
-  'IN_TRANSIT',
-  'ARRIVED_UAE',
-  'IN_TRANSIT_TO_EGYPT',
-  'ARRIVED_EGYPT',
-  'VERIFICATION',
-  'SELLING',
-  'SETTLEMENT',
-  'CLOSED',
-  'CANCELLED',
-] as const satisfies readonly CycleStatus[];
-type MissingStatus = Exclude<CycleStatus, (typeof CYCLE_STATUSES)[number]>;
-const _everyStatus: [MissingStatus] extends [never] ? true : MissingStatus =
-  true;
-void _everyStatus;
 
 type Decimalish = { toString(): string } | number | string | null | undefined;
 

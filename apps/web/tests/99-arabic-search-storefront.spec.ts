@@ -81,6 +81,8 @@ test.describe('Arabic search — the storefront', () => {
     await page.goto('/ar');
     await page.getByRole('combobox').filter({ visible: true }).first().click();
     const find = page.locator('[cmdk-input]').filter({ visible: true });
+    // On a touch screen the box is read-only until tapped (owner 2026-10-26), so tap it first, as a person does.
+    await find.tap();
     await find.fill(`خوذ ${tag}`);
     await expect(option(category.nameAr)).toBeVisible();
     await expect(option(near.nameAr)).toHaveCount(0);

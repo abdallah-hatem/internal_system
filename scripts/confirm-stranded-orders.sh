@@ -23,10 +23,13 @@ CONTAINER=${CONTAINER:-motorcycle_parts_db}
 FIX=false
 [[ "${1:-}" == "--fix" ]] && FIX=true
 
-# Every status that means the goods are moving or have arrived. PLANNING,
-# FUNDING and PURCHASING are excluded on purpose — an order still being built
-# is *supposed* to be a draft.
-PAST="'IN_TRANSIT','ARRIVED_UAE','IN_TRANSIT_TO_EGYPT','ARRIVED_EGYPT','VERIFICATION','SELLING','SETTLEMENT','CLOSED'"
+# Every status after the order was placed: Preparing (the supplier prepares
+# it, 2026-10-27) and everything from the goods moving on. PLANNING, FUNDING
+# and PURCHASING are excluded on purpose — an order still being built is
+# *supposed* to be a draft. It is every status but `BEFORE_SHIPPING` (the one
+# definition, apps/api/src/common/cycle-statuses.ts) with Preparing put back,
+# and CANCELLED; cycle-statuses.spec.ts fails when this list drifts from it.
+PAST="'PREPARING','IN_TRANSIT','ARRIVED_UAE','IN_TRANSIT_TO_EGYPT','ARRIVED_EGYPT','VERIFICATION','SELLING','SETTLEMENT','CLOSED'"
 
 FIND="SELECT c.code, c.status, po.reference
         FROM purchase_orders po

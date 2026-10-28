@@ -75,7 +75,7 @@ async function ctx(request: APIRequestContext) {
       // dates are what make the stock exist at all.
       departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-5),
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -411,7 +411,7 @@ test.describe('Goods cannot be counted twice on the way (§1, §3 — 2026-10-10
     await mk(`shipping/legs/${leg.id}/deliveries`, {
       arrivedOn: dayFromNow(-5), lines: [{ purchaseOrderItemId: item.id, qty: 10 }],
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     await mk('receipts/verify', {
@@ -453,7 +453,7 @@ test.describe('A line costs what it cost, once; a cycle settles only when accoun
     const delivery = await mk(`shipping/legs/${leg.id}/deliveries`, {
       arrivedOn: dayFromNow(-5), lines: [{ purchaseOrderItemId: item.id, qty }],
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     return delivery;
@@ -834,7 +834,7 @@ test.describe('One sale across two cycles: FIFO, each batch at its own cost (§3
     });
     const full = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data;
     const item = full.purchaseOrders[0].items[0];
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     const delivery = await mk(`shipping/legs/${leg.id}/deliveries`, {
@@ -1007,7 +1007,7 @@ async function friendCycle(
     costBasis: 'FLAT', amount: freight, currency: 'EGP', fxRateToEgp: 1,
     departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-10),
   });
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
   }
   const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -2162,7 +2162,7 @@ test.describe('A corrected leg cost re-costs the cycle, and nothing disagrees af
       costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
       departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-5),
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -2289,7 +2289,7 @@ async function shelfCycle(request: APIRequestContext, label: string, qty = 10) {
     costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
     departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-5),
   });
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
   }
   const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -2460,6 +2460,39 @@ test.describe('Samples are not on the shelf and not sold (§4, samples at shops,
     expect(pay.status()).toBe(400);
     expect(await errCode(pay)).toBe('CYCLE_HAS_SAMPLES_OUT');
     expect((await settlement(request, c.headers, draft.id)).status).toBe('APPROVED');
+  });
+
+  // Return some samples, not all (§4, owner 2026-10-28). Written, not run.
+  test('TC-INV-93: part of the samples back — shelf + at shops + sold = received throughout; never more than is out; the gate holds until the rest are decided', async ({ request }) => {
+    const c = await shelfCycle(request, 'Inv Smp Part');
+    const samples = await c.leave(3);
+    const back = (quantity: number) =>
+      request.post(`${API}/sales/orders/${samples.id}/samples/return`, {
+        headers: c.headers, data: { lines: [{ productId: c.product.id, quantity }] },
+      });
+    let r = await back(4);
+    expect(r.status()).toBe(400);
+    expect(await errCode(r)).toBe('SAMPLES_RETURN_MORE_THAN_OUT');
+    r = await back(0);
+    expect(await errCode(r)).toBe('QTY_NOT_POSITIVE');
+    expect(await c.stock()).toEqual({ shelf: 7, atShops: 3, all: 10 });
+
+    expect((await back(2)).ok()).toBeTruthy();
+    let s = await c.stock();
+    expect(s).toEqual({ shelf: 9, atShops: 1, all: 10 });
+    expect(s.shelf + s.atShops + c.sold()).toBe(10);
+    const t = await request.post(`${API}/cycles/${c.cycle.id}/transition`, { headers: c.headers, data: { status: 'SETTLEMENT' } });
+    expect(await errCode(t)).toBe('CYCLE_HAS_SAMPLES_OUT');
+
+    // The last one is bought: sold once, from the sample.
+    const buy = await request.post(`${API}/sales/orders/${samples.id}/samples/convert`, {
+      headers: c.headers, data: { items: [{ productId: c.product.id, quantity: 1, unitPrice: 50 }] },
+    });
+    expect(buy.ok(), await buy.text()).toBeTruthy();
+    s = await c.stock();
+    expect(s).toEqual({ shelf: 9, atShops: 0, all: 9 });
+    expect(c.sold()).toBe(1);
+    expect(s.shelf + s.atShops + c.sold()).toBe(10);
   });
 });
 
@@ -2678,7 +2711,11 @@ test.describe('A partner’s running account (§8, owner 2026-10-25: "equal thir
     expect(lines.map((l) => l.amountEgp)).toEqual(['333.33', '333.33', '333.34']);
     const left = await w.balance(w.f);
     const out = await request.post(`${API}/partner-accounts/${w.f}/withdrawals`, { headers: w.headers, data: { amountEgp: left + 0.01 } });
-    expect(await errCode(out)).toBe('ACCOUNT_BALANCE_TOO_LOW');
+    // What is left of his 400 was advanced for this cycle, so it is tied to it
+    // and cannot be taken out at all (§8, GUESS 2026-10-26) — refused with that
+    // reason rather than the plain "too low", and nothing is drawn.
+    expect(await errCode(out)).toBe('ACCOUNT_MONEY_TIED_TO_CYCLES');
+    expect(await w.balance(w.f)).toBe(left);
   });
 
   test('TC-INV-88: partners only — an investor is refused every account endpoint, coded', async ({ request }) => {
@@ -2693,5 +2730,114 @@ test.describe('A partner’s running account (§8, owner 2026-10-25: "equal thir
       expect(res.status()).toBe(403);
       expect(await errCode(res)).toBe('ROLE_NOT_ALLOWED');
     }
+  });
+
+  // "Paid by" on an expense (§9, owner 2026-10-26; written 2026-10-27, not run).
+  test('TC-INV-92: an expense a partner paid moves no cash on hand, is still an expense, credits him — and its reversal takes the credit back', async ({ request }) => {
+    const w = await accountsWorld(request, 'Inv Paid By');
+    const dash = await dashOf(request, w.headers);
+    const before = await w.balance(w.s);
+    const res = await request.post(`${API}/ledger`, {
+      headers: w.headers,
+      data: { kind: 'EXPENSE', category: 'fuel', amount: 300, currency: 'EGP', paidByUserId: w.s },
+    });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    const after = await dashOf(request, w.headers);
+    expect(after.cashOnHand).toBe(dash.cashOnHand);
+    expect(after.totalExpenses).toBeCloseTo(dash.totalExpenses + 300, 2);
+    expect(await w.balance(w.s)).toBeCloseTo(before + 300, 2);
+    const id = (await res.json()).data.id;
+    const undo = await request.post(`${API}/ledger/${id}/reverse`, { headers: w.headers, data: { reason: 'typed twice' } });
+    expect(undo.ok(), await undo.text()).toBeTruthy();
+    expect(await w.balance(w.s)).toBeCloseTo(before, 2);
+    expect((await dashOf(request, w.headers)).cashOnHand).toBe(dash.cashOnHand);
+  });
+});
+
+// Preparing (BUSINESS_LOGIC §1, owner 2026-10-27): the order is confirmed and
+// the supplier prepares it, before anything leaves. Unit and database tests:
+// apps/api/src/modules/cycles/preparing-status.db.spec.ts.
+test.describe('Preparing', () => {
+  async function purchasingCycle(request: APIRequestContext, withOrder: boolean) {
+    const { headers, mk } = await apiCtx(request);
+    const tag = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const cycle = await mk('cycles', { originType: 'CHINA', currency: 'EGP' });
+    for (const status of ['FUNDING', 'PURCHASING']) await mk(`cycles/${cycle.id}/transition`, { status });
+    if (withOrder) {
+      const supplier = await mk('suppliers', { name: `Prep ${tag} Supplier`, country: 'CN' });
+      const product = await mk('products', { name: `Prep ${tag} Part`, minStock: 0 });
+      await mk(`cycles/${cycle.id}/purchases`, {
+        supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: dayFromNow(-10),
+        items: [{ productId: product.id, orderedQty: 5, unitPrice: 10 }],
+      });
+    }
+    return { headers, cycle };
+  }
+  const move = (request: APIRequestContext, headers: Record<string, string>, id: string, status: string) =>
+    request.post(`${API}/cycles/${id}/transition`, { headers, data: { status } });
+
+  test('TC-INV-89: a cycle with nothing ordered cannot be preparing an order', async ({ request }) => {
+    const { headers, cycle } = await purchasingCycle(request, false);
+    expect(await errCode(await move(request, headers, cycle.id, 'PREPARING'))).toBe('CYCLE_HAS_NO_ORDER');
+  });
+
+  test('TC-INV-90: Purchasing cannot skip Preparing to In transit, nor Preparing jump to Arrived Egypt', async ({ request }) => {
+    const { headers, cycle } = await purchasingCycle(request, true);
+    // A first leg, not yet departed: with no legs at all nothing is checked
+    // (TC-LEG-06), so In transit would be let through and prove nothing.
+    const leg = await request.post(`${API}/cycles/${cycle.id}/shipping-legs`, {
+      headers,
+      data: { sequence: 1, origin: 'Guangzhou, CN', destination: 'Dubai, UAE', costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1 },
+    });
+    expect(leg.ok(), await leg.text()).toBeTruthy();
+    expect(await errCode(await move(request, headers, cycle.id, 'IN_TRANSIT'))).toBe('BAD_STATUS_TRANSITION');
+    expect((await move(request, headers, cycle.id, 'PREPARING')).ok()).toBeTruthy();
+    expect(await errCode(await move(request, headers, cycle.id, 'ARRIVED_EGYPT'))).toBe('BAD_STATUS_TRANSITION');
+    // Nothing has left, so In transit is refused too — by the shipment.
+    expect(await errCode(await move(request, headers, cycle.id, 'IN_TRANSIT'))).toBe('LEG_NOT_DEPARTED');
+  });
+
+  test('TC-INV-91: Preparing confirms the order — no line can be added to it afterwards, even back in Purchasing', async ({ request }) => {
+    const { headers, cycle } = await purchasingCycle(request, true);
+    expect((await move(request, headers, cycle.id, 'PREPARING')).ok()).toBeTruthy();
+    expect((await move(request, headers, cycle.id, 'PURCHASING')).ok()).toBeTruthy();
+    const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+    const po = (full.data ?? full).purchaseOrders[0];
+    expect(po.status).toBe('CONFIRMED');
+    const add = await request.post(`${API}/purchases/items`, {
+      headers, data: { purchaseOrderId: po.id, productId: po.items[0].productId, orderedQty: 1, unitPrice: 1 },
+    });
+    expect(add.ok()).toBeFalsy();
+  });
+});
+
+// What made a bar (BUSINESS_LOGIC §12 Profit and loss, owner 2026-10-28): the
+// popup is the bar's own parts, so it cannot disagree with it. Database tests:
+// apps/api/src/modules/analytics/profit-breakdown.db.spec.ts.
+test.describe('What made a profit and loss bar', () => {
+  test('TC-INV-94: every bar of this month and of all time equals its breakdown — sales, gross, expenses, net — and each list adds up to its line', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const month = await pnlOf(request, headers, `?from=${dayFromNow(0).slice(0, 8)}01&to=${dayFromNow(0)}`);
+    const all = await pnlOf(request, headers);
+    for (const bar of [...month.buckets, ...all.buckets.slice(-3)]) {
+      const res = await request.get(`${API}/analytics/profit-and-loss/breakdown?from=${bar.from}&to=${bar.to}`, { headers });
+      expect(res.ok(), await res.text()).toBeTruthy();
+      const d = (await res.json()).data;
+      expect([bar.key, d.totals.salesEgp, d.totals.grossProfitEgp, d.totals.expensesEgp, d.totals.netProfitEgp]).toEqual([
+        bar.key, bar.salesEgp, bar.grossProfitEgp, bar.expensesEgp, bar.netProfitEgp,
+      ]);
+      expect(d.sections.orders.totals.revenueEgp).toBe(d.totals.salesEgp);
+      expect(d.sections.expenses.totals.amountEgp).toBe(d.totals.expensesEgp);
+      expect(d.sections.exchange.totals.amountEgp).toBe(d.totals.exchangeDifferenceEgp);
+    }
+  });
+
+  test('TC-INV-95: a breakdown is of one bar — no period, more than 31 days, or a period not yet started is refused with a code', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const ask = (q: string) => request.get(`${API}/analytics/profit-and-loss/breakdown${q}`, { headers });
+    expect(await errCode(await ask(''))).toBe('PNL_BREAKDOWN_NEEDS_PERIOD');
+    expect(await errCode(await ask('?from=2026-01-01&to=2026-03-01'))).toBe('PNL_BREAKDOWN_TOO_LONG');
+    expect(await errCode(await ask(`?from=${dayFromNow(2)}&to=${dayFromNow(2)}`))).toBe('PERIOD_NOT_STARTED');
+    expect(await errCode(await ask(`?from=${dayFromNow(-1)}&to=${dayFromNow(-1)}&page=0`))).toBe('LIST_PAGE_INVALID');
   });
 });

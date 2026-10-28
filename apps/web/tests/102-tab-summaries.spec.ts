@@ -68,6 +68,13 @@ test.describe('Tab summaries', () => {
       const stock = await read(request, headers, 'analytics/stock-summary');
       expect(stock.totalProducts).toBe(dash.totalProducts);
       expect(stock.unitsInStock).toBe(dash.unitsInStock);
+      // Products' cards follow its filters since 2026-10-28; it opens on Active,
+      // so its count is the dashboard's and its units the active products'.
+      if (view === 'products') {
+        const shownFigures = await read(request, headers, 'products/summary?status=ACTIVE');
+        expect(shownFigures.products).toBe(stock.totalProducts);
+        stock.unitsInStock = shownFigures.unitsInStock;
+      }
 
       await login(page);
       if (view === 'products') await openView(page, 'products');

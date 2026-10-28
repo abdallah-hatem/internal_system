@@ -50,11 +50,29 @@ export const today = () => {
 
 export type Mk = (path: string, data: any) => Promise<any>;
 
+/**
+ * Something ordered on a cycle — a supplier, a part, one line on a purchase
+ * order — so the cycle can move into Preparing. Since 2026-10-27 (§1) a cycle
+ * with nothing ordered has no order to prepare (CYCLE_HAS_NO_ORDER), so a
+ * fixture walking a cycle past Purchasing orders something first, the way the
+ * business does. Call it before the cycle leaves Purchasing.
+ */
+export async function orderSomething(mk: Mk, cycleId: string, label = 'Ordered') {
+  const tag = `${label} ${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const supplier = await mk('suppliers', { name: `${tag} Supplier`, country: 'AE' });
+  const product = await mk('products', { name: `${tag} Part`, minStock: 0 });
+  return mk(`cycles/${cycleId}/purchases`, {
+    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(10),
+    items: [{ productId: product.id, orderedQty: 1, unitPrice: 10 }],
+  });
+}
+
 /** The statuses the shipment walk moves a cycle through (L3), in order. */
 const WALKED = [
   'PLANNING',
   'FUNDING',
   'PURCHASING',
+  'PREPARING',
   'IN_TRANSIT',
   'ARRIVED_UAE',
   'IN_TRANSIT_TO_EGYPT',
@@ -232,7 +250,7 @@ export async function giveStock(
     provider: `${label} Freight`, costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
     departedOn: daysAgo(20), arrivedOn: daysAgo(5),
   });
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
   }
   const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -273,7 +291,7 @@ export async function stockedProduct(
     provider: `${label} Freight`, costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
     departedOn: daysAgo(20), arrivedOn: daysAgo(5),
   });
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
   }
 

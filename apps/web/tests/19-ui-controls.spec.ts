@@ -32,7 +32,7 @@ test.describe('Searchable select', () => {
   async function openCategories(page: Page) {
     await login(page);
     await page.goto(`${BASE}/en/products`);
-    await page.locator(CATEGORY_FILTER).click();
+    await page.getByRole('main').locator(CATEGORY_FILTER).click();
     await expect(page.getByRole('listbox')).toBeVisible();
   }
 
@@ -87,7 +87,7 @@ test.describe('Searchable select', () => {
 
   test('TC-UI-04: arrow keys and Enter pick an option without the mouse', async ({ page }) => {
     await openCategories(page);
-    const trigger = page.locator(CATEGORY_FILTER); // `id` lands on the trigger button
+    const trigger = page.getByRole('main').locator(CATEGORY_FILTER); // `id` lands on the trigger button
 
     // "Parts" leaves more than one match, so ArrowDown has somewhere to go.
     await panelSearch(page).fill('Parts');
@@ -100,11 +100,14 @@ test.describe('Searchable select', () => {
 
   test('TC-UI-05: Escape closes the list and keeps the previous value', async ({ page }) => {
     await openCategories(page);
-    const trigger = page.locator(CATEGORY_FILTER); // `id` lands on the trigger button
+    const trigger = page.getByRole('main').locator(CATEGORY_FILTER); // `id` lands on the trigger button
 
     await panelSearch(page).fill('Parts');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
+    // Read the choice once it has landed on the trigger, not the moment Enter
+    // is pressed — that read "All categories" and then compared it with "Engine Parts".
+    await expect(trigger).toContainText(/Parts/);
     const chosen = (await trigger.textContent())?.trim();
 
     await trigger.click();

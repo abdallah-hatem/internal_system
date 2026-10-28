@@ -28,7 +28,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 
 export interface AccountMovement {
   id: string;
-  kind: 'ADVANCE' | 'CONTRIBUTION' | 'WITHDRAWAL' | 'PAYOUT_LEFT_IN';
+  kind: 'ADVANCE' | 'CONTRIBUTION' | 'WITHDRAWAL' | 'PAYOUT_LEFT_IN' | 'EXPENSE_PAID';
   amountEgp: string;
   signedEgp: string;
   amount: string;
@@ -51,6 +51,8 @@ export interface PartnerAccount {
   balanceEgp: string;
   advancedEgp: string;
   leftInEgp: string;
+  /** Expenses he paid from his own pocket (§9 "Paid by"): the business owes them back. */
+  expensesPaidEgp?: string;
   contributedEgp: string;
   withdrawnEgp: string;
   /** His balance by pot (owner 2026-10-26): money tied to no cycle, which is all that can come out… */

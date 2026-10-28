@@ -15,7 +15,7 @@
  *  its goods have not reached.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, API } from './support/fixtures';
+import { apiCtx, API, orderSomething } from './support/fixtures';
 
 async function legStatuses(request: APIRequestContext, headers: any, cycleId: string) {
   const res = await request.get(`${API}/cycles/${cycleId}/shipping-legs`, { headers });
@@ -72,6 +72,9 @@ test.describe('Shipping legs follow their dates', () => {
     const { headers, mk, cycle, legIds } = await chinaCycle(request);
     await mk(`cycles/${cycle.id}/transition`, { status: 'FUNDING' });
     await mk(`cycles/${cycle.id}/transition`, { status: 'PURCHASING' });
+    // The order confirmed and being prepared (2026-10-27): the only status
+    // In transit is reached from.
+    await mk(`cycles/${cycle.id}/transition`, { status: 'PREPARING' });
 
     const inTransit = await request.post(`${API}/cycles/${cycle.id}/transition`, {
       headers, data: { status: 'IN_TRANSIT' },
@@ -84,7 +87,7 @@ test.describe('Shipping legs follow their dates', () => {
     const departed = await request.put(`${API}/shipping/legs/${legIds[0]}`, {
       headers, data: { departedOn: '2026-08-10' },
     });
-    expect((await departed.json()).cycleStatus).toMatchObject({ from: 'PURCHASING', to: 'IN_TRANSIT' });
+    expect((await departed.json()).cycleStatus).toMatchObject({ from: 'PREPARING', to: 'IN_TRANSIT' });
 
     // And it cannot land in the UAE until that leg has an arrival date.
     const arrived = await request.post(`${API}/cycles/${cycle.id}/transition`, {
@@ -149,12 +152,14 @@ test.describe('Shipping legs follow their dates', () => {
     // Its one leg is UAE→Egypt, so goods sitting in the UAE have not started.
     const { headers, mk } = await apiCtx(request);
     const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'AED' });
+    // Preparing needs something ordered (§1, 2026-10-27).
+    await orderSomething(mk, cycle.id, 'LEG-05');
     await mk(`cycles/${cycle.id}/shipping-legs`, {
       sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
       provider: 'Air', costBasis: 'FLAT', amount: 100, currency: 'AED', fxRateToEgp: 13.85,
     });
 
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE']) {
       const res = await request.post(`${API}/cycles/${cycle.id}/transition`, {
         headers, data: { status },
       });
@@ -168,8 +173,10 @@ test.describe('Shipping legs follow their dates', () => {
     // when there is nothing to check.
     const { headers, mk } = await apiCtx(request);
     const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    // Preparing needs something ordered (§1, 2026-10-27); still no legs.
+    await orderSomething(mk, cycle.id, 'LEG-06');
 
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE']) {
       const res = await request.post(`${API}/cycles/${cycle.id}/transition`, {
         headers, data: { status },
       });

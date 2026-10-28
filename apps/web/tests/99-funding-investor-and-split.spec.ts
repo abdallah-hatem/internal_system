@@ -12,15 +12,14 @@
  */
 import { test, expect } from '@playwright/test';
 import { API, apiCtx, refusedCallers } from './support/fixtures';
-import { login, messages, openNav } from './support/ui';
+import { login, messages, openCycleByCode } from './support/ui';
 
 const en = messages('en') as any;
 const stamp = () => `${Date.now()}${Math.floor(performance.now() % 1000)}`;
 
 async function openCycle(page: any, code: string) {
   await login(page);
-  await openNav(page, en.nav.importCycles);
-  await page.getByText(code, { exact: true }).first().click();
+  await openCycleByCode(page, code);
   return page.getByTestId('funding-card');
 }
 

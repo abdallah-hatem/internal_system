@@ -216,7 +216,8 @@ test.describe('Partner capital', () => {
 
     const text = await page.locator('main').innerText();
     expect(text).toContain(EMAIL);
-    expect(text).not.toContain('0 cycles');
+    // A count of zero, not "40 cycles" — which contains "0 cycles" as a substring.
+    expect(text).not.toMatch(/(^|[^\d,.])0 cycles/);
   });
 
   test('TC-CAP-07: a partner who has funded nothing shows nothing, not a wrong number', async ({

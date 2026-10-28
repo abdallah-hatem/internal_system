@@ -212,7 +212,7 @@ test.describe('create_purchase_order', () => {
       sequence: 1, origin: 'Guangzhou, China', destination: 'Dubai, UAE', provider: `${w.tag} Freight`,
       costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1, departedOn: daysAgo(5),
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'IN_TRANSIT']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT']) {
       await w.mk(`cycles/${w.cycle.id}/transition`, { status });
     }
 
@@ -244,7 +244,7 @@ test.describe('create_purchase_order', () => {
       sequence: 1, origin: 'Guangzhou, China', destination: 'Dubai, UAE', provider: `${w.tag} Freight`,
       costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1, departedOn: daysAgo(1),
     });
-    for (const status of ['FUNDING', 'PURCHASING', 'IN_TRANSIT']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT']) {
       await w.mk(`cycles/${w.cycle.id}/transition`, { status });
     }
     const late = await callTool(request, w.token, 'create_purchase_order', add);

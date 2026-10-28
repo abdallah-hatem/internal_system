@@ -561,7 +561,7 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
            SELECT partner_user_id FROM partner_account_movements
             WHERE reversed_at IS NULL
             GROUP BY partner_user_id
-           HAVING sum(CASE WHEN kind IN ('ADVANCE', 'PAYOUT_LEFT_IN') THEN amount_egp ELSE -amount_egp END) < 0
+           HAVING sum(CASE WHEN kind IN ('ADVANCE', 'PAYOUT_LEFT_IN', 'EXPENSE_PAID') THEN amount_egp ELSE -amount_egp END) < 0
          ) below
   UNION ALL SELECT 28.1, 'partner account movement dated on a day that has not arrived',
          count(*) FROM partner_account_movements
@@ -575,10 +575,11 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   -- its cycle's advances, then untied money (payouts left in, less money
   -- taken out) — never another cycle's advance. Untied money below zero means
   -- one did; common/partner-account.ts's potsOf, in SQL.
-  UNION ALL SELECT 27.3, 'contribution drew on an advance paid for another cycle',
+  UNION ALL SELECT 28.6, 'contribution drew on an advance paid for another cycle',
          count(*) FROM (
            SELECT partner_user_id,
                   sum(CASE kind WHEN 'PAYOUT_LEFT_IN' THEN amount_egp
+                                WHEN 'EXPENSE_PAID' THEN amount_egp
                                 WHEN 'WITHDRAWAL' THEN -amount_egp ELSE 0 END) AS untied
              FROM partner_account_movements
             WHERE reversed_at IS NULL
@@ -596,6 +597,30 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
             GROUP BY partner_user_id
          ) c USING (partner_user_id)
    WHERE u.untied - coalesce(c.beyond, 0) < 0
+  -- "Paid by" on an expense (section 9, 2026-10-27): the credit of a partner for an
+  -- expense he paid stands exactly while that expense does — same partner,
+  -- same pounds, an expense row that is not itself an undo — and every
+  -- expense named as paid by a partner has its credit.
+  UNION ALL SELECT 28.3, 'expense credit in a partner account that no standing expense matches',
+         count(*) FROM partner_account_movements m
+         LEFT JOIN financial_transactions f ON f.id = m.expense_entry_id
+   WHERE m.kind = 'EXPENSE_PAID'
+     AND (f.id IS NULL
+          OR f.reversal_of_id IS NOT NULL
+          OR f.direction <> 'OUTFLOW'
+          OR f.paid_by_user_id IS DISTINCT FROM m.partner_user_id
+          OR f.amount <> m.amount_egp
+          OR (m.reversed_at IS NULL) = EXISTS (SELECT 1 FROM financial_transactions r
+                                                WHERE r.reversal_of_id = f.id))
+  UNION ALL SELECT 28.4, 'expense paid by a partner with no credit in his account',
+         count(*) FROM financial_transactions f
+   WHERE f.paid_by_user_id IS NOT NULL AND f.reversal_of_id IS NULL
+     AND NOT EXISTS (SELECT 1 FROM partner_account_movements m
+                      WHERE m.expense_entry_id = f.id AND m.kind = 'EXPENSE_PAID')
+  UNION ALL SELECT 28.5, 'undo of a partner-paid expense that names another payer',
+         count(*) FROM financial_transactions r
+         JOIN financial_transactions f ON f.id = r.reversal_of_id
+   WHERE r.paid_by_user_id IS DISTINCT FROM f.paid_by_user_id
 SQL
 )
 

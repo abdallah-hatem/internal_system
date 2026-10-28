@@ -78,7 +78,7 @@ async function cycleOnTheWay(request: APIRequestContext, label: string) {
     costBasis: 'FLAT', amount: 400, currency: 'EGP', fxRateToEgp: 1,
     departedOn: daysAgo(20),
   });
-  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
+  for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
   }
   const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -332,19 +332,26 @@ test.describe('Shipment panel (F1a)', () => {
     await expect(refund.locator('#refund-reason')).toHaveValue('supplier credit');
   });
 
-  test('TC-SHP-09: deleting a delivery stock was received from → DELIVERY_IN_USE, translated', async ({ page, request }) => {
-    const { cycle } = await cycleWithDelivery(request, 'SHP09');
+  test('TC-SHP-09: a delivery stock was received from cannot be deleted — the button is off with the reason, and the server says DELIVERY_IN_USE', async ({ page, request }) => {
+    const { headers, cycle } = await cycleWithDelivery(request, 'SHP09');
     await login(page);
     await openCycle(page, cycle.code);
     await panel(page).getByTestId('receive-delivery').click();
     await shipmentDialog(page, 'receive-delivery').getByRole('button', { name: en.shipment.receiveIntoStock }).click();
     await expect(shipmentDialog(page, 'receive-delivery')).toBeHidden();
 
-    await panel(page).getByTestId('delete-delivery').first().click();
-    const confirm = shipmentDialog(page, 'delete-delivery');
-    await confirm.getByRole('button', { name: en.shipment.deleteDelivery }).click();
-    await expect(confirm.getByTestId('shipment-refusal')).toHaveText(en.errors.DELIVERY_IN_USE);
-    await expect(confirm).toBeVisible();
+    // Since 2026-10-20 (owner) the panel offers Delete only where it would
+    // work: switched off, the reason beside it, rather than a refusal after.
+    await expect(panel(page).getByTestId('delete-delivery').first()).toBeDisabled();
+    await expect(panel(page).getByTestId('delivery-locked').first()).toHaveText(en.shipment.deliveryLocked.received);
+    // The rule is the server's: asked anyway, it refuses with the code the app translates.
+    const shipment = await shipmentOf(request, headers, cycle.id);
+    const ids = (shipment.legs as any[]).flatMap((l) => (l.deliveries ?? []).map((d: any) => d.id));
+    expect(ids.length).toBeGreaterThan(0);
+    const res = await request.delete(`${API}/shipping/deliveries/${ids[0]}`, { headers });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).error.code).toBe('DELIVERY_IN_USE');
+    expect(en.errors.DELIVERY_IN_USE).toBeTruthy();
   });
 
   test('TC-SHP-10: an empty "Receive stock" list says nothing is waiting', async ({ page }) => {
@@ -377,7 +384,7 @@ test.describe('Shipment panel (F1a)', () => {
         costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
         departedOn: daysAgo(20), arrivedOn: daysAgo(5),
       });
-      for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
+      for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
         await mk(`cycles/${cycle.id}/transition`, { status });
       }
       const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();

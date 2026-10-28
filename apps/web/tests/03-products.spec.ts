@@ -26,8 +26,10 @@ test.describe('Products Management Flow', () => {
     await page.goto(`${BASE}/en/products`);
     await expect(page.getByRole('heading', { name: /Products/i })).toBeVisible({ timeout: 10000 });
     // Should have table headers
-    await expect(page.getByText('SKU')).toBeVisible();
-    await expect(page.getByText('Name')).toBeVisible();
+    // Column headers by role: a page.goto streams the list behind <Suspense>, and
+    // for a moment its hidden copy (<div hidden id="S:0">) holds a second 'SKU'.
+    await expect(page.getByRole('columnheader', { name: 'SKU' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
   });
 
   test('TC-PROD-02: Products table shows existing products', async ({ page }) => {

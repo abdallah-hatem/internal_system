@@ -313,7 +313,10 @@ test.describe('The shop window', () => {
     // page-one assumption as the one this test was rewritten to remove.
     // The picker's own search box, named for what it searches — distinct from
     // the catalogue's box ("Search by name, SKU or barcode").
-    await page.getByPlaceholder('Find a category by name').fill(label);
+    // On a touch screen the box is read-only until tapped (owner 2026-10-26), so tap it first, as a person does.
+    const find = page.getByPlaceholder('Find a category by name');
+    await find.tap();
+    await find.fill(label);
     await page.getByRole('option', { name: `${label} Category` }).click();
 
     const cards = page.locator('[data-sku]');

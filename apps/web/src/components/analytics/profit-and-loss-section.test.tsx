@@ -38,6 +38,8 @@ vi.mock('@/lib/api', () => ({
       get(url, opts?.params);
       // The rest of the Analytics page asks for lists; only the P&L is an object.
       if (!url.startsWith('/analytics/profit-and-loss')) return Promise.resolve({ data: { data: [] } });
+      // A bar's breakdown (pnl-breakdown.test.tsx covers it): an empty one here.
+      if (url === '/analytics/profit-and-loss/breakdown') return Promise.resolve({ data: { data: EMPTY_BREAKDOWN } });
       const r = typeof reply === 'function' ? reply() : reply;
       return r.then((data) => ({ data: { data } }));
     },
@@ -52,6 +54,12 @@ beforeAll(() => {
   } as unknown as typeof ResizeObserver;
   Element.prototype.scrollIntoView ??= () => {};
 });
+
+const EMPTY_BREAKDOWN = {
+  empty: true,
+  totals: { salesEgp: 0, cogsEgp: 0, grossProfitEgp: 0, expensesEgp: 0, recoveredEgp: 0, otherIncomeEgp: 0, exchangeDifferenceEgp: 0, netProfitEgp: 0 },
+  sections: {},
+};
 
 const bucket = (key: string, from: string, to: string, salesEgp: number, netProfitEgp: number): PnlBucket => ({
   key,
@@ -639,7 +647,7 @@ describe('the chart on a phone: a by-day period is drawn by week (owner 2026-10-
     expect([...week.querySelectorAll('li')].map((d) => d.getAttribute('data-day'))).toEqual(['2026-10-01', '2026-10-02']);
   });
 
-  it('at 1440px the same period keeps its 18 day columns, its tooltip and "by day"; a tap opens nothing', async () => {
+  it('at 1440px the same period keeps its 18 day columns, its tooltip and "by day"; a tap opens what made that day, not a week', async () => {
     screenWidth.width = 1440;
     renderIn();
     const chart = await screen.findByTestId('pnl-chart');
@@ -652,6 +660,7 @@ describe('the chart on a phone: a by-day period is drawn by week (owner 2026-10-
     fireEvent.click(chart.querySelector('[data-bucket="2026-10-04"]')!);
     expect(screen.getByTestId('pnl-tooltip-net').textContent).toBe('-2,500.50 EGP');
     expect(screen.queryByTestId('pnl-week')).toBeNull();
+    expect(screen.getByTestId('pnl-breakdown').getAttribute('data-from')).toBe('2026-10-04');
   });
 
   it('640px is already the wide layout; 639px is a phone', async () => {
@@ -685,7 +694,7 @@ describe('the chart on a phone: a by-day period is drawn by week (owner 2026-10-
   it.each([
     ['week', 9, 'by week, Saturday to Friday'],
     ['month', 10, 'by month'],
-  ] as const)('a period the API draws by %s is the same on a phone: its own buckets, nothing to open', async (granularity, n, says) => {
+  ] as const)('a period the API draws by %s is the same on a phone: its own buckets, nothing to fold — a tap opens that bar’s breakdown', async (granularity, n, says) => {
     reply = () => Promise.resolve({ ...PNL, granularity, buckets: bucketsOf(granularity, n) });
     renderIn();
     const chart = await screen.findByTestId('pnl-chart');
@@ -695,6 +704,7 @@ describe('the chart on a phone: a by-day period is drawn by week (owner 2026-10-
     expect(chart.textContent).toContain(says);
     fireEvent.click(chart.querySelector('[data-bucket]')!);
     expect(screen.queryByTestId('pnl-week')).toBeNull();
+    expect(screen.getByTestId('pnl-breakdown')).toBeTruthy();
   });
 
   it('in Arabic: the weeks run right to left, the subtitle and the opened days are Arabic, minus signs kept', async () => {

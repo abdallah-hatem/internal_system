@@ -24,7 +24,8 @@ test.describe('Purchases Management Flow', () => {
     await login(page);
     await page.goto(`${BASE}/en/purchases`);
     await expect(page.getByRole('heading', { name: /Purchase/i })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Reference')).toBeVisible();
+    // By role: the streamed list's hidden copy holds a second 'Reference' for a moment.
+    await expect(page.getByRole('columnheader', { name: 'Reference' })).toBeVisible();
   });
 
   test('TC-PUR-02: Purchase orders table shows existing data', async ({ page }) => {

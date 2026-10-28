@@ -149,6 +149,58 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+describe("the product picker names each product's category (owner 2026-10-27)", () => {
+  const HEADSET: SaleFormProduct = {
+    ...PISTON,
+    id: 'p-y20',
+    name: 'Y20 headset',
+    sku: 'Y20',
+    category: { name: 'Intercoms', nameAr: 'إنتركم' },
+  };
+  const BARE: SaleFormProduct = { ...PISTON, id: 'p-bare', name: 'Bare part', sku: 'BP-1', category: null };
+  // The picker offers its search box once a list is long enough to need one.
+  const FILLER: SaleFormProduct[] = Array.from({ length: 8 }, (_, i) => ({
+    ...PISTON,
+    id: `p-f${i}`,
+    name: `Filler ${i}`,
+    sku: `F-${i}`,
+    category: { name: 'Engine' },
+  }));
+
+  beforeEach(() => {
+    shelf = new Map(
+      [HEADSET, BARE, ...FILLER].map((p) => [p.id, [{ qty: 60, unitCostEgp: '2000.0000' }]]),
+    );
+  });
+
+  const productPicker = () => screen.getAllByRole('combobox')[3]; // customer, channel, currency, then the line
+
+  it('beside the name, in the reader\'s language; a product with no category shows its name alone', () => {
+    renderForm(undefined, SHOP.id, 'en', [HEADSET, BARE]);
+    fireEvent.click(productPicker());
+    expect(screen.getByRole('option', { name: /Y20 headset · Intercoms/ })).toBeTruthy();
+    // The label alone; the line under it (SKU · stock) has its own dots.
+    expect(screen.getByRole('option', { name: /^Bare part/ }).querySelector('bdi')?.textContent).toBe('Bare part');
+  });
+
+  it('in Arabic the category is its Arabic name', () => {
+    renderForm(undefined, SHOP.id, 'ar', [HEADSET]);
+    fireEvent.click(productPicker());
+    expect(screen.getByRole('option', { name: /إنتركم/ })).toBeTruthy();
+  });
+
+  it('the search finds a product by its category, in either language', () => {
+    renderForm(undefined, SHOP.id, 'en', [HEADSET, BARE, ...FILLER]);
+    for (const term of ['Intercoms', 'إنتركم']) {
+      fireEvent.click(productPicker());
+      fireEvent.change(screen.getByPlaceholderText(en.placeholders.searchProducts), { target: { value: term } });
+      expect(screen.getByRole('option', { name: /Y20 headset/ })).toBeTruthy();
+      expect(screen.queryByRole('option', { name: /Bare part/ })).toBeNull();
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    }
+  });
+});
+
 describe('SaleOrderForm', () => {
   it('starts with one empty item row', () => {
     renderForm();

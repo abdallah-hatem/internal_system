@@ -28,6 +28,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { API, apiCtx, owedOrder, stockedProduct } from './support/fixtures';
 import { login, messages } from './support/ui';
 import { gateApi, go, type Gate } from './support/gate';
+import { PHONE_FIRST_TILES, RIGHT_NOW_TILES, THIS_MONTH_TILES } from '../src/components/dashboard/dashboard-model';
 
 const m = messages('en');
 const PAGE_SIZE = 10;
@@ -35,21 +36,28 @@ const PAGE_SIZE = 10;
  * The skeleton rows a detail screen or the dashboard holds: the sum of its
  * sections' `repeat(n, …RowSkeleton)` — the tiles, lists and tables each
  * section normally shows. A list screen holds a page, PAGE_SIZE.
- * - Dashboard: the 13 figure tiles (a phone shows the first six until See
- *   more, 2026-10-18), five top products and five shops to collect from
+ * - Dashboard: the figure tiles of both groups (a phone shows PHONE_FIRST_TILES
+ *   until See more, 2026-10-23), five top products and five shops to collect from
  *   (dashboard/page.tsx, components/dashboard/*) — recent activity's ten rows
  *   went with the panel (owner, 2026-10-17);
  * - a customer: three rows each in Sales Orders and Payments, four contracts
  *   (they replaced the two plan rows, 2026-10-17) and the statement's four lines
  *   (customers/[id], contracts-list, customer-statement);
  * - a cycle: the place cards of Where the goods are (four: the fixture is a
- *   UAE-direct cycle, which the list it is opened from knows), three rows each in
- *   Participants, Purchases and Inventory, and the
- *   Shipment panel's two product lines (cycles/[cycleId]/details, ShipmentPanel).
+ *   UAE-direct cycle, which the list it is opened from knows), the Shipment
+ *   panel's two product lines, the Funding card's three partner rows and three
+ *   contribution rows (it replaced the Participants list, owner 2026-10-26), and
+ *   three rows each in Purchases and Inventory (cycles/[cycleId]/details,
+ *   ShipmentPanel, FundingCardSkeleton).
  */
-const DASHBOARD_ROWS = (width: number) => (width < 640 ? 6 : 13) + 5 + 5;
+// The tiles are read from the dashboard's own lists (CLAUDE.md §11): since the two
+// groups (owner 2026-10-23) there are 7 Right now and 4 This month tiles, and a phone
+// shows PHONE_FIRST_TILES (4 + 4) until See more. Writing 13 and 6 here again would go
+// stale on the next regrouping, which is how this line fell behind.
+const DASHBOARD_ROWS = (width: number) =>
+  (width < 640 ? PHONE_FIRST_TILES.length : RIGHT_NOW_TILES.length + THIS_MONTH_TILES.length) + 5 + 5;
 const CUSTOMER_ROWS = 3 + 3 + 4 + 4;
-const CYCLE_ROWS = 15;
+const CYCLE_ROWS = 4 + 2 + 3 + 3 + 3 + 3;
 const stamp = Date.now().toString(36).toUpperCase();
 const CUSTOMER = `Skeleton Shop ${stamp}`;
 
@@ -104,12 +112,18 @@ async function expectSkeleton(page: Page, rows: number) {
  */
 function realHeightAt(page: Page, box: { x: number; y: number; width: number; height: number }) {
   return page.evaluate(({ x, y, width, height }) => {
-    let el = document.elementFromPoint(x + 6, y + 6);
+    // Every element under the point, not only the topmost: on a phone the
+    // fixed bottom bar sits over a row that lands low on the page (a customer's
+    // first order, below the Branches card since 2026-10-25), and the topmost
+    // hit was the bar — read as "nothing landed there".
     const found: number[] = [];
-    while (el && el !== document.body) {
-      const r = el.getBoundingClientRect();
-      if (Math.abs(r.width - width) < 4 && Math.abs(r.top - y) < 4) found.push(r.height);
-      el = el.parentElement;
+    for (const hit of document.elementsFromPoint(x + 6, y + 6)) {
+      let el: Element | null = hit;
+      while (el && el !== document.body) {
+        const r = el.getBoundingClientRect();
+        if (Math.abs(r.width - width) < 4 && Math.abs(r.top - y) < 4) found.push(r.height);
+        el = el.parentElement;
+      }
     }
     found.sort((a, b) => Math.abs(a - height) - Math.abs(b - height));
     return found[0] ?? -1;

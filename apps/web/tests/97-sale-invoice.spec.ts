@@ -15,7 +15,7 @@
  */
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import { API, apiCtx, owedOrder, refusedCallers, stockedProduct } from './support/fixtures';
-import { login, messages, openNav, type Locale } from './support/ui';
+import { login, messages, openNav, showAllSales, type Locale } from './support/ui';
 
 const stamp = () => `${Date.now()}${Math.floor(performance.now() % 1000)}`;
 
@@ -41,6 +41,8 @@ async function invoiced(request: APIRequestContext, label: string) {
 async function openInvoice(page: Page, orderNo: string, locale: Locale = 'en') {
   const m = messages(locale);
   await openNav(page, m.nav.sales);
+  // Sales opens on Confirmed + Partially paid (owner 2026-10-28); All finds an order in any status.
+  await showAllSales(page, locale);
   await page.getByPlaceholder(m.sales.search).fill(orderNo);
   await page.getByTestId('sale-row').filter({ hasText: orderNo }).locator('td').nth(6).click();
   await expect(page.getByRole('heading', { name: orderNo })).toBeVisible();
@@ -90,6 +92,8 @@ test.describe('Sale invoice / delivery note (§4, 2026-10-11)', () => {
 
     await login(page);
     await openNav(page, messages('en').nav.sales);
+    // A draft and a cancelled order are under All (Sales opens on Confirmed + Partially paid, 2026-10-28).
+    await showAllSales(page);
     for (const o of [draft, cancelled]) {
       await page.getByPlaceholder(messages('en').sales.search).fill(o.orderNo);
       await page.getByTestId('sale-row').filter({ hasText: o.orderNo }).locator('td').nth(6).click();

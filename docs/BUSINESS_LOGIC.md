@@ -8,9 +8,11 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-27 (§4: samples into the current order — New Order adds what a shop holds as samples, "They're buying" keeps what is not bought as samples — built on `feature/samples-into-order`, NOT shipped, guesses marked). Before that 2026-10-27 (state lines only, to match production at `d87b68b`: the sections for the 2026-10-22 order screens, the 2026-10-26 releases — units sold, each cycle's funding, the Funding card, put in so far, partner accounts, notifications, samples hint, office chat, server-side lists, the statement's Profit column — and the 2026-10-27 releases — customer branches and the Sales branch filter, investors in the funding, cycle 1's funding correction — now say live; Edit order stays not shipped). Before that 2026-10-26 (§3: every office list searches, filters, sorts and pages on the server; the Sales list filters by customer and by branch — guesses marked; §4: editing a confirmed order — not shipped, saved on `feature/edit-order` (2026-10-27); §7: a walk-in sale looks up no branch).. Before that 2026-10-26 (§8: each cycle's funding is its own — an advance funds only its cycle; §9/§12: an entry undone and its undo leave every period's profit figures — owner decisions, guesses marked, on branch `worktree-agent-ac6239d7503848e74`). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-28 (§12: the Products tab's cards follow its search, category and status — merged into `dev`, guesses marked). Before that 2026-10-28 (§12, Profit and loss: what made a bar — click a bar for its breakdown by order, expense and repayment, merged into `dev`, guesses marked). Before that 2026-10-28 (§3: Sales opens on Confirmed + Partially paid; a status filter takes several values). Before that 2026-10-27 (§4: the product picker shows the category). Before that 2026-10-27 (§4: samples into the current order — New Order adds what a shop holds as samples, "They're buying" keeps what is not bought as samples — built on `feature/samples-into-order`, NOT shipped, guesses marked). Before that 2026-10-27 (state lines only, to match production at `d87b68b`: the sections for the 2026-10-22 order screens, the 2026-10-26 releases — units sold, each cycle's funding, the Funding card, put in so far, partner accounts, notifications, samples hint, office chat, server-side lists, the statement's Profit column — and the 2026-10-27 releases — customer branches and the Sales branch filter, investors in the funding, cycle 1's funding correction — now say live; Edit order stays not shipped). Before that 2026-10-26 (§3: every office list searches, filters, sorts and pages on the server; the Sales list filters by customer and by branch — guesses marked; §4: editing a confirmed order — not shipped, saved on `feature/edit-order` (2026-10-27); §7: a walk-in sale looks up no branch).. Before that 2026-10-26 (§8: each cycle's funding is its own — an advance funds only its cycle; §9/§12: an entry undone and its undo leave every period's profit figures — owner decisions, guesses marked, on branch `worktree-agent-ac6239d7503848e74`). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
+
+**Sales opens on the orders still being paid for** — owner 2026-10-28 ("in Sales Orders tab, make the default filter confirmed and partially paid (pre selected or whatever)"), built the same day. With no `?status=` the Sales list asks for Confirmed and Partially paid, shown as its own chosen pill ("Confirmed + partially paid"); All writes `?status=ALL`, so clearing it holds on refresh and back, and choosing the default again takes it off the address. A list's status filter takes several values at once (`?status=CONFIRMED,PARTIALLY_PAID`, `filtersOf` in `common/list-query.ts`: an empty or unknown piece is refused, `LIST_FILTER_INVALID`, never dropped). The cards above the list (most revenue, most units) follow the same status — counting only real sales among those asked for, so a draft or a cancelled order never leads a card. GUESS: one pill for the two statuses rather than two pills chosen at once.
 
 ## 1. Import cycles
 
@@ -99,7 +101,9 @@ Guesses made while building L8, open until confirmed (autonomous run, 2026-10-12
 - **Undo** is refused (`DEPARTURE_IN_USE`) once goods from the departure were delivered or marked lost —
   deliveries and losses are matched to departures in the order they left (first in, first out), so the latest
   departures are the ones free to undo — or when it is the leg's only departure and the cycle's status says the
-  leg has left (the L3 rule deleting a delivery follows). Undoing never moves the cycle back. Deleting a leg-1
+  leg has left (the L3 rule deleting a delivery follows). Undoing never moves the cycle back
+  — *except, since 2026-10-27, the shipment's last departure, which returns the cycle to
+  Preparing (below, "a Preparing status")*. Deleting a leg-1
   delivery whose goods leg 2 already sent on is refused like one leg 2 delivered (`DELIVERY_IN_USE`, carried).
 - **Delete delivery is offered only where it would work** (owner 2026-10-20, built 2026-10-22). The shipment marks
   each delivery `deletable` with the reason it is not (`deleteBlockedBy`: received / carried / status) from
@@ -195,7 +199,8 @@ the other way round:
   saves.** The response names the step and the refusal; the office app shows it
   as a warning beside the success.
 - **A cycle still in Planning or Funding** when a departure or delivery is
-  recorded is walked through Funding and Purchasing too, each through its own
+  recorded is walked through Funding and Purchasing too (and, since 2026-10-27,
+  Preparing, where its orders are confirmed), each through its own
   checks (recommended option, chosen in the autonomous run 2026-10-11): the
   goods have left, so the money and the order already happened in the world.
 - **A China cycle whose second leg is not recorded** is proved no further than
@@ -326,6 +331,72 @@ Guesses, open until confirmed (autonomous run, 2026-10-11):
   which nets every return; the cards need every unit in exactly one place.
 - A unit marked lost after reaching Egypt (never found at the count) is in Lost,
   not in Egypt.
+
+**DECIDED 2026-10-27 (owner) — a Preparing status between Purchasing and In
+transit.** *Built 2026-10-27 on `feature/preparing-status` (migration
+`20261028100000_cycle_status_preparing`), not yet on `dev`.* The owner: "it now
+should be in preparation (a new status its where the website or factory
+prepares your order, then next its in transit to uae)". The statuses run
+Planning → Funding → Purchasing → **Preparing** → In transit (China) or Arrived
+UAE (UAE direct) → … The statuses before shipping are written down once,
+`BEFORE_SHIPPING` in `apps/api/src/common/cycle-statuses.ts` (Planning, Funding,
+Purchasing, Preparing), with the full ordered list beside it; the office app's
+copy and the stranded-drafts scripts are pinned to it by tests.
+- **Purchasing → Preparing is the only way on from Purchasing** (besides
+  Cancel). It is the move that confirms the cycle's draft orders (§15) — the
+  order is placed, so it gains no more lines. Change status on the cycle page
+  offers it; the assistant's `transition_cycle` makes it.
+- **Set by itself.** A departure recorded on a cycle still in Purchasing (or
+  earlier) walks it through Preparing on its way (L3): Purchasing → Preparing →
+  In transit, or → Preparing → Arrived UAE → In transit to Egypt on a UAE-direct
+  cycle, each step through its own checks; the orders are confirmed at the
+  Preparing step, once. **The first departure moves the cycle on to In transit,
+  as before**; later departures (L8) move nothing.
+- Guesses, open until confirmed (2026-10-27):
+  - **DECIDED 2026-10-27 (owner: "keep it as is, set by hand or on departure") — "the cycle's order is
+    confirmed" means the cycle has left Purchasing (§15).** There is no other moment in this code at which a
+    purchase order stops being a draft, and no confirm button on an order: the
+    cycle's orders are confirmed together when it leaves Purchasing, and that
+    move now always lands in Preparing. So Preparing is set by itself only
+    when a departure walks the cycle through it or a departure is undone (below);
+    otherwise a partner moves Purchasing → Preparing by hand when the supplier
+    has the order. Finishing the wizard with no departure still leaves the
+    cycle in Purchasing with its order a draft — finishing is not placing the
+    order — and the wizard is not reopened on a Preparing cycle (its order can
+    gain no lines).
+  - **GUESS — a cycle with no purchase order cannot be Preparing**
+    (`CYCLE_HAS_NO_ORDER`): at least one order line on the cycle. An order with
+    no lines still refuses as before (`PO_HAS_NO_ITEMS`). Two orders, one
+    already confirmed and one a draft (a cycle sent back to Purchasing and given
+    a forgotten order): Preparing confirms the draft and names only it.
+  - **GUESS — back from Preparing to Purchasing is allowed while nothing has
+    departed** (`CYCLE_HAS_DEPARTED` once any departure is recorded on any of
+    its legs), for a status set by mistake or an order forgotten. The orders
+    already confirmed stay confirmed — an order is never a draft again — and
+    leaving Purchasing again confirms only the drafts added since. Continue
+    setup returns, as for any cycle in Purchasing.
+  - **GUESS — undoing the shipment's last departure returns the cycle to
+    Preparing**, never to Purchasing: nothing has left any more and the order
+    is still confirmed. This applies only when it is the only departure the
+    whole shipment has, nothing it carried was delivered or marked lost, and
+    the cycle stands where only a departure could have put it (In transit; In
+    transit to Egypt on a UAE-direct cycle). It replaces, for that one case, the
+    L8 refusal "Move the cycle back first" — a move Change status could never
+    make. Every other undo keeps the L8 rules: a later part of a leg that left in
+    parts is undone without moving the cycle, and a second leg's only departure
+    on a cycle in transit to Egypt is still refused (`DEPARTURE_IN_USE`, status).
+    The cycle page says it before the click ("the cycle goes back to
+    Preparing") and the toast after; the server's `undoReturnsTo` on each
+    departure decides both.
+  - **GUESS — a Preparing cycle can be cancelled**, under the same checks as
+    cancelling from Purchasing (nothing moved in from another cycle, no friend's
+    payment standing): the factory or website can fail to deliver before
+    anything ships. Its orders stay confirmed on the cancelled cycle. Nothing
+    moves a cancelled cycle and nothing is recorded on its shipment.
+  - A Preparing cycle is not open for new purchase orders (as Purchasing is) —
+    the stranded-drafts check (`scripts/confirm-stranded-orders.sh`,
+    `ship-prod.sh stranded`) counts a draft on a Preparing cycle as stranded.
+  - Badge violet; "Preparing" / «قيد التجهيز».
 
 ---
 
@@ -767,6 +838,8 @@ last step. The quantity available is shown in the product picker and the line
 turns red as it is exceeded, so the limit is visible before it is reached
 rather than explained afterwards.
 
+**The product picker names each product's category beside it** — owner 2026-10-27 ("product names we just want it simple … maybe with category showing beside it in sale order product dropdown"), built the same day. New Order's picker reads "Y20 headset · Intercoms", the category in the reader's language; a product with no category shows its name alone, and the search matches the category in either language (`productPickerOption` in `SaleOrderForm.tsx`). The chosen product keeps the category in the field too (GUESS: it is one label).
+
 Quantities are summed per product across the order: two lines of 40 against 60
 in stock is 80, and checking each line alone would let it through. A product
 with no stock cannot be put on an order at all.
@@ -1006,7 +1079,8 @@ left, how many days ago, and the day the reminder is due (or "Reminder sent"). T
   one button, **Complete sale** (`POST /sales/orders/:id/samples/convert`, the body a new order sends). The
   below-cost warning is not shown there (GUESS: it costs from the shelf's FIFO, which is not what the kept units cost).
 - **"Returned"** — everything back on the shelf; the order ends **SAMPLES_RETURNED** (not a cancelled sale, not a
-  return of a sale). **Cancel on samples is "Returned"** (`POST …/cancel` does the same, for core partners — cancel
+  return of a sale). Since 2026-10-28 it asks which products and how many came back, and the rest stay samples on the
+  order ("Return some samples, not all", below). **Cancel on samples is "Returned"** (`POST …/cancel` does the same, for core partners — cancel
   is theirs alone, while `POST …/samples/return` is open to the sales roles; the screen does not offer Cancel at all).
 - **"Write off"** (core partners only, like Cancel) — the shop kept them or they were lost. Asks first, showing the
   cost written off; an optional note goes to the audit log.
@@ -1049,6 +1123,7 @@ payment, a return, a contract and the invoice work on it as they are. Per produc
 | Left (SAMPLES) | Off the shelf (`remainingQty`/`saleableQty` fall), counted under **Samples** | Nothing: no sale, no ledger row |
 | Bought (CONFIRMED) | Kept units stay out (sold, same batches); units not kept back to their own batch (`SAMPLE_BACK`); extra drawn FIFO (`SALE`) | A normal sale on its day, with the popup's lines: revenue, COGS, receivable |
 | Returned (SAMPLES_RETURNED) | Every unit back to the batch it left (`SAMPLE_BACK`) | Nothing. Its lines and allocations stay as the record of what went out and count in nothing, as a cancelled sale's do |
+| Part returned (stays SAMPLES, 2026-10-28) | The units named back to the batch each left (`SAMPLE_BACK`); the rest stay out on the order | Nothing |
 | Written off (SAMPLES_WRITTEN_OFF) | Gone for good: never back on the shelf, not at a shop | Their landed cost is a cost of the cycle each unit came from |
 | Bought into other sales (SAMPLES_BOUGHT, 2026-10-27) | Every unit moved, with its allocation, into the sales that bought it — no stock moved | Nothing on the samples order; each sale is a normal sale with those units' cost as its COGS |
 
@@ -1090,7 +1165,7 @@ pushed to phones too (§10).
   overdue instalments).
 
 **Editing.** A samples order's lines cannot be edited while open — there is no edit path for any order (§4); to change
-what is out, record "Returned" and leave the samples again. Changing the lines **when the shop buys** is what the
+what is out, record "Returned" (since 2026-10-28, only the units that came back) and leave more samples if needed. Changing the lines **when the shop buys** is what the
 "They're buying" popup is for (round 2).
 
 **On a product's page** (owner 2026-10-18, round 2). A **Samples** card: the units of the product out on open samples
@@ -1220,6 +1295,57 @@ the third branch, or even one of the 2?" — the proposal below, then "build it"
 - GUESS: the hint lists units out per product on each order (all units of a product summed across the batches they
   left), oldest order first; no price is shown (a noted price is not a decision).
 
+**Return some samples, not all** (owner 2026-10-28: "I should be able to pick which sample a shop returned"; the same
+day a one-off returned one of Ahmad Zogmar's two Y30s by hand, `7e33ddb`). Built 2026-10-28 on
+`feature/partial-sample-return`, **no migration** (every record it writes already existed: the one-off and "They're
+buying" with Keep as sample write the same ones).
+- **"Returned" asks what came back.** It opens the products the shop holds on the order, once each (its lines summed),
+  with the units at the shop and a quantity that **defaults to all of it**; lower it, or 0 for what stays. Below them:
+  "N go back on the shelf; M stay at the shop as samples", or the old sentence when everything comes back. Every unit
+  at 0 says "Nothing is coming back" and **Put back on the shelf** cannot be pressed; more than is at the shop, a
+  negative or an empty field says "From 0 to N" under it and cannot be sent. The server's refusal shows in the dialog,
+  translated, with what was typed kept. **Cancel (or ×, Escape) forgets what was typed**: the next visit opens on all
+  again (CLAUDE.md §13).
+- **`POST /sales/orders/:id/samples/return`** takes `{ lines: [{ productId, quantity }], customerId?, version? }`
+  (sales roles, as before). Without `lines` it is the whole order, exactly as before — Cancel on samples and older
+  clients send none.
+- **The chosen units go back to the batches they left, at their cost**, in one transaction under the order's claim:
+  each comes off the order's draws (`takeFromSamples`), goes back on its batch's shelf with a `SAMPLE_BACK` movement
+  (`sampleBack`), and the lines are written as they stand (`settleSamplesLeft`) — the records the 2026-10-28 one-off
+  made. Which units: `planSamplesReturn` (`common/samples.ts`), which plans what stays exactly as "They're buying"
+  plans what is kept (`planSamplesConversion`).
+- **The rest stay samples on the same order**: same ORD number, `samples_left_at` and `samples_reminded_at` untouched,
+  `samples_decided_at` empty, still counted under Samples, still holding its cycles' settlement (`CYCLE_HAS_SAMPLES_OUT`
+  names the units still out). A cycle none of whose units stay out is free to settle.
+- **Nothing left → SAMPLES_RETURNED, as today** (lines kept as the record of what went out; `samples_decided_at` set).
+  Returning what is left after an earlier part return, or after part was bought, closes it the same way.
+- **History** shows each part return as **"Some samples returned"** (`SAMPLES_PART_RETURNED`, the audit row's
+  products and units, the same event "They're buying" with Returned writes), then "Samples returned" if the rest come
+  back later.
+- **Refused, coded, en + ar** (CLAUDE.md §9): no line at all → `SAMPLES_RETURN_NOTHING` (new); 0 or less →
+  `QTY_NOT_POSITIVE`; a product the order holds none of — never left, or already bought out of it →
+  `SAMPLES_RETURN_PRODUCT_NOT_OUT` (new); more than is out, two lines of a product counted together →
+  `SAMPLES_RETURN_MORE_THAN_OUT` (was the assistant's own, now the service's); a shop named that is not the one they
+  were left with → `SAMPLES_OTHER_SHOP`; the order changed since the screen read it → `ORDER_VERSION_CONFLICT`;
+  returned, written off, bought (in place or into other sales) → `SAMPLES_ALREADY_DECIDED`; never samples →
+  `NOT_SAMPLES`; a quantity that is no number, a line without a product id, lines that are not a list →
+  `VALIDATION_FAILED`; an id that is no order → 404. Nothing moves on any refusal. `SAMPLES_RETURN_NOT_ALL` is gone.
+- **Twice:** a second return reads what the first left (the claim holds the row), so it can never take a unit back
+  twice; the same click twice carries the version the screen showed and the second is `ORDER_VERSION_CONFLICT`.
+- **The assistant:** `return_samples` takes `returned` (product and quantity) as the office's lines — names matched to
+  the products on the order (a close name is a question; a name matching none is `SAMPLES_RETURN_PRODUCT_NOT_OUT`),
+  every amount the service's check. The preview says what comes back and what stays; it binds both, so a return made
+  elsewhere in between is `PREVIEW_CHANGED`.
+- GUESS: **the units that come back are the newest-received; the oldest stay** — as when the shop buys part (the kept
+  units are the oldest, round 1's guess). The 2026-10-28 one-off returned the first draw it found, which on that
+  one-batch order is the same unit.
+- GUESS: **two lines of one product are added together** and checked as one against what is out (not refused).
+- GUESS: **a return is dated when it is recorded** — no day picker; the shelf gets the units back today.
+- GUESS: **the dialog sends the order's version** and a changed order is refused with a reload, not applied to what
+  is there now; the assistant (whose preview binds instead), Cancel and an older client send none. `customerId` is
+  checked only when sent.
+- GUESS: **a fraction of a unit can come back** (quantities are decimals everywhere else).
+
 **The assistant** (§16; tools built 2026-10-20, owner's queue of 2026-10-18): `list_sales` labels each order `kind:
 "SALE"` or `"SAMPLES"` as before. Five tools carry the flow, each the office endpoint's own `SalesService` call,
 previewed by that call rolled back and committed with the confirmation token (`tools/samples.ts`):
@@ -1230,16 +1356,16 @@ previewed by that call rolled back and committed with the confirmation token (`t
 - `complete_samples_sale` (= `…/samples/convert`): the lines the shop buys, or none for "exactly what was left"; a
   line without a price takes the price noted when left, else the list price, marked for the partner to confirm; a
   `PRICE_NEEDED` question when neither exists.
-- `return_samples` (= `…/samples/return`): always the whole order — quantities the partner names must be exactly what
-  went out: more is `SAMPLES_RETURN_MORE_THAN_OUT`, less is `SAMPLES_RETURN_NOT_ALL` (which points at recording the
-  rest as a sale).
+- `return_samples` (= `…/samples/return`): the whole order, or — since 2026-10-28 — the products and quantities the
+  partner names, the rest staying samples ("Return some samples, not all", above). More than went out is
+  `SAMPLES_RETURN_MORE_THAN_OUT` (the service's check now); `SAMPLES_RETURN_NOT_ALL` is gone.
 - `write_off_samples` (= `…/samples/write-off`): the preview shows the cost written off.
 Roles are the office endpoints', defined once in `modules/sales/sales-roles.ts` (`SALES_ROLES`; write-off
 `SALES_PARTNER_ROLES`). Guesses, open until confirmed (2026-10-20):
 - A noted price of 0 is read as "no price noted" (the service stores 0 when none was given).
 - With no noted, list or default price the assistant asks (`PRICE_NEEDED`); the office popup falls back to 0.
 - `complete_samples_sale` keeps the samples order's channel and currency; the assistant offers no channel change.
-- The quantity check on `return_samples` and its two codes are the assistant's own; the service has no partial return.
+- (Superseded 2026-10-28: the quantity check on `return_samples` is the service's, which takes part returns.)
 - `list_samples` reads at most 20 pages of 100 open samples orders.
 - `leave_samples` uses the B2B channel for a B2B customer and B2C otherwise, as `record_sale` does.
 
@@ -2160,6 +2286,9 @@ run — owner said not for now):
   into his account (`PAYOUT_LEFT_IN`). Reversing the settlement takes it back out — refused while that would leave
   his account below zero.
 - **Who**: core partners only, every endpoint (`PARTNER_ACCOUNT_ROLES`).
+- **An expense he paid** (2026-10-27, branch `feature/expense-paid-by`, not shipped): a business expense paid from his
+  own pocket credits his account (`EXPENSE_PAID`, + his balance, untied money); it comes out only by reversing the
+  expense in the ledger. See §9 "Paid by" on an expense.
 - **Who owes whom between us**: does not fall out of the balances. With no negative account, nobody owes another
   partner through the accounts; a positive balance is the partners' money the business holds for him. Settling
   between partners stays outside the system.
@@ -2201,7 +2330,7 @@ Built (one definition, `apps/api/src/common/partner-account.ts`, `potsOf` — th
   draw.
 - **The Partners page** still shows the whole balance, and under the figures the pots: "Tied to no cycle: … · For
   CYC-2026-0002: …".
-- **Data check** 27.3 (`scripts/check-data.sh`): a partner whose untied money is below zero — a contribution that drew
+- **Data check** 28.6 (`scripts/check-data.sh`; was 27.3, which the branches' check also used): a partner whose untied money is below zero — a contribution that drew
   another cycle's advance before this rule. **Production:** from the facts read on 2026-10-26 (Abdallah's 50,775 and
   Shady's 10,000 on CYC-2026-0002, nothing contributed through an account on CYC-2026-0001) no contribution drew another
   cycle's advance; run the check after deploying to confirm it reads 0.
@@ -2213,7 +2342,7 @@ Built (one definition, `apps/api/src/common/partner-account.ts`, `potsOf` — th
 | Reversing an advance | Only while **its cycle's pot** still holds it (`ADVANCE_ALREADY_DRAWN` with `drawn`, `cycle`): reverse the contribution it funded first. Other cycles and untied money are never touched. Was: refused only if the whole account would go negative. | Never negative, per pot. |
 | Reversing a settlement whose payout was left in | Takes the payout back from **untied money only** (`ACCOUNT_MONEY_TIED_TO_CYCLES`). | A payout left in is untied money. |
 | A payout left in that names its cycle | Its `cycle_id` is the settled cycle it came from; it is **untied** all the same. | Owner: "only money tied to no cycle (a payout left in) funds any cycle". |
-| Untied money below zero (records from before the rule) | Offers nothing; no cycle's pot is reduced to cover it. Check 27.3 finds it. | Do not let old data move new money. |
+| Untied money below zero (records from before the rule) | Offers nothing; no cycle's pot is reduced to cover it. Check 28.6 finds it. | Do not let old data move new money. |
 | OPEN: an advance left undrawn on a cycle that is settled, closed or cancelled | **Stays that cycle's** — stranded: no other cycle can draw it and it cannot be taken out. Shown on the Partners page as that cycle's pot. Whether it should then become untied is for the owner. Not in production today (CYC-2026-0001 has no advances). | Build for what exists. |
 
 ### The cycle page's money-in is one Funding card — DECIDED 2026-10-26 (owner, from a rendered sample: "build it like this"), details GUESSED, live 2026-10-26 (`105bd6b`; below the Shipment card since `8d0447a`)
@@ -2503,6 +2632,60 @@ gone (a 404), the ledger shows no Account column or line, and a body that names
 an account — a repayment's included — is refused as an unknown field
 (`VALIDATION_FAILED`). No seed creates one. Spec 34 TC-INV-38, 99-ledger-entry
 TC-L6-08.
+
+### "Paid by" on an expense — DECIDED 2026-10-26 (owner), built 2026-10-27 on `feature/expense-paid-by` (migration `20261027180000_expense_paid_by`), NOT shipped, details GUESSED
+The owner (2026-10-26, "build it" 2026-10-27): an expense can be paid by the business or by one of the partners — fuel
+for a delivery paid from a partner's own pocket. It is still booked as the same expense (charged to a cycle, or a
+running cost shared from payouts, as today), but no business cash leaves and the partner's running account (§8) is
+credited with it: the business owes it back; he withdraws it or leaves it in for a contribution. The Ledger form and
+the Fuel quick action get a **Paid by** picker, defaulting to the business. Reversing the expense reverses the credit;
+the account may not go negative.
+
+Built (API, office screens, Postgres and unit tests; e2e written, not run — owner: not for now):
+
+- **The expense is the same row.** `POST /ledger` takes an optional `paidByUserId`. The ledger row is written exactly
+  as any manual expense — category, cycle, day, pounds — and names the payer in a new column, `paid_by_user_id`. Every
+  profit reader (operating expenses, the P&L, the dashboard's Expenses and net profit, a cycle's profit and settlement,
+  running-cost shares and their charge from payouts) reads it as before, because none of them asks who paid (tested
+  against a business-paid twin: every figure but cash moves identically).
+- **Not cash.** Which ledger rows are cash has one definition, `CASH_ROWS_WHERE` in `common/cash-position.ts` (CLAUDE.md
+  §11): it now leaves out a row a partner paid, alongside `NOT_CASH_CATEGORIES` and `NOT_CASH_TYPES`. So cash in, cash
+  out, cash on hand and the P&L's Cash paid out do not move (tested).
+- **The credit.** A new account movement kind, `EXPENSE_PAID` (+ his balance), one per ledger row
+  (`partner_account_movements.expense_entry_id`, unique), written in the same transaction as the row. The balance and
+  its pots stay one definition (`common/partner-account.ts`: `MOVEMENT_SIGN`, `potsOf`); the Partners page shows it as
+  "Expense he paid" and a total "Expenses he paid".
+- **Reversing** the expense (`POST /ledger/:id/reverse`) marks the credit reversed in the same transaction, under his
+  account's lock; the undo row names the same payer, so it is not cash either. The credit cannot be reversed from his
+  account on its own (`ACCOUNT_EXPENSE_REVERSE_ON_LEDGER`): the ledger would keep an expense nobody owes him for.
+- **Refusals** (coded, en + ar): `LEDGER_PAYER_NOT_PARTNER` (an investor, the office's ADMIN_SUPPORT login, an id that
+  is nobody, not an id), `LEDGER_PAYER_INACTIVE` (`partner`: a partner who has left), `LEDGER_PAID_BY_ONLY_EXPENSE`
+  (income with a payer), `EXPENSE_CREDIT_ALREADY_TAKEN` (`partner`, `amount`, `available`) and every refusal a manual
+  entry already had (zero or negative, a future day, a closed or cancelled cycle). Nothing is written on a refusal.
+- **Who records it**: core partners, as for every manual entry (`POST /ledger` is `CORE_PARTNER` only, CLAUDE.md §12).
+- **The screens**: the entry form (Add entry and the Fuel quick action are the same form) shows Paid by for an expense
+  only, opening on "The business"; choosing a partner says "No business cash leaves: {partner}'s account is credited
+  with it…". The form is mounted fresh on every open, so a partner chosen and cancelled is never the next entry's payer
+  (tested). The ledger row says "Paid by {partner}", and its detail too.
+- **Data check** (`scripts/check-data.sh`): 28 and 28.6 count `EXPENSE_PAID` as money in / untied money; new 28.3 (an
+  `EXPENSE_PAID` credit no standing expense matches — missing row, an undo, not money out, another payer, other pounds,
+  or standing while its expense is undone / undone while its expense stands), 28.4 (an expense paid by a partner with no
+  credit), 28.5 (an undo naming another payer than its expense).
+
+| Question | Guess built | Why |
+|---|---|---|
+| What the credit is | A new movement kind `EXPENSE_PAID` linked to its ledger row (`expense_entry_id`), not a ledger category and not an advance. The ledger row stays the expense; the movement is only "the business owes him this". | CLAUDE.md §11: what it is NOT — not cash, not a contribution, not income. An advance paid a supplier for a cycle's goods; this is a cost the business had. |
+| Which pot it is in | **Untied money**, whatever the expense was charged to: he may take it out or leave it in to fund any cycle. Written with no cycle. | "He withdraws it or leaves it in for a contribution." |
+| How a reversal shows | The movement stays, marked reversed with the expense's reversal reason (as every account reversal), and the ledger keeps the expense and its undo, both naming him. | §9: history is never rewritten. |
+| Reversing after he took the money out (or drew it into a contribution) | **Refused**, `EXPENSE_CREDIT_ALREADY_TAKEN`, naming what was credited and what his account still holds untied. Undo the withdrawal or the contribution first, then the expense. Nothing is written. | An account never goes negative (owner 2026-10-25). |
+| Who can be the payer | **Active core partners only.** An investor never: he is not one of "the partners", and his money is his investment in one cycle, not a running account (§8: "who an account is"). A partner who has left: refused (GUESS). | Owner: "one of the partners". |
+| Recording for another partner | Any core partner may record an expense paid by any other; the named partner is credited, never the one typing it. | As for advances (§8: one person keeps the books). |
+| A cycle in Settlement, or Closed | As for any manual expense: a cycle in **Settlement** still takes the late cost, and his credit is written (it is untied, so the funding lock does not apply); **Closed or Cancelled** refuses it (`LEDGER_CYCLE_NOT_OPEN`), and reversing an expense on a cycle that has since closed is refused — his credit then stands. | §9 L6: only cancelled and closed are shut. |
+| A running cost paid by him | The same shares as if the business paid it (fixed over the partners of its day), taken from payouts as always. He is credited the whole amount and owes his own share through his payout, like the others. | "A running cost shared from payouts, as today." |
+| Doing it twice | Two expenses are two credits. Reversing twice, or twice at once, undoes the credit once: the second is `ENTRY_ALREADY_REVERSED` (re-read under the account lock). | The second-time bug. |
+| The currency | The credit is the expense's pounds (`amount_egp`); what he paid, if not pounds, is kept beside it as on the ledger row. | One figure for the balance. |
+| Arabic | The new strings ("دفعه", "النشاط", the hint and the refusals) are the agent's wording, for the owner to correct. | — |
+| OPEN | `AnalyticsService.getCycleProfitability`'s `investment` (what a cycle "consumed in cash") sums a cycle's money-out rows without netting an undone pair — for a business-paid expense too (found while testing this; not changed here). | Out of this feature's scope. |
 
 ## 10. Notifications
 
@@ -2830,8 +3013,9 @@ dashboard tiles' icon badge, in the dashboard's colour where it shows the same f
 dashboard"); on a phone the badge sits above the label, as on the dashboard.
 - **Products and Inventory:** the same two cards — *Products*, the active products (the dashboard's Products count,
   GUESS: active only), and *Units in stock*, every batch's remaining quantity summed (the dashboard's Units in stock).
-  `GET /analytics/stock-summary`; both read the dashboard's own definitions (`productCount`, `unitsOnShelf` in
-  `analytics.service.ts`). A count of 0 is shown, not hidden.
+  `GET /analytics/stock-summary`; both read the dashboard's own definitions (`productCount` in `analytics.service.ts`,
+  `unitsOnShelf` in `common/repositories/units-on-shelf.ts` since 2026-10-28). A count of 0 is shown, not hidden.
+  **Products: superseded 2026-10-28** — its cards follow its filters (below); Inventory keeps these.
 - **Customers:** *Customers*, every customer but the shared walk-in record (the dashboard's count), and *Paid the
   most*, the customer whose payments standing (a reversed one paid nothing) add up highest, all time, opening that
   customer; ties by name (GUESS). Nobody has paid: the count alone. `GET /analytics/customer-summary`.
@@ -2841,6 +3025,36 @@ dashboard"); on a phone the badge sits above the label, as on the dashboard.
 - All three endpoints: core partners and support, as the rest of Analytics.
 - **The ledger's By column:** who recorded each row — the partner's name, else the login's email; "—" for a row from
   before anyone was recorded. In the CSV export too.
+
+**The Products tab's cards follow its filters — owner 2026-10-28 ("in products tab above the table we need cards
+that responds to filter, so when filter by category, it shows number of products in that category, and total number of
+units as well"); built 2026-10-28 on `feature/product-cards-filters`, merged into `dev` (not yet in production); the choices below GUESSED.**
+- **What they count:** *Products*, how many products the table's search, category and status match — the table's own
+  total; *Units in stock*, the units those products hold on the shelf. Worked out by the server for the whole filtered
+  set, never added up from the page on screen (LEARNINGS). Changing page changes neither figure.
+- **One filter, one definition** (rule 11): `GET /products/summary?search=&categoryId=&status=` reads the same `where` as
+  `GET /products` (`productListWhere`, `apps/api/src/modules/products/product-list-where.ts`), so the cards and the
+  table cannot count different products; a value the table refuses, the cards refuse with the same code
+  (`LIST_FILTER_INVALID`, `VALIDATION_FAILED`, `LIST_SEARCH_TOO_LONG`). The web app sends the table's own parameters,
+  less its page and order.
+- **Units in stock** is the one definition the dashboard and the Inventory card read (`unitsOnShelf`,
+  `apps/api/src/common/repositories/units-on-shelf.ts`): each batch's remaining quantity, summed, across every cycle the product
+  arrived in. **GUESS (as the existing card and Inventory's on-shelf figure):** a sample out at a shop has left the
+  shelf and is **not** counted; a unit held for a customer is still on the shelf and **is** counted (nothing holds
+  stock today, §3).
+- **Category** is that category alone; its subcategories' products are not included — as the table has filtered since
+  it moved to the server (2026-10-25). **GUESS:** kept as the table does; if a parent category should take in its
+  children, both change together through `productListWhere`.
+- **Status:** the cards follow the table's status filter, which opens on Active — so on first open *Products* is the
+  dashboard's active count, as before. With *Inactive* or *All*, an inactive product and its units on the shelf are
+  counted (**GUESS:** the table lists them, so the cards count what it lists).
+- **Nothing matches:** both cards say 0 (shown, not hidden).
+- **Loading and the second visit:** skeleton cards while the figures load. The cards are keyed by the filters alone:
+  another filter shows skeletons until its own figures arrive — never the last filter's under the new one; coming back
+  to a filter shows its figures and reads them again; a change to any product refreshes them with the table.
+- **Wording (GUESS, the agent's):** "match the search and filters" / «تطابق البحث والتصفية» under Products, "held by
+  these on the shelf" / «لدى هذه المنتجات على الرف» under Units in stock.
+- **Who:** core partners and support, as the Inventory card (`ROLE_NOT_ALLOWED` otherwise) — stock is the office's.
 
 **Profit and loss on Analytics — DECIDED 2026-10-18 (owner, mockup approved), dates GUESSED from how the
 dashboard already counts.** "A proper place to see total net profit, with time, and with expenses and sales as
@@ -2904,6 +3118,38 @@ day, week or month buckets). `GET /analytics/profit-and-loss?from=&to=`
   - **Cash paid out — added 2026-10-23 (owner), when it left the dashboard.** Under "How it adds up", apart
     from its lines: the money out of the ledger in the period, stock bought included — not a cost and not in
     net profit (`cashOutEgp`, `common/cash-position.ts`). It costs two queries, so a period is fifteen.
+- **What made a bar — DECIDED 2026-10-28 (owner: "in the Profit and loss analytics chart, maybe clicking on a day
+  or a month should open a popup or show me the details of loss"), built 2026-10-28 on `feature/pnl-drilldown`,
+  merged into `dev` (not yet in production), details GUESSED.** Clicking a bar of the chart — a day, a week or a month — opens a popup of that
+  bar's figures broken down, so a loss can be traced to the lines that made it. On a phone, an opened week's days
+  are each a button to their own breakdown, and "What made this week" opens the week's.
+  - **One definition** (rule 11): `GET /analytics/profit-and-loss/breakdown?from=&to=` reads the bar's days with
+    `profitParts` — the very parts the chart's buckets add up — and groups them by the record each came from
+    (`profit-breakdown.ts`). Its totals are `figuresOf` those parts, the bar's own arithmetic, so Sales, Gross
+    profit, Expenses and Net profit equal the bar's to the piastre, and each list's total equals its line.
+    `profitParts` now carries, on each itemised part, the record it was read from; the dashboard's summed reading
+    is unchanged. A part the grouping does not recognise throws rather than drop out of the popup.
+  - **The lists:** revenue and cost of goods **by order** (sold in the period, returns and price cuts in the
+    period as their own figures with their days, cost of goods less the cost a return put back, gross profit);
+    **every expense** (a ledger row with its category, note, Paid by — a partner, or "the business" — and its
+    cycle; goods lost on the way with the product, quantity, leg and cycle; samples written off, one row per
+    samples order); **the exchange difference by repayment** (the friend, the pounds paid, the rate, the cycle and
+    the purchase order); **refunds recovered and other income** by ledger row. A list with nothing in the period is
+    not shown. Each row links: an order to `/sales?order=`, an expense or other line to `/ledger?entry=` (new: the
+    ledger opens the entry a link names, fetched on its own, and forgets the link when closed), a cycle to its page.
+  - **Which day:** the rules above, unchanged — so a return or a price cut on a later day than its sale counts
+    on its own day, under its order, with no sale figure that day; the sale's day keeps the whole sale.
+  - **Asked by period** (validated on the server): both days required (`PNL_BREAKDOWN_NEEDS_PERIOD`), real days
+    (`BAD_DATE`), in order (`DATE_RANGE_REVERSED`), not starting after today (`PERIOD_NOT_STARTED`), at most 31
+    days — a month, the widest bar (`PNL_BREAKDOWN_TOO_LONG`, GUESS). A `to` after today is **not** cut to today
+    (unlike the chart's period): all time's last bar may run on to a row dated forward, and the popup must equal it.
+    Core partners and support only, as the rest of Analytics (`ROLE_NOT_ALLOWED` otherwise).
+  - **Paged by the server**, each list on its own (`section`, `page`, `pageSize`, the same refusals as every office
+    list: `LIST_PAGE_INVALID`, `LIST_PAGE_SIZE_INVALID`, `LIST_FILTER_INVALID`); 25 rows a page (GUESS); "Show more"
+    asks for the next page of that list. A list's total is of all its rows, never the rows on screen added up.
+  - GUESSED: orders are listed **worst gross profit first** (the popup is for finding a loss), expenses, exchange
+    and other lines largest first; ties by day then id. An order's day in the list is the first day it touched the
+    period. Empty period: "Nothing was recorded in this period." A skeleton while it loads.
 
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
@@ -3083,6 +3329,10 @@ can show two dates. Still the last leg, never the first.
 
 `PURCHASING -> IN_TRANSIT` and `PURCHASING -> ARRIVED_UAE` both mean the goods
 are moving, so the order was placed in the world and can no longer gain lines.
+*Since 2026-10-27 (§1, Preparing) the way on from PURCHASING is `PURCHASING ->
+PREPARING`: the order is placed and being prepared. A cycle sent back from
+PREPARING keeps its orders confirmed; leaving again confirms only drafts added
+since.*
 `PURCHASING -> CANCELLED` confirms nothing: a cycle that was abandoned never
 ordered anything.
 

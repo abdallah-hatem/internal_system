@@ -67,6 +67,19 @@ describe('the balance', () => {
     ).toBe('483.33');
   });
 
+  it('an expense he paid (§9 "Paid by") adds, as untied money any cycle can draw or he can take out; reversed, nothing', () => {
+    const rows = [
+      { kind: 'EXPENSE_PAID', amountEgp: 300, reversedAt: null },
+      { kind: 'EXPENSE_PAID', amountEgp: 80, reversedAt: new Date() },
+      { kind: 'WITHDRAWAL', amountEgp: 100, reversedAt: null },
+    ];
+    expect(balanceOf(rows).toFixed(2)).toBe('200.00');
+    const pots = potsOf(rows);
+    expect(pots.untied.toFixed(2)).toBe('200.00');
+    expect(pots.byCycle.size).toBe(0);
+    expect(availableTo(pots, 'any-cycle').toFixed(2)).toBe('200.00');
+  });
+
   it('refuses taking more than it holds, naming what is short', () => {
     let err: HttpException | undefined;
     try {

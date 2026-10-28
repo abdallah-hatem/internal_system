@@ -227,7 +227,7 @@ test.describe('Change status offers the fix for the leg it names', () => {
   // L3 (§1, 2026-10-11): the departure recorded from the refusal moves the
   // cycle on by itself, so there is nothing left to try again.
   test('TC-I3-05: Purchasing → In transit refused (leg 1 not departed): record the departure from the refusal — the cycle moves by itself', async ({ page, request }) => {
-    const { headers, cycle, legs } = await cycleWithLegs(request, 'CHINA', { status: ['FUNDING', 'PURCHASING'] });
+    const { headers, cycle, legs } = await cycleWithLegs(request, 'CHINA', { status: ['FUNDING', 'PURCHASING', 'PREPARING'] });
     await login(page);
     await openCycle(page, cycle.code, cycle.id);
 
@@ -254,7 +254,7 @@ test.describe('Change status offers the fix for the leg it names', () => {
   });
 
   test('TC-I3-06: In transit → Arrived UAE refused (nothing delivered): cancel the fix, the refusal is still there; record the delivery — the cycle moves by itself', async ({ page, request }) => {
-    const { headers, cycle, legs } = await cycleWithLegs(request, 'CHINA', { departed: [1], status: ['FUNDING', 'PURCHASING', 'IN_TRANSIT'] });
+    const { headers, cycle, legs } = await cycleWithLegs(request, 'CHINA', { departed: [1], status: ['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT'] });
     await login(page);
     await openCycle(page, cycle.code, cycle.id);
 
@@ -285,7 +285,7 @@ test.describe('Change status offers the fix for the leg it names', () => {
   });
 
   test('TC-I3-07: closing the status dialog clears it — reopening shows the choices with no old refusal', async ({ page, request }) => {
-    const { cycle } = await cycleWithLegs(request, 'CHINA', { status: ['FUNDING', 'PURCHASING'] });
+    const { cycle } = await cycleWithLegs(request, 'CHINA', { status: ['FUNDING', 'PURCHASING', 'PREPARING'] });
     await login(page);
     await openCycle(page, cycle.code, cycle.id);
     await page.getByTestId('change-status').click();
@@ -300,7 +300,7 @@ test.describe('Change status offers the fix for the leg it names', () => {
   });
 
   test('TC-I3-08: the refusal names the leg by id and by route — the id is what the fix opens', async ({ request }) => {
-    const { headers, cycle, legs } = await cycleWithLegs(request, 'CHINA', { status: ['FUNDING', 'PURCHASING'] });
+    const { headers, cycle, legs } = await cycleWithLegs(request, 'CHINA', { status: ['FUNDING', 'PURCHASING', 'PREPARING'] });
     const r = await request.post(`${API}/cycles/${cycle.id}/transition`, { headers, data: { status: 'IN_TRANSIT' } });
     const err = (await r.json()).error;
     expect(err.code).toBe('LEG_NOT_DEPARTED');
@@ -323,7 +323,7 @@ test.describe('Where the goods are', () => {
 
   test('TC-I3-10: delivered to Egypt, partly checked in, partly sold, some lost — Lost appears, In Egypt names what waits, every product adds up', async ({ page, request }) => {
     const { headers, mk, cycle, legs, padItem, chainItem } = await cycleWithLegs(request, 'UAE_DIRECT', {
-      departed: [1], status: ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT'],
+      departed: [1], status: ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT'],
     });
     const delivery = await mk(`shipping/legs/${legs[0].id}/deliveries`, {
       arrivedOn: daysAgo(5),
@@ -420,7 +420,7 @@ test.describe('I3 review screenshots', () => {
     test(`TC-I3-SHOT (${locale}): the cards, the shipping card actions, both dialogs, the refusal fix — desktop and phone`, async ({ page, request }) => {
       const m = messages(locale);
       const { mk, cycle, legs, padItem, chainItem } = await cycleWithLegs(request, 'CHINA', {
-        departed: [1], status: ['FUNDING', 'PURCHASING', 'IN_TRANSIT'],
+        departed: [1], status: ['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT'],
       });
       await mk(`shipping/legs/${legs[0].id}/deliveries`, {
         arrivedOn: daysAgo(8),

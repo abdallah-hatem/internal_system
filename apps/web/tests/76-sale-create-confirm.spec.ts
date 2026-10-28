@@ -18,6 +18,7 @@ import { API, EMAIL, PASSWORD, apiCtx, investorSession, stockedProduct } from '.
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
 import { WEB as BASE } from './support/env';
+import { showAllSales } from './support/ui';
 
 type Messages = typeof en;
 
@@ -287,6 +288,8 @@ test.describe('Create & confirm (BUSINESS_LOGIC §4)', () => {
     await form.getByRole('button', { name: en.sales.saveDraft }).click();
     await expect(form).toBeHidden();
 
+    // Sales opens on Confirmed + Partially paid (owner 2026-10-28): a draft is under All.
+    await showAllSales(page);
     await page.getByPlaceholder(en.sales.search).fill(customer.displayName);
     const row = page.getByTestId('sale-row').filter({ hasText: customer.displayName });
     await expect(row).toHaveCount(1);
@@ -363,7 +366,7 @@ test.describe('Create & confirm (BUSINESS_LOGIC §4)', () => {
 });
 
 test.describe('The sales list', () => {
-  test('TC-CC-11: the first chip reads All; a click anywhere on a row opens the order', async ({ page, request }) => {
+  test('TC-CC-11: the first chip reads All, chosen once clicked; a click anywhere on a row opens the order', async ({ page, request }) => {
     const { mk, customer, product } = await shopAndStock(request, 'CC11', 10);
     const order = await mk('sales/orders', {
       customerId: customer.id,
@@ -373,10 +376,13 @@ test.describe('The sales list', () => {
     });
     await login(page);
     await openSales(page);
-    await expect(page.getByRole('button', { name: en.sales.all, exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    // Since 2026-10-28 Sales opens on Confirmed + Partially paid, not All
+    // (BUSINESS_LOGIC §3); All is still the first chip, and a click chooses it.
+    const chips = page.getByRole('main').locator('button[aria-pressed]');
+    await expect(chips.first()).toHaveText(en.sales.all);
+    await expect(page.getByRole('button', { name: en.sales.owing, exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: en.sales.all, exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await showAllSales(page);
 
     await page.getByPlaceholder(en.sales.search).fill(order.orderNo);
     // The date cell, nowhere near the View button.
@@ -395,6 +401,7 @@ test.describe('The sales list', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page);
     await openSales(page);
+    await showAllSales(page);
     await page.getByPlaceholder(en.sales.search).fill(order.orderNo);
     const card = page.getByTestId('sale-card').filter({ hasText: order.orderNo });
     await card.focus();

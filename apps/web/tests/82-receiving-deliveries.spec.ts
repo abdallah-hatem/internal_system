@@ -86,8 +86,8 @@ async function deliver(request: APIRequestContext, headers: Headers, legId: stri
 /** Walk the cycle to Arrived Egypt — possible once the last leg has a delivery. */
 async function toArrivedEgypt(mk: any, cycle: { id: string }, route: 'UAE_DIRECT' | 'CHINA' = 'UAE_DIRECT') {
   const walk = route === 'CHINA'
-    ? ['FUNDING', 'PURCHASING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']
-    : ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT'];
+    ? ['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']
+    : ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT'];
   for (const status of walk) await mk(`cycles/${cycle.id}/transition`, { status });
 }
 

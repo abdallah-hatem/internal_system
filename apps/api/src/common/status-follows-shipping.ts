@@ -1,3 +1,4 @@
+import { BEFORE_SHIPPING } from './cycle-statuses';
 import { expectedLegs } from './cycle-routes';
 
 /**
@@ -13,6 +14,8 @@ import { expectedLegs } from './cycle-routes';
  *
  * What proves what is §1's step-requires table, read the other way round:
  *
+ *   (Preparing  the orders are confirmed and nothing has left; every walk
+ *               that starts before it passes through it, 2026-10-27)
  *   China       leg 1 departed     → In transit
  *               leg 1 delivered    → Arrived UAE
  *               leg 2 departed     → In transit to Egypt
@@ -35,21 +38,22 @@ export interface FollowLeg {
   deliveries: number;
 }
 
-/** The statuses a cycle passes through on its way to Egypt, in order. */
+/**
+ * The statuses a cycle passes through on its way to Egypt, in order: the ones
+ * before shipping (`BEFORE_SHIPPING`, ending at Preparing since 2026-10-27),
+ * then the shipment's own steps. A departure on a cycle still in Purchasing
+ * walks it through Preparing, the step that confirms its orders (§15).
+ */
 export function forwardPath(originType: string): string[] {
   return originType === 'UAE_DIRECT'
     ? [
-        'PLANNING',
-        'FUNDING',
-        'PURCHASING',
+        ...BEFORE_SHIPPING,
         'ARRIVED_UAE',
         'IN_TRANSIT_TO_EGYPT',
         'ARRIVED_EGYPT',
       ]
     : [
-        'PLANNING',
-        'FUNDING',
-        'PURCHASING',
+        ...BEFORE_SHIPPING,
         'IN_TRANSIT',
         'ARRIVED_UAE',
         'IN_TRANSIT_TO_EGYPT',

@@ -24,6 +24,7 @@ import { allLedgerRows, apiCtx, API, daysAgo, Mk } from './support/fixtures';
 const UAE_ROUTE = [
   'FUNDING',
   'PURCHASING',
+  'PREPARING',
   'ARRIVED_UAE',
   'IN_TRANSIT_TO_EGYPT',
   'ARRIVED_EGYPT',
@@ -374,6 +375,7 @@ test.describe('A cycle taken out of order', () => {
 
     await mk(`cycles/${cycle.id}/transition`, { status: 'FUNDING' });
     await mk(`cycles/${cycle.id}/transition`, { status: 'PURCHASING' });
+    await mk(`cycles/${cycle.id}/transition`, { status: 'PREPARING' });
 
     // ARRIVED_UAE is deliberately ungated on this route: a UAE-direct cycle's
     // goods are already sitting in the UAE, so nothing has to have moved. The
