@@ -29,7 +29,7 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
   (§8, OPEN); the Rules Review answers; the small UAE costs for CYC-2026-0001.
 State of the product and of production's data: `docs/where-things-stand.md`.
 
-## Built on `feature/partial-sample-return` (cut from `dev` at `7d6dab9`) — not merged; no migration
+## Built on `feature/partial-sample-return` (cut from `dev` at `7d6dab9`), merged into `dev` 2026-10-28 (owner: "start all four, each in its own branch, then merge to dev") — no migration
 - 2026-10-28 — **Return some samples, not all** (owner 2026-10-28: "I should be able to pick which sample a shop
   returned"; was Next up). BUSINESS_LOGIC §4 "Return some samples, not all", its GUESSes there. **E2e written, not
   run** (owner: not for now): `tests/107-partial-sample-return.spec.ts` (TC-PSR-01…04), TC-INV-93 in
