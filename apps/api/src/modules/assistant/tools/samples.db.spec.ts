@@ -27,7 +27,7 @@ import type { AssistantUser } from '../tool-kit';
  *
  * Beyond the happy path (CLAUDE.md §0): more than in stock, zero and negative
  * quantities, a walk-in and no shop, deciding twice, a token used twice,
- * returning more (or less) than was left, buying more than the shelf has, an
+ * returning more than was left (or part of it, since 2026-10-28), buying more than the shelf has, an
  * order that does not exist, an order that is not samples, and the roles the
  * office endpoints refuse.
  *
@@ -554,7 +554,7 @@ suite('assistant samples tools against Postgres', () => {
     expect(codeOf(r)).toBe('SAMPLES_RETURN_MORE_THAN_OUT');
   });
 
-  it('a product that never went out "came back" → SAMPLES_RETURN_MORE_THAN_OUT', async () => {
+  it('a product that never went out "came back" → SAMPLES_RETURN_PRODUCT_NOT_OUT', async () => {
     const { call, order } = await leftWith(4);
     const { product: other } = await stocked(
       5,
@@ -565,8 +565,11 @@ suite('assistant samples tools against Postgres', () => {
       order: order.orderNo,
       returned: [{ product: other.name, qty: 1 }],
     });
-    expect(codeOf(r)).toBe('SAMPLES_RETURN_MORE_THAN_OUT');
-    expect(r.s.error?.params).toMatchObject({ out: '0', returned: '1' });
+    expect(codeOf(r)).toBe('SAMPLES_RETURN_PRODUCT_NOT_OUT');
+    expect(r.s.error?.params).toMatchObject({
+      order: order.orderNo,
+      product: other.name,
+    });
   });
 
   it('a close name for what came back is a question, never assumed', async () => {
@@ -581,14 +584,67 @@ suite('assistant samples tools against Postgres', () => {
     expect(await shelf(batch.id)).toBe(6);
   });
 
-  it('only part came back → SAMPLES_RETURN_NOT_ALL (that is a sale of the rest), nothing moved', async () => {
+  it('only part came back (owner 2026-10-28): the preview says what comes back and what stays and writes nothing; the commit is the office\'s partial "Returned"', async () => {
     const { call, batch, product, order } = await leftWith(4);
-    const r = await call('return_samples', {
+    const shown = await call('return_samples', {
       order: order.orderNo,
       returned: [{ product: product.name, qty: 3 }],
     });
-    expect(codeOf(r)).toBe('SAMPLES_RETURN_NOT_ALL');
+    expect(shown.s.status).toBe('preview');
+    const preview = shown.s.data as {
+      statusAfter: string;
+      returned: { qty: string }[];
+      stays: { qty: string }[];
+    };
+    expect(preview.statusAfter).toBe('SAMPLES');
+    expect(preview.returned.map((l) => l.qty)).toEqual(['3']);
+    expect(preview.stays.map((l) => l.qty)).toEqual(['1']);
+    expect(shown.text).toMatch(/Still at the shop/);
     expect(await shelf(batch.id)).toBe(6);
+
+    const done = await call('return_samples', {
+      order: order.orderNo,
+      returned: [{ product: product.name, qty: 3 }],
+      confirmationToken: shown.s.confirmationToken,
+    });
+    expect(done.s.status).toBe('committed');
+    expect(done.s.data.status).toBe('SAMPLES');
+    expect(await shelf(batch.id)).toBe(9);
+    const open = await prisma.saleOrder.findUniqueOrThrow({
+      where: { id: order.orderId },
+      include: { items: true },
+    });
+    expect(open.status).toBe('SAMPLES');
+    expect(open.items.map((i) => Number(i.quantity))).toEqual([1]);
+
+    // The last one, named: the order ends returned.
+    const { done: last } = await previewAndCommit(call, 'return_samples', {
+      order: order.orderNo,
+      returned: [{ product: product.name, qty: 1 }],
+    });
+    expect(last.s.data.status).toBe('SAMPLES_RETURNED');
+    expect(await shelf(batch.id)).toBe(10);
+  });
+
+  it('a partial preview taken before another return elsewhere cannot be committed after (PREVIEW_CHANGED)', async () => {
+    const { call, batch, product, order } = await leftWith(4);
+    const args = {
+      order: order.orderNo,
+      returned: [{ product: product.name, qty: 1 }],
+    };
+    const shown = await call('return_samples', args);
+    // The office returns two meanwhile.
+    await (registry.get(SalesService) as SalesService).returnSamples(
+      order.orderId as string,
+      users.get('CORE_PARTNER')!.id,
+      { lines: [{ productId: product.id, quantity: 2 }] },
+    );
+    const r = await call('return_samples', {
+      ...args,
+      confirmationToken: shown.s.confirmationToken,
+    });
+    expect(codeOf(r)).toBe('PREVIEW_CHANGED');
+    expect(await shelf(batch.id)).toBe(8);
   });
 
   it.each([0, -1])(

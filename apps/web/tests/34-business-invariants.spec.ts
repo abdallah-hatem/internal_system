@@ -2461,6 +2461,39 @@ test.describe('Samples are not on the shelf and not sold (§4, samples at shops,
     expect(await errCode(pay)).toBe('CYCLE_HAS_SAMPLES_OUT');
     expect((await settlement(request, c.headers, draft.id)).status).toBe('APPROVED');
   });
+
+  // Return some samples, not all (§4, owner 2026-10-28). Written, not run.
+  test('TC-INV-93: part of the samples back — shelf + at shops + sold = received throughout; never more than is out; the gate holds until the rest are decided', async ({ request }) => {
+    const c = await shelfCycle(request, 'Inv Smp Part');
+    const samples = await c.leave(3);
+    const back = (quantity: number) =>
+      request.post(`${API}/sales/orders/${samples.id}/samples/return`, {
+        headers: c.headers, data: { lines: [{ productId: c.product.id, quantity }] },
+      });
+    let r = await back(4);
+    expect(r.status()).toBe(400);
+    expect(await errCode(r)).toBe('SAMPLES_RETURN_MORE_THAN_OUT');
+    r = await back(0);
+    expect(await errCode(r)).toBe('QTY_NOT_POSITIVE');
+    expect(await c.stock()).toEqual({ shelf: 7, atShops: 3, all: 10 });
+
+    expect((await back(2)).ok()).toBeTruthy();
+    let s = await c.stock();
+    expect(s).toEqual({ shelf: 9, atShops: 1, all: 10 });
+    expect(s.shelf + s.atShops + c.sold()).toBe(10);
+    const t = await request.post(`${API}/cycles/${c.cycle.id}/transition`, { headers: c.headers, data: { status: 'SETTLEMENT' } });
+    expect(await errCode(t)).toBe('CYCLE_HAS_SAMPLES_OUT');
+
+    // The last one is bought: sold once, from the sample.
+    const buy = await request.post(`${API}/sales/orders/${samples.id}/samples/convert`, {
+      headers: c.headers, data: { items: [{ productId: c.product.id, quantity: 1, unitPrice: 50 }] },
+    });
+    expect(buy.ok(), await buy.text()).toBeTruthy();
+    s = await c.stock();
+    expect(s).toEqual({ shelf: 9, atShops: 0, all: 9 });
+    expect(c.sold()).toBe(1);
+    expect(s.shelf + s.atShops + c.sold()).toBe(10);
+  });
 });
 
 test.describe('Funding stops changing once the split is agreed (§8, owner 2026-10-18)', () => {

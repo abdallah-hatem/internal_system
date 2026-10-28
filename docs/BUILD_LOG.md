@@ -29,6 +29,37 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
   (§8, OPEN); the Rules Review answers; the small UAE costs for CYC-2026-0001.
 State of the product and of production's data: `docs/where-things-stand.md`.
 
+## Built on `feature/partial-sample-return` (cut from `dev` at `7d6dab9`) — not merged; no migration
+- 2026-10-28 — **Return some samples, not all** (owner 2026-10-28: "I should be able to pick which sample a shop
+  returned"; was Next up). BUSINESS_LOGIC §4 "Return some samples, not all", its GUESSes there. **E2e written, not
+  run** (owner: not for now): `tests/107-partial-sample-return.spec.ts` (TC-PSR-01…04), TC-INV-93 in
+  `34-business-invariants`, TC-ASM-07 in `101-assistant-samples` rewritten for part returns.
+  - "Returned" on a samples order opens the products the shop holds on it, each at all its units; lower it or 0 for
+    what stays (`components/sales/return-samples-dialog.tsx`; the sales page's change is the samples panel's Returned
+    dialog only). Cancel forgets what was typed. `POST …/samples/return` takes `{ lines, customerId?, version? }`;
+    without lines it is the whole order as before.
+  - The chosen units go back to the batches they left, at their cost — `takeFromSamples`, `sampleBack` (SAMPLE_BACK),
+    `settleSamplesLeft`, the records the ORD-2026-00006 one-off (`7e33ddb`) made, with a `SAMPLES_PART_RETURNED`
+    audit row History already reads (the one-off logged `UPDATE`). Which units: `planSamplesReturn` (common/samples.ts),
+    built on `planSamplesConversion`. The rest stay samples on the same order (day left, reminder kept); nothing left
+    → SAMPLES_RETURNED as before.
+  - Refusals, en + ar: `SAMPLES_RETURN_NOTHING`, `SAMPLES_RETURN_PRODUCT_NOT_OUT` (new), `SAMPLES_RETURN_MORE_THAN_OUT`
+    (now the service's), `QTY_NOT_POSITIVE`, `SAMPLES_OTHER_SHOP`, `ORDER_VERSION_CONFLICT` (the version the screen
+    showed), `SAMPLES_ALREADY_DECIDED`; `SAMPLES_RETURN_NOT_ALL` removed. The office chat's `return_samples` takes the
+    same lines (its own quantity checks removed; the preview shows what comes back and what stays and binds both).
+  - Tests: `sales/samples-part-return.db.spec.ts` (17, real Postgres, stock via cycle → PO → leg → delivery →
+    verified receipt: some/all/none, twice, a stale version and two at once, then They're buying / Add to order the
+    rest, more than out, 0/negative, not a number, a product not on the order, decided orders, another shop, a
+    branch, stock, the gate, each batch at its cost, History), `common/samples.spec.ts` (+5, `planSamplesReturn`),
+    `assistant/tools/samples.db.spec.ts` (part return through the tool, PREVIEW_CHANGED, the new not-out code),
+    `components/sales/return-samples-dialog.test.tsx` (11: default all, some, none, the range, the second visit,
+    a refusal, the toast, Arabic). Each broken and seen to fail.
+  - Totals at the commit: API `jest --runInBand` 138 suites / 2,752 tests, 2,751 passed — the one failure,
+    `ledger/expense-paid-by.db.spec` (a business-wide P&L category comparison), passes alone on a fresh database (15/15)
+    and failed only on a database reused across many runs; `node --test unit` 128/128; `scripts/check-data.sh` on a
+    fresh agent database: 79 checks, all zero. Web `vitest`: the two samples files 26/26; the whole web run was not
+    finished at the commit.
+
 ## Shipped 2026-10-27 (evening) — was on `dev`
 - 2026-10-27 — built on `agent-funding` (no migration), Next-up (1) and (3), **e2e written, not run** (owner:
   unit and database tests only for now):
@@ -405,12 +436,6 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   sum paged data in the browser). The list endpoint returns the totals beside its page (or one summary endpoint taking the
   same filters); skeletons while they load; tests for a category filter, search, an empty result, and paging not
   changing the totals.
-- Next (2026-10-28, owner: "I should be able to pick which sample a shop returned"): **Return some samples, not all** —
-  "Returned" on a samples order opens the products the shop holds on it, each with a quantity (default all; lower it
-  or 0 for what stays). The chosen units go back to the batches they left at their cost; the rest stay samples on the
-  same order (left day and reminder kept); nothing left → the order ends SAMPLES_RETURNED as today. The office chat's
-  return_samples takes the same lines. Server refuses more than is out, 0/negative, a product not on the order, and a
-  decided order. No migration. Tests: some/all/none, twice, then buying the rest, stock and the settlement gate after.
 - **Built 2026-10-27 on `feature/picker-category`, merged into `dev`** (owner: "start both and paid by … each one in its own branch then merge each one to dev"): **New Order's product picker shows each product's category** beside its name, in the reader's language, and the search matches it in either language (BUSINESS_LOGIC §4). No API change — the product list already carried the category. Tests: `SaleOrderForm.test.tsx` (3: beside the name and absent without one, Arabic, search in both languages), each seen to fail with the old label. No migration.
 - (1) and (3) **live 2026-10-27 (evening)**.
 - (2) **Live 2026-10-27 (evening)** (migration `20261027120000_samples_into_order` applied). Was: built 2026-10-27, merged into `dev` at the owner's word ("merge samples into dev and push"); production needed the migration first; migration `20261027120000_samples_into_order`; e2e written, not run; its guesses in that branch's BUSINESS_LOGIC §4).** (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current

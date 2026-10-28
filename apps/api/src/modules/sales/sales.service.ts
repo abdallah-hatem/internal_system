@@ -69,6 +69,7 @@ import {
   isSamplesStatus,
   planSampleLines,
   planSamplesConversion,
+  planSamplesReturn,
   type SaleLineSource,
   type SampleDraw,
   SAMPLES_BOUGHT_STATUS,
@@ -168,6 +169,18 @@ export interface SamplesConversionInput {
    * as before. Left out, nothing stays.
    */
   keepAsSample?: string[];
+}
+
+/**
+ * "Returned" (§4, samples at shops). Left out, or without `lines`, every unit
+ * comes back. `lines` (owner 2026-10-28): the units that came back, per
+ * product; the rest stay samples. `customerId` and `version` are what the
+ * screen showed: another shop's order, or one changed since, is refused.
+ */
+export interface SamplesReturnInput {
+  lines?: { productId: string; quantity: number | string }[];
+  customerId?: string | null;
+  version?: number;
 }
 
 /** What the price check is asked: the lines as they stand on a form. */
@@ -328,6 +341,58 @@ function saleLines(items: CreateSaleOrderInput['items']) {
 
 const refuseShape = (field: string, message: string) =>
   badRequest('VALIDATION_FAILED', message, { fields: field });
+
+/** A "Returned" body, its shape checked; amounts are checked against the order. */
+function returnShape(body: SamplesReturnInput | undefined) {
+  const version: unknown = body?.version;
+  if (
+    version !== undefined &&
+    version !== null &&
+    !(typeof version === 'number' && Number.isInteger(version))
+  ) {
+    throw refuseShape('version', 'version must be a whole number.');
+  }
+  const customerId: unknown = body?.customerId;
+  if (
+    customerId !== undefined &&
+    customerId !== null &&
+    typeof customerId !== 'string'
+  ) {
+    throw refuseShape('customerId', 'customerId must be a customer id.');
+  }
+  const raw: unknown = body?.lines;
+  const asked = {
+    version: typeof version === 'number' ? version : undefined,
+    customerId: customerId || undefined,
+  };
+  if (raw === undefined || raw === null) return { ...asked, lines: undefined };
+  if (!Array.isArray(raw)) {
+    throw refuseShape('lines', 'lines must be the products that came back.');
+  }
+  if (raw.length === 0) {
+    throw badRequest(
+      'SAMPLES_RETURN_NOTHING',
+      'Nothing is coming back. Give at least one product and how many of it came back.',
+    );
+  }
+  const lines = (raw as unknown[]).map((line) => {
+    const l = line as { productId?: unknown; quantity?: unknown } | null;
+    if (typeof l?.productId !== 'string' || !isUuid(l.productId)) {
+      throw refuseShape('lines.productId', 'Each line needs a product id.');
+    }
+    const q = l.quantity;
+    const quantity =
+      (typeof q === 'number' && Number.isFinite(q)) ||
+      (typeof q === 'string' && /^-?\d+(\.\d+)?$/.test(q.trim()))
+        ? new Prisma.Decimal(q.toString().trim())
+        : null;
+    if (!quantity) {
+      throw refuseShape('lines.quantity', 'Each line needs a quantity.');
+    }
+    return { productId: l.productId, quantity };
+  });
+  return { ...asked, lines };
+}
 
 /**
  * A samples order as a screen reads it (§4, samples at shops): how many units
@@ -2079,18 +2144,32 @@ export class SalesService {
    * recorded once: two clicks, two partners, or a decision after a return
    * all meet the status check of an update that only one of them wins.
    */
-  private async claimOpenSamples(tx: Db, id: string) {
+  private async claimOpenSamples(tx: Db, id: string, version?: number) {
     if (!isUuid(id)) throw notFound('saleOrder');
     // The claim comes first: its row lock makes a second decision wait for
     // this one, and the read after it sees what the first one left — a sale
     // that took some of the units leaves the order open (§4, owner
     // 2026-10-27), so the status alone would not stop a stale read.
+    // With the version the caller saw, an order changed since — a part
+    // returned or bought meanwhile, or the same click twice — is refused
+    // rather than decided again on what is no longer there.
     const claimed = await tx.saleOrder.updateMany({
-      where: { id, status: SAMPLES_OPEN_STATUS },
+      where: {
+        id,
+        status: SAMPLES_OPEN_STATUS,
+        ...(version !== undefined ? { version } : {}),
+      },
       data: { version: { increment: 1 } },
     });
     const order = await this.readOpenSamples(tx, id);
-    if (claimed.count === 0) throw notOpenSamples(order);
+    // The read refused an order no longer open; still open and not claimed,
+    // it is the version that moved on.
+    if (claimed.count === 0) {
+      throw conflict(
+        'ORDER_VERSION_CONFLICT',
+        `${order.orderNo} changed since it was opened.`,
+      );
+    }
     return order;
   }
 
@@ -2793,14 +2872,154 @@ export class SalesService {
     };
   }
 
-  /** "Returned": every sample back on the shelf (§4, samples at shops). */
-  async returnSamples(id: string, actorId: string) {
+  /**
+   * "Returned" (§4, samples at shops). Without `lines`, every sample comes
+   * back, as it always did (Cancel on samples, an older client).
+   *
+   * With `lines` (owner 2026-10-28, "Return some samples, not all"), only
+   * those units come back — each to the batch it left, at the cost it left
+   * at (`planSamplesReturn`: the oldest-received stay, as when the shop buys
+   * part) — and the rest stay samples on the same order, its day left and
+   * reminder unchanged. Every unit back → SAMPLES_RETURNED, as before.
+   *
+   * Refused, coded: lines that are not a list, or a line with no product id
+   * (`VALIDATION_FAILED`); no line (`SAMPLES_RETURN_NOTHING`); 0 or less
+   * (`QTY_NOT_POSITIVE`); a product the order holds none of
+   * (`SAMPLES_RETURN_PRODUCT_NOT_OUT`); more than is out, two lines of one
+   * product added together (`SAMPLES_RETURN_MORE_THAN_OUT`); another shop
+   * named (`SAMPLES_OTHER_SHOP`); the order changed since `version` was read
+   * (`ORDER_VERSION_CONFLICT`); decided already (`SAMPLES_ALREADY_DECIDED`).
+   */
+  async returnSamples(id: string, actorId: string, body?: SamplesReturnInput) {
+    const asked = returnShape(body);
     const outcome = await this.prisma.$transaction(async (tx) => {
-      const order = await this.claimOpenSamples(tx, id);
-      return this.returnAllWithin(tx, order, actorId, new Date());
+      const order = await this.claimOpenSamples(tx, id, asked.version);
+      if (asked.customerId && asked.customerId !== order.customerId) {
+        throw samplesOtherShop(order.orderNo, order.customer.displayName);
+      }
+      if (!asked.lines) {
+        return this.returnAllWithin(tx, order, actorId, new Date());
+      }
+      const plan = planSamplesReturn(
+        sampleDrawsOf(order),
+        await this.checkReturned(tx, order, asked.lines),
+      );
+      if (plan.all) {
+        return this.returnAllWithin(tx, order, actorId, new Date());
+      }
+      return this.returnPartWithin(tx, order, plan, actorId);
     });
     await this.audit.log(outcome.audit);
     return { data: { ...outcome.data, samples: samplesSummary(outcome.data) } };
+  }
+
+  /**
+   * The units a partial return names, per product, each checked against
+   * what the order holds now — the read taken under the claim, so a second
+   * return sees what the first one left.
+   */
+  private async checkReturned(
+    db: Db,
+    order: Awaited<ReturnType<SalesService['readOpenSamples']>>,
+    lines: { productId: string; quantity: Prisma.Decimal }[],
+  ) {
+    const out = new Map<string, Prisma.Decimal>();
+    for (const d of sampleDrawsOf(order)) {
+      out.set(
+        d.productId,
+        (out.get(d.productId) ?? new Prisma.Decimal(0)).add(d.qty),
+      );
+    }
+    const nameOf = async (productId: string) =>
+      order.items.find((i) => i.productId === productId)?.product.name ??
+      (
+        await db.product.findUnique({
+          where: { id: productId },
+          select: { name: true },
+        })
+      )?.name ??
+      'that product';
+    const back = new Map<string, Prisma.Decimal>();
+    for (const line of lines) {
+      if (!line.quantity.gt(0)) {
+        throw badRequest(
+          'QTY_NOT_POSITIVE',
+          `Invalid quantity for product ${line.productId}: must be greater than 0`,
+        );
+      }
+      if (!out.has(line.productId)) {
+        const product = await nameOf(line.productId);
+        throw badRequest(
+          'SAMPLES_RETURN_PRODUCT_NOT_OUT',
+          `${order.orderNo} holds no ${product} as a sample, so none can come back.`,
+          { order: order.orderNo, product },
+        );
+      }
+      back.set(
+        line.productId,
+        (back.get(line.productId) ?? new Prisma.Decimal(0)).add(line.quantity),
+      );
+    }
+    for (const [productId, qty] of back) {
+      const units = out.get(productId)!;
+      if (qty.gt(units)) {
+        throw badRequest(
+          'SAMPLES_RETURN_MORE_THAN_OUT',
+          `Only ${units.toString()} of ${await nameOf(productId)} went out on ${order.orderNo}; ${qty.toString()} cannot come back.`,
+          {
+            order: order.orderNo,
+            product: await nameOf(productId),
+            out: units.toString(),
+            returned: qty.toString(),
+          },
+        );
+      }
+    }
+    return back;
+  }
+
+  /**
+   * Some units back on the shelf, the rest still at the shop: each unit
+   * comes off the order's draws (`takeFromSamples`), goes back to the batch
+   * it left (`sampleBack`, a SAMPLE_BACK movement), and the lines are written
+   * as they stand (`settleSamplesLeft`) — the records the data fix of
+   * 2026-10-28 (ORD-2026-00006, one Y30) made by hand. The order stays open
+   * with its day left and reminder.
+   */
+  private async returnPartWithin(
+    tx: Db,
+    order: Awaited<ReturnType<SalesService['readOpenSamples']>>,
+    plan: ReturnType<typeof planSamplesReturn>,
+    actorId: string,
+  ) {
+    for (const p of plan.products) {
+      for (const b of p.back) {
+        await this.takeFromSamples(tx, order, p.productId, b.batchId, b.qty);
+        await this.sampleBack(tx, order.id, b.batchId, b.qty, actorId);
+      }
+    }
+    await this.settleSamplesLeft(tx, order);
+    const data = await tx.saleOrder.findUniqueOrThrow({
+      where: { id: order.id },
+      include: { items: true, customer: true },
+    });
+    return {
+      data,
+      audit: {
+        actorUserId: actorId,
+        action: 'SAMPLES_PART_RETURNED',
+        entityType: 'SaleOrder',
+        entityId: order.id,
+        beforeJson: { status: SAMPLES_OPEN_STATUS },
+        afterJson: {
+          status: SAMPLES_OPEN_STATUS,
+          lines: plan.products.map((p) => ({
+            productId: p.productId,
+            returned: Number(p.returned),
+          })),
+        },
+      } satisfies AuditEntry,
+    };
   }
 
   /**

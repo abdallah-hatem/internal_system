@@ -27,7 +27,8 @@ import { businessDay } from './dates';
  *   the shelf like any sale (`planSamplesConversion`).
  * - **returned** — everything back on the shelf; the order ends
  *   SAMPLES_RETURNED. Its allocations stay as the record of what went out, as
- *   a cancelled sale's do, and count for nothing.
+ *   a cancelled sale's do, and count for nothing. Since 2026-10-28 a return
+ *   can be part of the order (`planSamplesReturn`): the rest stays samples.
  * - **written off** — the units never come back; the order ends
  *   SAMPLES_WRITTEN_OFF and the cost on its allocations is a cost of the
  *   cycle each batch came from (`samplesWrittenOffEgp`, common/cycle-losses).
@@ -315,6 +316,60 @@ export function planSamplesConversion(
     return { fromSamples, fromShelf: need };
   });
   return { products, lines: planned };
+}
+
+// ─── Some samples back, the rest stay (owner 2026-10-28) ──────────────
+
+export interface ReturnPlan {
+  /** Every unit on the order comes back: it ends SAMPLES_RETURNED, as "Returned" always did. */
+  all: boolean;
+  /** Per product coming back: what was out, how many come back, and to which batches. */
+  products: {
+    productId: string;
+    out: Prisma.Decimal;
+    returned: Prisma.Decimal;
+    back: { batchId: string; qty: Prisma.Decimal }[];
+  }[];
+}
+
+/**
+ * Part of a samples order comes back from the shop (BUSINESS_LOGIC §4,
+ * "Return some samples, not all", owner 2026-10-28). What stays at the shop
+ * is planned exactly as "They're buying" plans what it keeps
+ * (`planSamplesConversion`): the oldest-received units stay, so the ones
+ * coming back go to the newer batches they left, at the cost they left at.
+ *
+ * `returned` holds the units coming back per product, each above 0 and at
+ * most what went out — checked by the caller, which names the refusals.
+ * `draws` must be in FIFO order (oldest batch first) within each product.
+ */
+export function planSamplesReturn(
+  draws: readonly SampleDraw[],
+  returned: ReadonlyMap<string, Prisma.Decimal.Value>,
+): ReturnPlan {
+  const out = new Map<string, Prisma.Decimal>();
+  for (const d of draws) {
+    out.set(d.productId, (out.get(d.productId) ?? D(0)).add(d.qty));
+  }
+  const stays = [...out].map(([productId, units]) => ({
+    productId,
+    quantity: units.sub(returned.get(productId) ?? 0),
+  }));
+  const plan = planSamplesConversion(
+    draws,
+    stays.filter((s) => s.quantity.gt(0)),
+  );
+  return {
+    all: stays.every((s) => !s.quantity.gt(0)),
+    products: plan.products
+      .filter((p) => p.back.length > 0)
+      .map((p) => ({
+        productId: p.productId,
+        out: p.out,
+        returned: p.out.sub(p.kept),
+        back: p.back,
+      })),
+  };
 }
 
 // ─── Samples into the current order (owner 2026-10-27) ────────────────

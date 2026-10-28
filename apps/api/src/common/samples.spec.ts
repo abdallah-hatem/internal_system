@@ -8,6 +8,7 @@ import {
   isSamplesStatus,
   planSampleLines,
   planSamplesConversion,
+  planSamplesReturn,
   samplesReminderDay,
   samplesRemindersDue,
   splitSampleAllocations,
@@ -179,6 +180,71 @@ describe('planSamplesConversion — the sale from samples, as the popup was save
       extra: '0',
       back: [],
     });
+  });
+});
+
+describe('planSamplesReturn — some samples back, the rest stay (owner 2026-10-28)', () => {
+  const backOf = (plan: ReturnType<typeof planSamplesReturn>) =>
+    plan.products.map((p) => [
+      p.productId,
+      p.out.toString(),
+      p.returned.toString(),
+      p.back.map((b) => [b.batchId, b.qty.toString()]),
+    ]);
+
+  it('some: the newest units come back to the batch each left; the oldest stay; another product is untouched', () => {
+    const plan = planSamplesReturn(DRAWS, new Map([['pa', D(4)]]));
+    expect(plan.all).toBe(false);
+    expect(backOf(plan)).toEqual([
+      [
+        'pa',
+        '5',
+        '4',
+        [
+          ['old', '1'],
+          ['new', '3'],
+        ],
+      ],
+    ]);
+  });
+
+  it('one unit of the newest batch: only that batch', () => {
+    const plan = planSamplesReturn(DRAWS, new Map([['pa', D(1)]]));
+    expect(backOf(plan)).toEqual([['pa', '5', '1', [['new', '1']]]]);
+  });
+
+  it('every unit of every product named: all, so the order ends returned', () => {
+    const plan = planSamplesReturn(
+      DRAWS,
+      new Map([
+        ['pa', D(5)],
+        ['pb', D('0.3')],
+      ]),
+    );
+    expect(plan.all).toBe(true);
+    expect(backOf(plan)).toEqual([
+      [
+        'pa',
+        '5',
+        '5',
+        [
+          ['old', '2'],
+          ['new', '3'],
+        ],
+      ],
+      ['pb', '0.3', '0.3', [['chain', '0.3']]],
+    ]);
+  });
+
+  it('every unit of one product while another stays: not all', () => {
+    const plan = planSamplesReturn(DRAWS, new Map([['pb', D('0.3')]]));
+    expect(plan.all).toBe(false);
+    expect(backOf(plan)).toEqual([['pb', '0.3', '0.3', [['chain', '0.3']]]]);
+  });
+
+  it('a fraction of a unit, in Decimal', () => {
+    const plan = planSamplesReturn(DRAWS, new Map([['pb', D('0.1')]]));
+    expect(backOf(plan)).toEqual([['pb', '0.3', '0.1', [['chain', '0.1']]]]);
   });
 });
 
