@@ -496,6 +496,11 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- **Built 2026-10-29 on `feature/picker-category-hint`, not merged** (owner: "instead of the sku, in the choose product
+  dropdown, show the category, and remove it from beside the name"): New Order's product picker shows the name alone and
+  the category under it where the SKU was; the SKU stays searchable (BUSINESS_LOGIC §4). No API change, no migration.
+  Tests: `SaleOrderForm.test.tsx` (the name alone, category opening the line, no SKU shown — seen to fail on the old
+  picker; search by SKU still works).
 - **Built 2026-10-28 on `feature/partner-cards-put-in`, NOT merged** (owner, from production: the cards were "not
   synced" with the Funding card and the Running accounts): the Partners page's cards, its first total and the export
   show **Put in so far** — capital + advances on a cycle not yet drawn, the Funding card's `putInSoFar` over the same
