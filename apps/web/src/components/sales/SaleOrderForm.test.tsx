@@ -175,12 +175,28 @@ describe("the product picker names each product's category (owner 2026-10-27)", 
 
   const productPicker = () => screen.getAllByRole('combobox')[3]; // customer, channel, currency, then the line
 
-  it('beside the name, in the reader\'s language; a product with no category shows its name alone', () => {
+  it('under the name where the SKU was, in the reader\'s language; the name stands alone (owner 2026-10-29)', () => {
     renderForm(undefined, SHOP.id, 'en', [HEADSET, BARE]);
     fireEvent.click(productPicker());
-    expect(screen.getByRole('option', { name: /Y20 headset · Intercoms/ })).toBeTruthy();
-    // The label alone; the line under it (SKU · stock) has its own dots.
-    expect(screen.getByRole('option', { name: /^Bare part/ }).querySelector('bdi')?.textContent).toBe('Bare part');
+    const headset = screen.getByRole('option', { name: /Y20 headset/ });
+    // The name alone, no category beside it.
+    expect(headset.querySelector('bdi')?.textContent).toBe('Y20 headset');
+    // The line under it opens with the category, and the SKU is not shown.
+    const hint = headset.textContent!.replace('Y20 headset', '');
+    expect(hint).toMatch(/^Intercoms · /);
+    expect(headset.textContent).not.toMatch(/\bY20\b(?! headset)/);
+    // No category: the line opens with the stock, and no SKU either.
+    const bare = screen.getByRole('option', { name: /^Bare part/ });
+    expect(bare.querySelector('bdi')?.textContent).toBe('Bare part');
+    expect(bare.textContent).not.toContain('BP-1');
+  });
+
+  it('the search still finds a product by its SKU, though the SKU is not shown', () => {
+    renderForm(undefined, SHOP.id, 'en', [HEADSET, BARE, ...FILLER]);
+    fireEvent.click(productPicker());
+    fireEvent.change(screen.getByPlaceholderText(en.placeholders.searchProducts), { target: { value: 'BP-1' } });
+    expect(screen.getByRole('option', { name: /Bare part/ })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: /Y20 headset/ })).toBeNull();
   });
 
   it('in Arabic the category is its Arabic name', () => {
