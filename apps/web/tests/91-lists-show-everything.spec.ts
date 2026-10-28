@@ -26,7 +26,7 @@ import { test, expect, Page } from '@playwright/test';
 import { apiCtx, stockedProduct, owedOrder, today, EMAIL, PASSWORD } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import { WEB as BASE } from './support/env';
-import { openView } from './support/ui';
+import { openView, showAllSales } from './support/ui';
 import { pageOfView } from '../src/lib/page-views';
 
 /** One more than the old default page of 20, with room for rows made in parallel. */
@@ -53,6 +53,8 @@ async function searchList(page: Page, href: string, placeholder: string, text: s
     await page.locator(`aside a[href="/en${href}"]`).click();
     await expect(page).toHaveURL(new RegExp(`/en${href}$`));
   }
+  // Sales opens on Confirmed + Partially paid (owner 2026-10-28); these orders are drafts, under All.
+  if (href === '/sales') await showAllSales(page);
   await page.getByRole('main').getByPlaceholder(placeholder).fill(text);
 }
 

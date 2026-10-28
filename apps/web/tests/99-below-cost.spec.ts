@@ -25,7 +25,7 @@ import {
   giveStock,
   refusedCallers,
 } from "./support/fixtures";
-import { login, openNav, type Locale, messages } from "./support/ui";
+import { login, openNav, showAllSales, type Locale, messages } from "./support/ui";
 
 type Headers = Record<string, string>;
 
@@ -122,6 +122,8 @@ const input = (row: Locator, name: string) =>
 
 /** Open an order from the sales list by its number, as a person would. */
 async function openOrder(page: Page, orderNo: string) {
+  // Sales opens on Confirmed + Partially paid (owner 2026-10-28); a draft is under All.
+  await showAllSales(page);
   await page
     .getByRole("main")
     .getByPlaceholder(messages("en").sales.search)

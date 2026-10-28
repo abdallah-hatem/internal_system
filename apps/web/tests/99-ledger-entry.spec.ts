@@ -70,7 +70,11 @@ const save = (page: Page, locale: Locale = 'en') =>
 /** The list narrowed to one entry by its note, which the search reads. */
 async function findRow(page: Page, note: string) {
   await page.getByPlaceholder(en.ledger.search).fill(note);
-  return page.locator('table tbody tr').filter({ visible: true });
+  // The search goes to the server once typing rests (lists on the server,
+  // 2026-10-26): until then the newest page is on screen. Wait for the one row.
+  const rows = page.locator('table tbody tr').filter({ visible: true });
+  await expect(rows).toHaveCount(1);
+  return rows;
 }
 
 const shot = async (page: Page, name: string) => {

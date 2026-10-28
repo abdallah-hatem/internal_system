@@ -55,6 +55,32 @@ export async function openView(page: Page, slug: string, locale: Locale = 'en') 
   await expect(page).toHaveURL(new RegExp(`/${host}\\?(.*&)?view=${slug}(&|$)`), { timeout: 15000 });
 }
 
+/**
+ * Sales opens on Confirmed + Partially paid (owner 2026-10-28, BUSINESS_LOGIC
+ * §3). A person looking for a draft, a paid, a cancelled or a samples order
+ * clicks All first, which writes `?status=ALL` to the address.
+ */
+export async function showAllSales(page: Page, locale: Locale = 'en') {
+  const all = page.getByRole('main').getByRole('button', { name: messages(locale).sales.all, exact: true });
+  await all.click();
+  await expect(all).toHaveAttribute('aria-pressed', 'true');
+  await expect(page).toHaveURL(/[?&]status=ALL(&|$)/, { timeout: 15000 });
+}
+
+/**
+ * A cycle's page from the Cycles list, by its code: search it, click its row.
+ * The list is paged on the server (2026-10-26) and the code sits beside its
+ * status badge, so reading the first page for the bare code finds nothing.
+ */
+export async function openCycleByCode(page: Page, code: string, locale: Locale = 'en') {
+  const m = messages(locale);
+  await openNav(page, m.nav.cycles);
+  const main = page.getByRole('main');
+  await main.getByPlaceholder(m.cycles.search).fill(code);
+  await main.getByTestId('cycle-row').filter({ hasText: code }).locator('td').first().click();
+  await expect(page).toHaveURL(/\/cycles\/[0-9a-f-]{36}\/details$/, { timeout: 15000 });
+}
+
 /** A shop's own page, from the Customers list, by its name. */
 export async function openCustomer(page: Page, name: string, locale: Locale = 'en') {
   const m = messages(locale);

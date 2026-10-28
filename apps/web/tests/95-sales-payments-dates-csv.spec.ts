@@ -85,6 +85,10 @@ test.describe('Sales and Payments: date range and CSV (I1)', () => {
     await login(page);
     await open(page, 'sales');
     await page.getByPlaceholder(en.sales.search).fill(stamp);
+    // The search is sent once typing rests; a date picked meanwhile is quicker,
+    // and an Export clicked before the search lands writes every shop's orders.
+    // Wait for the list to be searched, as a person waits for it to narrow.
+    await expect(page).toHaveURL(new RegExp(`[?&]q=${stamp}`));
 
     await pickDate(page, 'salesFrom', day(0));
     await pickDate(page, 'salesTo', day(0));
@@ -116,6 +120,7 @@ test.describe('Sales and Payments: date range and CSV (I1)', () => {
 
     // Second time round: today again, exported again — the same 13, not a stale empty file.
     await page.getByPlaceholder(en.sales.search).fill(stamp);
+    await expect(page).toHaveURL(new RegExp(`[?&]q=${stamp}`));
     await pickDate(page, 'salesFrom', day(0));
     expect((await exportCsv(page, 'sales-export')).slice(1)).toHaveLength(13);
   });
@@ -245,7 +250,10 @@ for (const path of ['sales', 'payments'] as const) {
 
     let release: () => void = () => {};
     const held = new Promise<void>((r) => (release = r));
-    const pattern = path === 'sales' ? '**/sales/orders?*from=*' : '**/payments?*from=*';
+    // The API's request only. '**/payments?*from=*' also matched the page's own
+    // address since the lists keep their filters in it (2026-10-26), so the
+    // held request was the navigation and the date never reached the URL.
+    const pattern = path === 'sales' ? `${API}/sales/orders?*from=*` : `${API}/payments?*from=*`;
     await page.route(pattern, async (route) => {
       await held;
       await route.continue();
