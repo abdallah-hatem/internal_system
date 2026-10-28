@@ -167,6 +167,15 @@ State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-29 — production data: **Shady's CYC-2026-0002 advances corrected to 63,100** (owner: "its 45,600 not 44,600,
+  and i added 10,000 by mistake"): 45,600 recorded for 24 Oct, the 44,600 and the 10,000 entered on 27 Oct reversed with
+  their reasons, through `PartnerAccountsService`. Now 10,000 · 45,600 · 7,500. `prisma/one-off/2026-10-29-shady-cyc-0002-advances.ts`,
+  rehearsed on a copy (check-data all zero); backup `.backups/prod-20261029-000840.sql`.
+- 2026-10-28 — production data: **Abdallah's 10,000 untied from CYC-2026-0001** (owner: "I put 65,000 in cycle 1, but I
+  should only put 55,000 … it stays in my account until i take it back"). The standing 10,000 advance of 15 Aug on cycle 1
+  now names no cycle, so it is untied money he can take out or put into any cycle; his balance (60,775) and cycle 1's
+  funding (contributions) did not move. `prisma/one-off/2026-10-28-abdallah-10000-untied.ts`, rehearsed on a copy
+  (check-data all zero), audit row; backup `.backups/prod-20261028-234301.sql`.
 - 2026-10-28 — production data: CYC-2026-0002's friend repaid **100 USD at 56.07 = 5,607 EGP** (367.25 AED at 3.6725,
   rate 15.2675), exchange difference +24.80; **2,092.15 AED still owed** (the remaining 581 USD).
 - 2026-10-28 — production data: **1 Y30 Headset back from Ahmad Zogmar's samples** (ORD-2026-00006 held 2; owner: "just
@@ -487,6 +496,23 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- **Built 2026-10-28 on `feature/partner-cards-put-in`, NOT merged** (owner, from production: the cards were "not
+  synced" with the Funding card and the Running accounts): the Partners page's cards, its first total and the export
+  show **Put in so far** — capital + advances on a cycle not yet drawn, the Funding card's `putInSoFar` over the same
+  pots, from `GET /users/participation` (`putInEgp`, `undrawnAdvancesEgp`). A sub-line "Capital x · y paid, not drawn
+  yet" when they differ; money logic unchanged. No migration. BUSINESS_LOGIC §8 "The Partners page's cards show Put in
+  so far", its GUESSes and one OPEN ("Still in play"). Tests: `users/participation.db.spec.ts` (9),
+  `partners-view.test.tsx` (+5); each seen to fail with its piece undone.
+- **Queued 2026-10-28 (owner: "add the fixes to next up"), not started** — phone-width fixes found while recording the
+  fuel demo video at 390 px: (1) **the Ledger's phone cards don't say who paid** — "Paid by {partner}" is only in the
+  desktop table (`apps/web/src/app/[locale]/ledger/page.tsx` ~270), the mobile card (~450) shows direction, amount,
+  type • category and date; add the tag there, and make `106-expense-paid-by.spec.ts` check the phone list too.
+  (2) **The Partners page's Running accounts explanation leaves out expenses he paid**, though the card shows "Expenses
+  he paid" — add it to the sentence (en + ar). (3) **The ledger search placeholder is cut off** at 390 px ("…category
+  or a…") — shorten it on phones. (4) **The chat button covers the right edge** of the first ledger card and the partner
+  card's "Take money out" row — leave room under it. (5) Also seen: **a list search written to the address just after
+  typing stops can send a click on a row back to the list** (found by the 2026-10-28 full e2e, TC-FUND-01; the tests now
+  wait, the app still does it) — the late write must not navigate once the person has left the list.
 - **Built 2026-10-28 on `feature/sales-default-status`, merged into `dev`** (owner: "start all four, each in its own branch, then merge to dev"): **Sales opens on Confirmed + Partially paid** (BUSINESS_LOGIC §3). One chosen pill for the default, `?status=ALL` for every order, a link's own status kept; the API's status filter takes several values (`filtersOf`), and `/analytics/top-orders` takes the same status so the cards follow the list. No migration. Tests: `list-query.spec` (filtersOf: several, repeats, empty or unknown pieces refused), `sales-list.db.spec` (several statuses on real orders, counts, the cards among them, a draft never a card), `sales-default-status.test.tsx` (4: the default for list and cards, All kept in the address, `?status=ALL`, a link's own status); each seen to fail with its piece undone.
 - **Built 2026-10-27 on `feature/picker-category`, merged into `dev`** (owner: "start both and paid by … each one in its own branch then merge each one to dev"): **New Order's product picker shows each product's category** beside its name, in the reader's language, and the search matches it in either language (BUSINESS_LOGIC §4). No API change — the product list already carried the category. Tests: `SaleOrderForm.test.tsx` (3: beside the name and absent without one, Arabic, search in both languages), each seen to fail with the old label. No migration.
 - (1) and (3) **live 2026-10-27 (evening)**.

@@ -972,6 +972,8 @@
     "tempInvestor": "Temp Investor",
     "search": "Search partners by name, email or role",
     "capitalIn": "Capital in",
+    "putInSoFar": "Put in so far",
+    "putInBreakdown": "Capital {capital} · {undrawn} paid, not drawn yet",
     "profitEarned": "Profit earned",
     "atRisk": "Still in play",
     "returned": "Capital returned",

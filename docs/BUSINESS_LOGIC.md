@@ -2343,7 +2343,7 @@ Built (one definition, `apps/api/src/common/partner-account.ts`, `potsOf` — th
 | Reversing a settlement whose payout was left in | Takes the payout back from **untied money only** (`ACCOUNT_MONEY_TIED_TO_CYCLES`). | A payout left in is untied money. |
 | A payout left in that names its cycle | Its `cycle_id` is the settled cycle it came from; it is **untied** all the same. | Owner: "only money tied to no cycle (a payout left in) funds any cycle". |
 | Untied money below zero (records from before the rule) | Offers nothing; no cycle's pot is reduced to cover it. Check 28.6 finds it. | Do not let old data move new money. |
-| OPEN: an advance left undrawn on a cycle that is settled, closed or cancelled | **Stays that cycle's** — stranded: no other cycle can draw it and it cannot be taken out. Shown on the Partners page as that cycle's pot. Whether it should then become untied is for the owner. Not in production today (CYC-2026-0001 has no advances). | Build for what exists. |
+| OPEN: an advance left undrawn on a cycle that is settled, closed or cancelled | **Stays that cycle's** — stranded: no other cycle can draw it and it cannot be taken out. Shown on the Partners page as that cycle's pot. Whether it should then become untied is for the owner. Not in production today: CYC-2026-0001's one leftover advance (Abdallah's 10,000, paid beyond his 55,000 share) was untied by the owner's word on 2026-10-28 — money paid beyond a partner's share of a cycle is owed back to him as untied money. | Build for what exists. |
 
 ### The cycle page's money-in is one Funding card — DECIDED 2026-10-26 (owner, from a rendered sample: "build it like this"), details GUESSED, live 2026-10-26 (`105bd6b`; below the Shipment card since `8d0447a`)
 One card replaces the Participants card and the separate funding panel (`components/cycles/funding-card.tsx`). A
@@ -2431,6 +2431,22 @@ nothing chosen, and the next visit starts empty.
 | The name | Trimmed, inner runs of spaces made one. Empty: `INVESTOR_NAME_REQUIRED`. Longer than **80** characters: `INVESTOR_NAME_TOO_LONG` (`{max}`) — the same limit as a branch name; the form stops at 80 too (`users/new-investor.ts`). | DECIDED (a coded refusal); 80 a GUESS |
 | A name already used | **Refused**, `INVESTOR_NAME_TAKEN` (409, `{name}`), when any partner or investor already has it, ignoring case — the picker lists people by name, and two "Ahmad Eraiby"s there cannot be told apart, so the second would be picked by chance. Choose him from the list instead. Two of the same name at once: one is made, the other refused (an advisory lock around the check). | GUESS (2026-10-27) — the owner may prefer two people with one name allowed |
 | Arabic | The new strings ("مستثمر جديد", the hint and the refusals) are the agent's wording, for the owner to correct. | GUESS |
+
+### The Partners page's cards show Put in so far — DECIDED 2026-10-28 (owner, from production: "not synced"), built on `feature/partner-cards-put-in`, NOT merged, details GUESSED
+Each core partner card read "Capital in" — his contributions only. On production cycle 2 (PURCHASING) had contribution
+0 for all three while each had paid advances for it not yet drawn (Abdallah 50,775, Shady 72,100, Fares 51,207): they
+showed in the Running accounts and on cycle 2's Funding card, and not on the cards. Display and `GET /users/participation`
+only — capital, profit shares, settlements and every money check are unchanged.
+
+| Rule | Built | Status |
+|---|---|---|
+| The card's money figure | **Put in so far**: over each cycle he is on, the Funding card's own figure — `putInSoFar` (`common/partner-account.ts`) over the same pots (`accountPots` → `byCycle`): his contribution + his advances on that cycle not yet drawn. A drawn advance is inside the contribution, never counted twice (advance 100, 60 drawn → 100, not 160). Computed in the API, returned as `putInEgp` / `undrawnAdvancesEgp` per person and per cycle; `contributedEgp` stays (capital, what settlement hands back). Production-like: Abdallah 55,000 + 50,775 = **105,775** (after the 10,000 is untied), Shady **105,184.50**, Fares **84,291.49**. | DECIDED (owner) |
+| Not put in | An advance tied to no cycle (untied money, e.g. the 10,000 being moved off cycle 1), a reversed advance, payouts left in, expenses he paid: they stay in the Running account only. | DECIDED (follows §8's pots) |
+| A temporary investor | No account: put in so far is his contribution. | DECIDED |
+| An advance on a cycle he is not on | Counted, under that cycle, with capital 0 — the Funding card lists "anyone not on the cycle who paid for it", so the two agree. The cycle then appears in his card's list and its count. | GUESS |
+| The sub-line | Only when put in so far differs from capital: "Capital {x} · {y} paid, not drawn yet" / "رأس المال {x} · {y} مدفوع ولم يُسحب بعد", amounts as left-to-right runs. | GUESS (wording) |
+| The page's total and the export | The first total tile is "Put in so far" across the core partners, with the same sub-line. The CSV keeps "Capital in" and adds a "Put in so far" column before it (per cycle row, or per person when he has no cycle). | GUESS |
+| "Still in play" | Unchanged: capital less capital returned. An undrawn advance is money out too but is not capital; whether it belongs here is | OPEN |
 
 ### Change split saved and checked on the server — DECIDED 2026-10-26 (owner), live 2026-10-27, details GUESSED
 The Funding card's Change split wrote each participant's % through its own participant PUT and only the dialog checked
