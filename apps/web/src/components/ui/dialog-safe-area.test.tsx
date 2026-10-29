@@ -58,7 +58,7 @@ describe('the phone bar and the page under it read one inset', () => {
     const css = src('../../app/globals.css');
     expect(css).toMatch(/--phone-bar-inset:\s*max\(0\.25rem,\s*calc\(env\(safe-area-inset-bottom, 0px\) - 1rem\)\)/);
     expect(src('../layout/phone-bar.tsx')).toContain('pb-[var(--phone-bar-inset)]');
-    expect(src('../layout/app-shell.tsx')).toContain('pb-[calc(4.5rem+var(--phone-bar-inset))]');
+    expect(src('../layout/app-shell.tsx')).toMatch(/pb-\[calc\([\d.]+rem\+var\(--phone-bar-inset\)\)\]/); // how far: chat-button-room.test.ts
     expect(src('../layout/phone-bar.tsx')).not.toContain('pb-[env(safe-area-inset-bottom');
   });
 });

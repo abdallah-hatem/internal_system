@@ -273,6 +273,26 @@ describe('the ledger page has the Fuel quick action', () => {
     });
     await renderLedger();
     expect((await screen.findAllByTestId('ledger-paid-by'))[0].textContent).toBe(en.ledger.paidByTag.replace('{partner}', 'Shady'));
+    // The phone's card says it too, not only the desktop table (owner 2026-10-28, the fuel demo at 390px).
+    const tags = screen.getAllByTestId('ledger-paid-by');
+    const onPhone = tags.filter((el) => el.closest('.md\\:hidden'));
+    const inTable = tags.filter((el) => el.closest('table'));
+    expect([onPhone.length, inTable.length]).toEqual([1, 1]);
+    expect(onPhone[0].textContent).toBe(en.ledger.paidByTag.replace('{partner}', 'Shady'));
+  });
+
+  it('a row nobody paid for carries no tag, on the phone or in the table', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve(
+        url === '/ledger'
+          ? { data: { data: [{ ...ROW, category: 'fuel', paidBy: null }], meta: { total: 1, totalPages: 1 } } }
+          : { data: { data: [] } },
+      ),
+    );
+    await renderLedger();
+    // Wait for the row itself on the phone card (the table shows skeleton rows while loading).
+    expect(await screen.findAllByTestId('ledger-card', {}, { timeout: 10000 })).toHaveLength(1);
+    expect(screen.queryAllByTestId('ledger-paid-by')).toHaveLength(0);
   });
 
   it('reads in Arabic', async () => {

@@ -372,7 +372,7 @@ export default function LedgerPage() {
       </div>
 
       {/* Search + Filters */}
-      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}>
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search'), phonePlaceholder: t('searchPhone') }}>
         <Select
           className="w-full sm:w-44"
           value={directionFilter}
@@ -451,6 +451,7 @@ export default function LedgerPage() {
             entries.map((entry) => (
               <div
                 key={entry.id}
+                data-testid="ledger-card"
                 onClick={() => setViewingEntry(entry)}
                 className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
               >
@@ -466,6 +467,11 @@ export default function LedgerPage() {
                   <span className="text-gray-400">•</span>
                   <bdi>{categoryLabel(entry.category)}</bdi>
                 </div>
+                {entry.paidBy && (
+                  <div data-testid="ledger-paid-by" className="text-xs text-muted-foreground">
+                    {t('paidByTag', { partner: entry.paidBy.partner?.displayName ?? '' })}
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
                   <span>{formatDate(entryDate(entry))}</span>
                 </div>

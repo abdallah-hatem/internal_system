@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { Search } from '@/components/ui/icons';
 import { cn } from '@/lib/utils';
+import { useIsPhone } from '@/lib/use-phone';
 
 /**
  * The search box every office list puts above its rows.
@@ -16,11 +17,15 @@ import { cn } from '@/lib/utils';
  * A plain `type="text"` input on the field background from globals.css, the
  * glass at the start edge (logical `start-3` / `ps-10`, so it moves to the right
  * in Arabic). The placeholder names it for a screen reader too.
+ *
+ * `phonePlaceholder` is a shorter one for a phone, where the full one is cut off
+ * mid-word (the ledger's at 390px, owner 2026-10-28); the label keeps the full one.
  */
 export function SearchField({
   value,
   onChange,
   placeholder,
+  phonePlaceholder,
   label,
   id,
   className,
@@ -28,11 +33,14 @@ export function SearchField({
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  /** Shown instead of `placeholder` on a phone. */
+  phonePlaceholder?: string;
   /** For a screen reader; the placeholder when not given. */
   label?: string;
   id?: string;
   className?: string;
 }) {
+  const isPhone = useIsPhone();
   return (
     <div data-slot="search-field" className={cn('relative w-full', className)}>
       <Search
@@ -43,7 +51,7 @@ export function SearchField({
         id={id}
         type="text"
         aria-label={label ?? placeholder}
-        placeholder={placeholder}
+        placeholder={isPhone && phonePlaceholder ? phonePlaceholder : placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-input py-2 pe-4 ps-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -79,6 +87,7 @@ export function ListToolbar({
     value: string;
     onChange: (value: string) => void;
     placeholder: string;
+    phonePlaceholder?: string;
     label?: string;
     id?: string;
   };
