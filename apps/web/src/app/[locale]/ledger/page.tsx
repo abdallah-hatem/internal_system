@@ -451,6 +451,7 @@ export default function LedgerPage() {
             entries.map((entry) => (
               <div
                 key={entry.id}
+                data-testid="ledger-card"
                 onClick={() => setViewingEntry(entry)}
                 className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
               >

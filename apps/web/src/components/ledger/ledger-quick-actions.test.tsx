@@ -290,9 +290,8 @@ describe('the ledger page has the Fuel quick action', () => {
       ),
     );
     await renderLedger();
-    // Wait for the row itself, in the table and on the phone card.
-    await waitFor(() => expect(document.querySelectorAll('table tbody tr').length).toBeGreaterThan(0));
-    await waitFor(() => expect(document.querySelectorAll('.md\:hidden .rounded-xl.p-4').length).toBe(1));
+    // Wait for the row itself on the phone card (the table shows skeleton rows while loading).
+    expect(await screen.findAllByTestId('ledger-card', {}, { timeout: 10000 })).toHaveLength(1);
     expect(screen.queryAllByTestId('ledger-paid-by')).toHaveLength(0);
   });
 
