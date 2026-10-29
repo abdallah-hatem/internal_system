@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -31,6 +31,53 @@ function List() {
 }
 
 const PHYSICAL = /(^|\s)(?:[a-z]+:)*(?:pl|pr|ml|mr|left|right|text-left|text-right|border-l|border-r|rounded-l|rounded-r)-/;
+
+/** A window as wide as a phone (390px) or not: what `useIsPhone` reads. */
+function screenIsPhone(phone: boolean) {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: phone && query.includes('max-width'),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
+describe('a shorter search placeholder on a phone (owner 2026-10-28: the ledger\'s was cut off at 390px)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const field = () => (
+    <SearchField value="" onChange={() => {}} placeholder="Search the ledger by reason, category or amount" phonePlaceholder="Reason, category or amount" />
+  );
+
+  it('a phone shows the short one; the box is still named by the full one', () => {
+    screenIsPhone(true);
+    render(field());
+    const box = screen.getByRole('textbox', { name: 'Search the ledger by reason, category or amount' });
+    expect(box.getAttribute('placeholder')).toBe('Reason, category or amount');
+  });
+
+  it('a wider screen keeps the full one', () => {
+    screenIsPhone(false);
+    render(field());
+    expect(screen.getByRole('textbox').getAttribute('placeholder')).toBe('Search the ledger by reason, category or amount');
+  });
+
+  it('a list with no short one shows its own on a phone too', () => {
+    screenIsPhone(true);
+    render(<SearchField value="" onChange={() => {}} placeholder="Search the list" />);
+    expect(screen.getByRole('textbox').getAttribute('placeholder')).toBe('Search the list');
+  });
+
+  it('the ledger has a short one in both languages, shorter than its full one', () => {
+    for (const file of ['en.json', 'ar.json']) {
+      const { ledger } = JSON.parse(readFileSync(join(__dirname, '../../i18n/locales', file), 'utf8'));
+      expect([file, typeof ledger.searchPhone]).toEqual([file, 'string']);
+      expect(ledger.searchPhone.length).toBeLessThan(ledger.search.length);
+      expect(ledger.searchPhone.length).toBeLessThanOrEqual(28);
+    }
+    const page = readFileSync(join(__dirname, '../../app/[locale]/ledger/page.tsx'), 'utf8');
+    expect(page).toMatch(/phonePlaceholder: t\('searchPhone'\)/);
+  });
+});
 
 describe('ListToolbar', () => {
   it('draws one search box, typed into, reported to the page', () => {

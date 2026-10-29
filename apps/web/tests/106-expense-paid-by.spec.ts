@@ -54,6 +54,12 @@ test.describe('Paid by on an expense', () => {
     await expect(row).toHaveCount(1);
     await expect(row).toContainText(en.ledger.paidByTag.replace('{partner}', 'Shady'));
 
+    // The same list on a phone: its card says who paid too (2026-10-28).
+    await page.setViewportSize({ width: 390, height: 844 });
+    const card = page.locator('.md\\:hidden [data-testid="ledger-paid-by"]').filter({ visible: true });
+    await expect(card).toHaveText(en.ledger.paidByTag.replace('{partner}', 'Shady'));
+    await page.setViewportSize({ width: 1280, height: 800 });
+
     expect(await cashOnHand(request, headers)).toBe(cashBefore);
     expect(Number(await balanceOf(request, headers, shady))).toBeCloseTo(balanceBefore + 350, 2);
   });

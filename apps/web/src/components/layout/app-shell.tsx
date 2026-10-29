@@ -338,7 +338,7 @@ export function AppShell({
         {/* Below md the page is padded by the phone bar's height and the
             home-indicator inset, so the last row and a page's own buttons
             can always be scrolled clear of the bar. */}
-        <main className="scrollbar-clean relative flex-1 overflow-y-auto px-4 pt-4 pb-[calc(4.5rem+var(--phone-bar-inset))] sm:px-6 sm:pt-6 md:pb-6">
+        <main className="scrollbar-clean relative flex-1 overflow-y-auto px-4 pt-4 pb-[calc(8.5rem+var(--phone-bar-inset))] sm:px-6 sm:pt-6 md:pb-20">
           {children}
         </main>
       </div>
