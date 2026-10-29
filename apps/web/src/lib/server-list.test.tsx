@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSyncExternalStore, type ReactNode } from 'react';
 
@@ -81,13 +81,16 @@ vi.mock('next/navigation', () => ({
     return new URLSearchParams(q);
   },
   usePathname: () => '/en/sales',
-  useRouter: () => ({
-    replace: (url: string) => {
-      nav.replace(url);
-      if (nav.deferred) nav.pending.push(url);
-      else nav.set(url.split('?')[1] ?? '');
-    },
-  }),
+  // One router for the page's life, as Next's is: a fresh one each render would
+  // re-run every effect that depends on it and hide a listener left behind.
+  useRouter: () => router,
+}));
+const router = vi.hoisted(() => ({
+  replace: (url: string) => {
+    nav.replace(url);
+    if (nav.deferred) nav.pending.push(url);
+    else nav.set(url.split('?')[1] ?? '');
+  },
 }));
 
 import { SEARCH_DELAY_MS, useServerList } from './server-list';
@@ -244,6 +247,104 @@ describe('useServerList — changing the list writes the URL', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe('a row opened before typing rests (the 2026-10-28 full e2e, TC-FUND-01)', () => {
+    // What a row does: its click navigates away. The search must be written
+    // before that, never after — a late write put the list back on screen.
+    const opened: string[] = [];
+    const openRow = () => {
+      const row = document.createElement('button');
+      row.addEventListener('click', () => opened.push(`row after ${nav.replace.mock.calls.length} writes`));
+      document.body.appendChild(row);
+      return row;
+    };
+
+    it('the click sends the search first, and nothing is written after it', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      opened.length = 0;
+      try {
+        const { result } = renderHook(useSales, { wrapper });
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+        nav.replace.mockReset();
+        act(() => result.current.setSearch('draft'));
+        const row = openRow();
+        act(() => {
+          fireEvent.pointerDown(row);
+          fireEvent.click(row);
+        });
+        expect(nav.replace.mock.calls.map(([url]) => url)).toEqual(['/en/sales?q=draft']);
+        expect(opened).toEqual(['row after 1 writes']);
+        // The search's timer, had it still been waiting, would fire here.
+        await act(async () => {
+          vi.advanceTimersByTime(SEARCH_DELAY_MS * 3);
+        });
+        expect(nav.replace).toHaveBeenCalledTimes(1);
+        row.remove();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('Enter on a row does the same; other keys are typing and wait', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        const { result } = renderHook(useSales, { wrapper });
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+        nav.replace.mockReset();
+        act(() => result.current.setSearch('dra'));
+        act(() => {
+          fireEvent.keyDown(document.body, { key: 'a' });
+        });
+        expect(nav.replace).not.toHaveBeenCalled();
+        act(() => {
+          fireEvent.keyDown(document.body, { key: 'Enter' });
+        });
+        expect(nav.replace.mock.calls.map(([url]) => url)).toEqual(['/en/sales?q=dra']);
+        await act(async () => {
+          vi.advanceTimersByTime(SEARCH_DELAY_MS * 3);
+        });
+        expect(nav.replace).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('the second click, with nothing waiting, writes nothing: a page link keeps its page', async () => {
+      const { result } = renderHook(useSales, { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      act(() => result.current.setSearch('draft'));
+      act(() => {
+        fireEvent.pointerDown(document.body);
+      });
+      expect(nav.query).toBe('q=draft');
+      act(() => result.current.setPage(2));
+      nav.replace.mockReset();
+      act(() => {
+        fireEvent.pointerDown(document.body);
+        fireEvent.keyDown(document.body, { key: 'Enter' });
+      });
+      expect(nav.replace).not.toHaveBeenCalled();
+      expect(nav.query).toBe('q=draft&page=2');
+    });
+
+    it('a list left before typing rests writes nothing at all', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        const { result, unmount } = renderHook(useSales, { wrapper });
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+        nav.replace.mockReset();
+        act(() => result.current.setSearch('draft'));
+        unmount();
+        fireEvent.pointerDown(document.body);
+        await act(async () => {
+          vi.advanceTimersByTime(SEARCH_DELAY_MS * 3);
+        });
+        expect(nav.replace).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it('Clear takes the search and every filter off, the sort stays', async () => {
