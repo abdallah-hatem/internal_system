@@ -178,11 +178,29 @@ export function useServerList<T = any>( // eslint-disable-line @typescript-eslin
   }, [q]);
   useEffect(() => {
     if (searchText === typed.current) return;
-    const timer = setTimeout(() => {
+    const send = () => {
+      if (typed.current === searchText) return;
       typed.current = searchText;
       write({ q: searchText });
-    }, SEARCH_DELAY_MS);
-    return () => clearTimeout(timer);
+    };
+    const timer = setTimeout(send, SEARCH_DELAY_MS);
+    // A click (or Enter) before typing rests — a row opened from the results —
+    // sends the search at once, before the click's own navigation, so that one
+    // is the last and wins. Sent after it, the search put the list back on
+    // screen (the 2026-10-28 full e2e, TC-FUND-01). The address keeps the
+    // search, so Back returns to the list as it was.
+    const now = (e: Event) => {
+      if (e instanceof KeyboardEvent && e.key !== 'Enter') return;
+      clearTimeout(timer);
+      send();
+    };
+    document.addEventListener('pointerdown', now, true);
+    document.addEventListener('keydown', now, true);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown', now, true);
+      document.removeEventListener('keydown', now, true);
+    };
   }, [searchText, write]);
 
   const total = query.data?.meta?.total ?? 0;
