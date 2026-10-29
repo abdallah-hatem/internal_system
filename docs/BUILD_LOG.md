@@ -17,11 +17,11 @@ branch only (GUESS); one short heading per samples order instead of a sentence r
 - **Edit order** (on a confirmed order) is not shipped: saved on `feature/edit-order` (`4bdbf1e`) with its migration
   `20261026100000_sale_order_edits`, which must not be applied to production until that branch ships. Master's
   history holds no Edit order commit, so the branch can still be merged later.
-- **`dev`** is ahead of `master` (2026-10-28): the product picker's category, the Preparing status (migration
-  `20261028100000_cycle_status_preparing`) and "Paid by" on an expense (migration `20261027180000_expense_paid_by`),
-  and, merged 2026-10-28 with no migration, Sales opening on Confirmed + Partially paid, what made a P&L bar,
-  the Products tab's cards following its filters and returning some samples, not all — awaiting the owner's test
-  before they ship. Edit order lives only on `feature/edit-order`.
+- **2026-10-29: `master` took all of `dev`** (`6295f5a`) — the picker's category, Preparing, Paid by, Sales'
+  default filter, the P&L drilldown, the Products cards, partial sample returns, Put in so far on the Partners cards,
+  the category under the name in the picker and the e2e fixes. **`dev` is ahead of `master`** with the phone-width
+  fixes and the search-then-click fix (merged 2026-10-29, owner: "merge both to dev and push"; no migration) —
+  awaiting the owner's test before they ship. Edit order lives only on `feature/edit-order`.
   Nothing is held on another machine as far as git shows.
 - **Full e2e on `dev` (owner 2026-10-28 "full e2e")**, on branch `fix/e2e-dev` (not merged): baseline 1,219 passed,
   60 failed, 22 skipped (data-dependent `test.skip`) of 1,301; after the fixes 1,279 passed, 0 failed, 22 skipped,
@@ -496,28 +496,29 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
-- **Built 2026-10-29 on `feature/picker-category-hint`, not merged** (owner: "instead of the sku, in the choose product
+- **Live 2026-10-29** (was `feature/picker-category-hint`) (owner: "instead of the sku, in the choose product
   dropdown, show the category, and remove it from beside the name"): New Order's product picker shows the name alone and
   the category under it where the SKU was; the SKU stays searchable (BUSINESS_LOGIC §4). No API change, no migration.
   Tests: `SaleOrderForm.test.tsx` (the name alone, category opening the line, no SKU shown — seen to fail on the old
   picker; search by SKU still works).
-- **Built 2026-10-28 on `feature/partner-cards-put-in`, NOT merged** (owner, from production: the cards were "not
+- **Live 2026-10-29** (was `feature/partner-cards-put-in`) (owner, from production: the cards were "not
   synced" with the Funding card and the Running accounts): the Partners page's cards, its first total and the export
   show **Put in so far** — capital + advances on a cycle not yet drawn, the Funding card's `putInSoFar` over the same
   pots, from `GET /users/participation` (`putInEgp`, `undrawnAdvancesEgp`). A sub-line "Capital x · y paid, not drawn
   yet" when they differ; money logic unchanged. No migration. BUSINESS_LOGIC §8 "The Partners page's cards show Put in
   so far", its GUESSes and one OPEN ("Still in play"). Tests: `users/participation.db.spec.ts` (9),
   `partners-view.test.tsx` (+5); each seen to fail with its piece undone.
-- **Queued 2026-10-28 (owner: "add the fixes to next up"), not started** — phone-width fixes found while recording the
-  fuel demo video at 390 px: (1) **the Ledger's phone cards don't say who paid** — "Paid by {partner}" is only in the
-  desktop table (`apps/web/src/app/[locale]/ledger/page.tsx` ~270), the mobile card (~450) shows direction, amount,
-  type • category and date; add the tag there, and make `106-expense-paid-by.spec.ts` check the phone list too.
-  (2) **The Partners page's Running accounts explanation leaves out expenses he paid**, though the card shows "Expenses
-  he paid" — add it to the sentence (en + ar). (3) **The ledger search placeholder is cut off** at 390 px ("…category
-  or a…") — shorten it on phones. (4) **The chat button covers the right edge** of the first ledger card and the partner
-  card's "Take money out" row — leave room under it. (5) Also seen: **a list search written to the address just after
-  typing stops can send a click on a row back to the list** (found by the 2026-10-28 full e2e, TC-FUND-01; the tests now
-  wait, the app still does it) — the late write must not navigate once the person has left the list.
+- **Built 2026-10-29, merged into `dev`** (owner: "start the phone fixes", then "merge both to dev and push"; no
+  migration) — the phone-width fixes from the fuel demo at 390 px. On `feature/phone-fixes`: (1) the Ledger's phone
+  card says "Paid by {partner}" as the table does (`106-expense-paid-by.spec.ts` checks the phone list too — written,
+  not run); (2) the Running accounts explanation names expenses he paid (en + ar); (3) the ledger search shows "Reason,
+  category or amount" on a phone (`SearchField` `phonePlaceholder`; the box keeps the full one as its name); (4) the
+  page pads past the top of the chat button on a phone and wider, so the last card and "Take money out" scroll clear.
+  On `fix/search-click-race`: (5) a click or Enter sends a search still waiting at once, before the click's own
+  navigation, so a row opened from the results no longer lands back on the list (TC-FUND-01); Back keeps the search.
+  Tests: `ledger-quick-actions.test.tsx` (+2), `list-toolbar.test.tsx` (+4), `chat-button-room.test.ts` (3, the padding
+  read against the button's own classes), `server-list.test.tsx` (+4; its router fake is now one object, as Next's
+  is); each seen to fail with its piece undone. Web vitest 1,684, unit 128, tsc and lint clean.
 - **Built 2026-10-28 on `feature/sales-default-status`, merged into `dev`** (owner: "start all four, each in its own branch, then merge to dev"): **Sales opens on Confirmed + Partially paid** (BUSINESS_LOGIC §3). One chosen pill for the default, `?status=ALL` for every order, a link's own status kept; the API's status filter takes several values (`filtersOf`), and `/analytics/top-orders` takes the same status so the cards follow the list. No migration. Tests: `list-query.spec` (filtersOf: several, repeats, empty or unknown pieces refused), `sales-list.db.spec` (several statuses on real orders, counts, the cards among them, a draft never a card), `sales-default-status.test.tsx` (4: the default for list and cards, All kept in the address, `?status=ALL`, a link's own status); each seen to fail with its piece undone.
 - **Built 2026-10-27 on `feature/picker-category`, merged into `dev`** (owner: "start both and paid by … each one in its own branch then merge each one to dev"): **New Order's product picker shows each product's category** beside its name, in the reader's language, and the search matches it in either language (BUSINESS_LOGIC §4). No API change — the product list already carried the category. Tests: `SaleOrderForm.test.tsx` (3: beside the name and absent without one, Arabic, search in both languages), each seen to fail with the old label. No migration.
 - (1) and (3) **live 2026-10-27 (evening)**.
