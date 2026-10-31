@@ -499,6 +499,9 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
 - **Live 2026-10-31** (was `feature/pnl-adds-up-open`) (owner 2026-10-31: "in analytics how it adds up should be open by
   default"): Analytics' "How it adds up" opens already unfolded; its header still folds it. Web only, no migration.
   Tests: `profit-and-loss-section.test.tsx` (open at first, folds and reopens — seen to fail on the old code).
+  **On `dev`, not shipped:** its loading skeleton now draws the open list (header, seven lines, cash paid out)
+  instead of a folded bar (owner 2026-10-31: "skeleton should change as well"); the skeleton test pins it, seen to
+  fail on the old one.
 - **Live 2026-10-29** (was `feature/picker-category-hint`) (owner: "instead of the sku, in the choose product
   dropdown, show the category, and remove it from beside the name"): New Order's product picker shows the name alone and
   the category under it where the SKU was; the SKU stays searchable (BUSINESS_LOGIC §4). No API change, no migration.
