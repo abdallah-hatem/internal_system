@@ -444,13 +444,16 @@ describe('the section in its place', () => {
     expect(get).toHaveBeenCalledWith('/analytics/profit-and-loss', { from: '2026-10-01', to: '2026-10-31' });
   });
 
-  it('while it loads: a skeleton in the new shape — four tiles, the chart, the expense rows — and no spinner', async () => {
+  it('while it loads: a skeleton in the new shape — four tiles, the open fold, the chart, the expense rows — and no spinner', async () => {
     reply = () => new Promise(() => {});
     renderIn();
     const skeleton = await screen.findByTestId('pnl-skeleton');
     expect(skeleton.getAttribute('aria-hidden')).toBe('true');
     expect(skeleton.children).toHaveLength(4);
     expect(skeleton.children[0].children).toHaveLength(4);
+    // "How it adds up" opens unfolded, so its skeleton is the open list, not a folded bar.
+    const addsUp = within(skeleton).getByTestId('pnl-skeleton-adds-up');
+    expect(addsUp.querySelectorAll('[data-skeleton-line]')).toHaveLength(7);
     expect(document.querySelector('.animate-spin')).toBeNull();
     expect(screen.queryByTestId('pnl-net')).toBeNull();
   });

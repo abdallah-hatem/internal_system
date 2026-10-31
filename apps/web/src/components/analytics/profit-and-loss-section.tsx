@@ -921,7 +921,11 @@ function Expenses({
   );
 }
 
-/** The section's shape while it loads: four tiles, the fold, the chart, the expense rows. */
+/**
+ * The section's shape while it loads: four tiles, the fold open as it arrives
+ * (its header, the lines from sales to net, cash paid out), the chart, the
+ * expense rows.
+ */
 export function ProfitAndLossSkeleton() {
   return (
     <SkeletonRegion testId="pnl-skeleton" className="space-y-5">
@@ -934,7 +938,28 @@ export function ProfitAndLossSkeleton() {
           </div>
         ))}
       </div>
-      <Skeleton className="h-9 w-full rounded-lg" />
+      <div data-testid="pnl-skeleton-adds-up" className="rounded-lg bg-muted/40 px-3 py-2 sm:px-4">
+        <SkeletonText className="w-32" />
+        <div className="mt-2 max-w-md">
+          {repeat(7, (i) => (
+            <div
+              key={i}
+              data-skeleton-line
+              className={cn('flex justify-between gap-3 py-1', i === 2 || i === 6 ? 'border-t border-border' : '')}
+            >
+              <SkeletonText className="w-28" />
+              <SkeletonText className="w-20" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 max-w-md border-t border-dashed border-border pt-2">
+          <div className="flex justify-between gap-3 py-1">
+            <SkeletonText className="w-24" />
+            <SkeletonText className="w-20" />
+          </div>
+          <SkeletonText size="xs" className="ms-5 w-40" />
+        </div>
+      </div>
       <div>
         <SkeletonText className="mb-3 w-40" />
         <div className="flex h-48 items-end gap-1 ps-11 sm:h-60">
