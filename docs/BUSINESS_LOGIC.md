@@ -2983,7 +2983,7 @@ right-now figures with nothing saying which. Now two headed groups:
   Collected, so there is nothing on Analytics to compare it with.
 - GUESS: **Cash paid out for a period** is the money-out rows whose ledger day (`occurredOn`, else the Cairo day
   entered) falls in it; an entry undone and its undo are left out together whatever periods they fall in, as
-  the all-time figure does. Shown inside "How it adds up" (folded) rather than as a fifth tile.
+  the all-time figure does. Shown inside "How it adds up" rather than as a fifth tile.
 - DECIDED 2026-10-26 (owner): **This month's Expenses** (and net profit) leave out an entry undone and its undo
   whatever months they fall in — a July fee undone in October is in neither — the same rule as cash
   (`common/undone-entries.ts`, §9), so the block still equals Profit and loss's This month to the piastre.
@@ -3106,8 +3106,8 @@ day, week or month buckets). `GET /analytics/profit-and-loss?from=&to=`
   above zero.
 - **Redesign "Option A" — DECIDED 2026-10-18 (owner, mockup approved); bucket sizes and the week GUESSED.**
   Under the period: four tiles (Sales · Gross profit with its share of sales · Expenses · Net profit with its
-  share, green from zero up and red below, "—" when nothing was sold), a "How it adds up" disclosure with the
-  full Sales − COGS = Gross − Expenses ± Recovered / Other income / Exchange difference = Net list, one chart
+  share, green from zero up and red below, "—" when nothing was sold), a "How it adds up" disclosure (open by
+  default — owner 2026-10-31; its header still folds it) with the full Sales − COGS = Gross − Expenses ± Recovered / Other income / Exchange difference = Net list, one chart
   (sales as columns, net profit as a line, a loss point red), and the top four expense categories with the
   rest folded into "N more categories". The separate Revenue by month card is gone (its figures are the
   chart's columns); `GET /analytics/revenue-by-month` stays — no screen reads it now, but the API checks

@@ -225,13 +225,10 @@ describe('the tiles', () => {
 
   it('how it adds up: sales, COGS, gross, expenses, the non-zero extras only, net — to the piastre', async () => {
     renderIn();
-    // Folded away at first: the tiles are the summary, the list is on request.
+    // Open from the start (owner 2026-10-31); the trigger still folds it away.
     const open = await screen.findByRole('button', { name: 'How it adds up' });
-    expect(open.getAttribute('aria-expanded')).toBe('false');
-    expect(open.getAttribute('type')).toBe('button');
-    expect(screen.queryByTestId('pnl-summary')).toBeNull();
-    fireEvent.click(open);
     expect(open.getAttribute('aria-expanded')).toBe('true');
+    expect(open.getAttribute('type')).toBe('button');
     const summary = screen.getByTestId('pnl-summary');
     const lines = [...summary.querySelectorAll('[data-line]')].map((l) => l.getAttribute('data-line'));
     // Other income is zero, so it is not shown; recovered and exchange are.
@@ -244,12 +241,17 @@ describe('the tiles', () => {
     expect(line('recovered')).toContain('400.00');
     expect(line('exchange')).toContain('210.00');
     expect(line('net')).toContain('125,045.49');
+    fireEvent.click(open);
+    expect(open.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByTestId('pnl-summary')).toBeNull();
+    fireEvent.click(open);
+    expect(screen.getByTestId('pnl-summary')).toBeTruthy();
   });
 
   // Owner 2026-10-23: Cash paid out left the dashboard; it lives here, for the period.
   it('cash paid out for the period sits under the account, apart from it — not one of its lines', async () => {
     renderIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'How it adds up' }));
+    await screen.findByRole('button', { name: 'How it adds up' });
     const cash = screen.getByTestId('pnl-cash-out');
     expect(cash.textContent).toContain('Cash paid out');
     expect(cash.textContent).toContain('912,345.67');
@@ -261,7 +263,7 @@ describe('the tiles', () => {
 
   it('cash paid out in Arabic', async () => {
     renderIn('ar');
-    fireEvent.click(await screen.findByRole('button', { name: ar.analytics.pnl.howItAddsUp }));
+    await screen.findByRole('button', { name: ar.analytics.pnl.howItAddsUp });
     expect(screen.getByTestId('pnl-cash-out').textContent).toContain(ar.analytics.pnl.cashOut);
   });
 
@@ -270,7 +272,7 @@ describe('the tiles', () => {
     void _c;
     reply = () => Promise.resolve(old);
     renderIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'How it adds up' }));
+    await screen.findByRole('button', { name: 'How it adds up' });
     expect(screen.queryByTestId('pnl-cash-out')).toBeNull();
   });
 });
@@ -468,7 +470,6 @@ describe('the section in its place', () => {
     expect(screen.getByText(ar.analytics.pnl.title)).toBeTruthy();
     expect(chart.textContent).toContain(ar.analytics.pnl.chartTitle);
     expect(chart.textContent).toContain(ar.analytics.pnl.by.month);
-    fireEvent.click(screen.getByRole('button', { name: ar.analytics.pnl.howItAddsUp }));
     expect(screen.getByTestId('pnl-summary').textContent).toContain(ar.analytics.pnl.grossProfit);
     expect(screen.getByRole('button', { name: ar.analytics.pnl.periods.all })).toBeTruthy();
     expect(screen.getByTestId('pnl-pct').textContent).toBe('9.3% من المبيعات');
