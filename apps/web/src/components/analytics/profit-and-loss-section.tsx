@@ -405,7 +405,7 @@ function AddsUp({ data }: { data: ProfitAndLoss }) {
     { key: 'net', label: t('pnl.netProfit'), value: data.netProfitEgp, sign: '=', strong: true },
   ];
   return (
-    <Collapsible data-testid="pnl-adds-up" className="group rounded-lg bg-muted/40 px-3 py-2 sm:px-4">
+    <Collapsible defaultOpen data-testid="pnl-adds-up" className="group rounded-lg bg-muted/40 px-3 py-2 sm:px-4">
       <CollapsibleTrigger
         type="button"
         className="flex w-full items-center gap-1.5 rounded-md text-start text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"

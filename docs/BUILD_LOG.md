@@ -496,6 +496,9 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- **On `feature/pnl-adds-up-open`, not merged** (owner 2026-10-31: "in analytics how it adds up should be open by
+  default"): Analytics' "How it adds up" opens already unfolded; its header still folds it. Web only, no migration.
+  Tests: `profit-and-loss-section.test.tsx` (open at first, folds and reopens — seen to fail on the old code).
 - **Live 2026-10-29** (was `feature/picker-category-hint`) (owner: "instead of the sku, in the choose product
   dropdown, show the category, and remove it from beside the name"): New Order's product picker shows the name alone and
   the category under it where the SKU was; the SKU stays searchable (BUSINESS_LOGIC §4). No API change, no migration.
