@@ -213,6 +213,12 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   a shared component, an error code, anything in `common/`. That is what the rule below is
   about, and it is not in tension with the one above — narrow while iterating, wide before
   it ships. — 2026-09-02
+- Choosing tests: `npm run test:affected` (vs dev; `-- --commit <sha>`, `-- --files a b`, `-- --json`)
+  prints what the change touches — the Jest specs, the web unit tests, the e2e spec list (or FULL), and
+  the visual screens with the one command that runs only them. Visual runs are opt-in: `npm run
+  test:visual` (or the printed `VISUAL=1 … -g "…"`), against a stack whose API was started with
+  `AGENT_CLOCK=2026-11-01T08:00:00Z scripts/agent-servers.sh <name> start` — visual.spec.ts refuses any
+  other clock. — 2026-11-01
 
 ## Tests that click the moment a page changes
 
