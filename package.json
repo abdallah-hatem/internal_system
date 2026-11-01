@@ -15,6 +15,7 @@
     "test": "npm run test:api && npm run test:web",
     "test:api": "cd apps/api && npx jest",
     "test:web": "cd apps/web && npx playwright test",
+    "test:affected": "node scripts/affected-tests.mjs",
     "typecheck": "cd apps/api && npx tsc --noEmit && cd ../web && npx tsc --noEmit"
   }
 }

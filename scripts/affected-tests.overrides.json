@@ -1,0 +1,11 @@
+{
+  "_comment": "Only what scripts/affected-tests.mjs cannot derive from imports, routes, API paths or i18n text. Keys are repo-relative path prefixes (or the special keys below); values are Playwright spec file names in apps/web/tests. Keep it small: if a rule can be derived, derive it.",
+  "paths": {
+    "apps/web/src/app/[locale]/page.tsx": ["45-client-navigation.spec.ts", "09-dashboard.spec.ts"],
+    "apps/web/src/app/manifest.ts": ["58-office-push.spec.ts"],
+    "apps/web/public/sw.js": ["58-office-push.spec.ts"],
+    "apps/web/src/lib/push.ts": ["58-office-push.spec.ts"]
+  },
+  "i18n": ["40-wizard-i18n.spec.ts"],
+  "storefront": ["52-portal-fence.spec.ts", "53-portal.spec.ts"]
+}
