@@ -144,10 +144,13 @@ jobs:
             sleep 2
           done
 
+      # The job's PORT=3001 is the API's; `next start` reads PORT too, so
+      # without -p the web app tried 3001, collided with the API and exited,
+      # and every page test failed on a refused connection to 3000.
       - name: Start web
         working-directory: apps/web
         run: |
-          npm run start &
+          npx next start -p 3000 &
           for i in $(seq 1 30); do
             curl -fsS http://localhost:3000 >/dev/null && break
             sleep 2

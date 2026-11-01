@@ -11,8 +11,12 @@ import { join } from 'path';
  * nothing the API ships beyond its secret.
  */
 
-/** JWT_SECRET from apps/api/.env — the secret the running API signs with. */
+/**
+ * JWT_SECRET — the secret the running API signs with. From the environment
+ * when set (CI has no apps/api/.env, only the job's env), else apps/api/.env.
+ */
 export function apiSecret(): string {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
   const env = readFileSync(join(__dirname, '../../../api/.env'), 'utf8');
   const line = env.split('\n').find((l) => /^\s*JWT_SECRET\s*=/.test(l));
   if (!line) throw new Error('JWT_SECRET is not set in apps/api/.env');
