@@ -59,6 +59,13 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `dev` 2026-11-01 — fewer tokens per change** (owner 2026-11-01: "try to do all"): BUSINESS_LOGIC split into an
+  index + `docs/business/` sections and BUILD_LOG trimmed (history in `build-log/history/`); `npm run test:affected`
+  prints the Jest / web-unit / e2e / visual tests a change touches; visual regression specs (`npm run test:visual`,
+  10 office screens EN+AR, 4 storefront); CI fixed (lockfiles had stopped `npm ci` since ≥ 2026-10-28) and now runs
+  on `dev` too. PR #2 (open, Auto-fix on): CI starts the storefront and runs the visual specs, taking the Linux
+  baselines. How it all works: `.claude/LEARNINGS.md`, "CI" and "Visual baselines". Two layout bugs the baselines
+  show are listed under Known bugs in `docs/where-things-stand.md`. 15 stale agent worktrees removed (~30 GB).
 - **Live 2026-10-31** (was `feature/pnl-adds-up-open`) (owner 2026-10-31: "in analytics how it adds up should be open by
   default"): Analytics' "How it adds up" opens already unfolded; its header still folds it. Web only, no migration.
   Tests: `profit-and-loss-section.test.tsx` (open at first, folds and reopens — seen to fail on the old code).

@@ -195,10 +195,11 @@ Ordered by what would hurt first.
   which a friend's loan becomes his investment (§18), and **an advance left undrawn on a settled, closed or cancelled
   cycle** (§8, OPEN — stranded today). The biggest older ones for money: running-cost shares (§8), samples kept free
   and write-offs (§4), the default price's basis and rounding (§3), the P&L's dates and buckets.
-- **Known bugs** (`docs/build-log/history/2026-10.md`): the order popup's Allocations show raw batch codes; the CI e2e step fails on
-  the container name; `POST /ledger/<not-a-uuid>/reverse` answers 500 instead of a coded refusal; return numbers
-  (`RET-…`) are given without a lock, so two returns at once can collide; `apps/web/package-lock.json` is out of
-  sync, so `npm ci` refuses there.
+- **Known bugs** (`docs/build-log/history/2026-10.md`): the order popup's Allocations show raw batch codes; `POST /ledger/<not-a-uuid>/reverse` answers 500 instead of a coded refusal; return numbers
+  (`RET-…`) are given without a lock, so two returns at once can collide. Seen in the visual baselines
+  (2026-11-01): on the Arabic sales list the Date column is cut off at the left edge; on English Analytics
+  the Top Products table cuts off its last column. (Fixed 2026-11-01: CI's container name, and the web and
+  storefront lockfiles that stopped `npm ci`.)
 - **Change split** writes each participant's share separately and only the dialog checks they add to 100 (the
   server checks at settlement); one server-side save is queued.
 - **No screen creates a temporary investor** — Add investor picks only existing ones; queued.

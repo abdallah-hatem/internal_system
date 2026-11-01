@@ -220,6 +220,35 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   `AGENT_CLOCK=2026-11-01T08:00:00Z scripts/agent-servers.sh <name> start` — visual.spec.ts refuses any
   other clock. — 2026-11-01
 
+## CI (GitHub Actions, `.github/workflows/ci.yml`)
+
+- Runs on every push to `dev` and `master` and on every PR. Free: the repo is public. On a fresh Linux
+  machine with a throwaway Postgres and fake env values (no production access, no secrets): `npm ci` for
+  api, web and storefront; migrations from empty, a schema-drift check, seed; tsc; API Jest; builds of all
+  three; the full Playwright suite (office + storefront, not the production specs); then the visual specs
+  with the API restarted at the frozen clock. A `docs-sync` job warns when app code changed and
+  `docs/business/` did not. A newer push to the same branch cancels the older run. — 2026-11-01
+- A red run is the trigger for an agent, not a reason to run the 13-minute suite locally "to check". Read
+  the failed step with `gh run view <id> --log-failed`; the Playwright report and visual diffs are run
+  artifacts (`gh run download <id>`). — 2026-11-01
+- CI was red on every push from at least 2026-10-28 to 2026-11-01 without anyone noticing: a lockfile out
+  of step with package.json stops `npm ci` before any test. After changing dependencies, run
+  `npm ci --dry-run` in that app before committing. — 2026-11-01
+- Feature branches reach `dev` through a PR (`gh pr create --base dev`) with the Code tab's **Auto-fix**
+  on, so a failing check wakes the session that opened it, which fixes and pushes. Merging into `dev` is
+  still the owner's call (CLAUDE.md §14). — 2026-11-01
+
+## Visual baselines
+
+- Two sets per screen: `-darwin.png` (taken on the Mac, `npm run test:visual`) and `-linux.png` (taken by
+  CI). They are not interchangeable — fonts render differently.
+- A deliberate change to a screen: run `npm run test:visual:update` locally against the AGENT_CLOCK stack,
+  look at the new `-darwin` PNGs, delete that screen's `-linux` PNGs, push. CI takes new Linux ones
+  (`--update-snapshots=missing`) and uploads them as the `visual-baselines-linux` artifact; download, look,
+  commit them on the branch. Never accept a baseline without looking at it — that is the whole check.
+- The baselines carry the demo seed and 2026-11-01. A change to the demo seed, or to FROZEN_NOW in
+  `visual.spec.ts`, means retaking every baseline in both sets. — 2026-11-01
+
 ## Tests that click the moment a page changes
 
 - A nav click starts a client navigation; it does not finish one. TC-RP-06 clicked the

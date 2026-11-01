@@ -197,27 +197,34 @@ jobs:
             sleep 2
           done
 
-      # Baselines are per OS. Until the -linux set is committed, this run
-      # takes it and uploads it (artifact visual-baselines-linux) to be
-      # reviewed and committed; after that, it compares.
+      # Baselines are per OS (-darwin from a Mac, -linux here). A screen with
+      # no -linux baseline (the first run, a new screen, or one whose PNG was
+      # deleted after a deliberate change) gets one taken now; the new files
+      # are uploaded as visual-baselines-linux to be looked at and committed.
+      # Every other screen is compared.
       - name: Visual regression
         id: visual
         if: ${{ !cancelled() && steps.e2e.outcome != 'skipped' }}
         working-directory: apps/web
+        run: VISUAL=1 npx playwright test tests/visual.spec.ts tests/visual-storefront.spec.ts --update-snapshots=missing --output=visual-results
+
+      - name: Collect new Linux baselines
+        id: baselines
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' }}
         run: |
-          if ls tests/visual*.spec.ts-snapshots/*-linux.png >/dev/null 2>&1; then
-            VISUAL=1 npx playwright test tests/visual.spec.ts tests/visual-storefront.spec.ts --output=visual-results
-          else
-            echo "::warning title=No Linux visual baselines::Taking them now; download the visual-baselines-linux artifact, look at it, and commit it."
+          new=$(git ls-files --others --exclude-standard -- 'apps/web/tests/*-snapshots/*-linux.png')
+          if [ -n "$new" ]; then
+            mkdir -p "$RUNNER_TEMP/baselines"
+            echo "$new" | while read -r f; do mkdir -p "$RUNNER_TEMP/baselines/$(dirname "$f")"; cp "$f" "$RUNNER_TEMP/baselines/$f"; done
             echo "made=1" >> "$GITHUB_OUTPUT"
-            VISUAL=1 npx playwright test tests/visual.spec.ts tests/visual-storefront.spec.ts --update-snapshots --output=visual-results
+            echo "::warning title=New Linux visual baselines::$(echo "$new" | wc -l | tr -d ' ') taken; download visual-baselines-linux, look at them, and commit them."
           fi
 
       - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() && steps.visual.outputs.made == '1' }}
+        if: ${{ !cancelled() && steps.baselines.outputs.made == '1' }}
         with:
           name: visual-baselines-linux
-          path: apps/web/tests/visual*.spec.ts-snapshots/*-linux.png
+          path: ${{ runner.temp }}/baselines/
           retention-days: 7
 
       # On a failed comparison: expected, actual and the diff for each screen.
