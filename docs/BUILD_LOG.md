@@ -139,6 +139,12 @@ Standing items:
   scheduled `pg_dump` of production to storage the owner controls, and one dump restored into a scratch database to
   prove it. Needs the owner's Neon access (console, or the Neon CLI with a key) — steps 1–2 with him.
 - Selling on Amazon (Egypt + UAE) — BUSINESS_LOGIC §17, PLANNED, six questions still OPEN.
+- CI watcher on a VPS (owner 2026-11-02: "I will let you know when i have the vps"; waiting on him to get one). The
+  desktop app's Auto-fix only watches while his Mac is awake. Plan: Ubuntu VPS (≥ 4 vCPU / 8 GB: Postgres, API, two
+  Next apps and Playwright at once), Docker, Node 22, Claude Code signed in with his subscription, the repo, no
+  production secrets. A cron script checks `gh run list` every few minutes (no tokens); on a new red run of a feature
+  branch or PR it runs `claude -p "CI run <id> failed on <branch>; read the log, fix, push"`, remembers handled runs,
+  gives up after 2–3 attempts, never pushes to `master`, and notifies him. Deliver: setup script + watcher + cron line.
 
 ## Phases
 - Walk-in + assistant sales — shipped 2026-10-11 · [decisions](build-log/decisions/walk-in-and-assistant-sales.md)
