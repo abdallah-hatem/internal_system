@@ -75,6 +75,7 @@ jobs:
           cache-dependency-path: |
             apps/api/package-lock.json
             apps/web/package-lock.json
+            apps/storefront/package-lock.json
 
       - name: Install API dependencies
         working-directory: apps/api
@@ -82,6 +83,12 @@ jobs:
 
       - name: Install web dependencies
         working-directory: apps/web
+        run: npm ci
+
+      # The storefront project in playwright.config.ts opens STORE_URL
+      # (localhost:3002); nothing started it here, so those specs had no app.
+      - name: Install storefront dependencies
+        working-directory: apps/storefront
         run: npm ci
 
       # Proves the migration path works from an empty database — the gap that
@@ -119,6 +126,10 @@ jobs:
         working-directory: apps/web
         run: npm run build
 
+      - name: Build storefront
+        working-directory: apps/storefront
+        run: npm run build
+
       - name: Install Playwright browsers
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
@@ -127,6 +138,7 @@ jobs:
         working-directory: apps/api
         run: |
           node dist/src/main &
+          echo $! > "$RUNNER_TEMP/api.pid"
           for i in $(seq 1 30); do
             curl -fsS http://localhost:3001/api/docs >/dev/null && break
             sleep 2
@@ -141,6 +153,15 @@ jobs:
             sleep 2
           done
 
+      - name: Start storefront
+        working-directory: apps/storefront
+        run: |
+          npx next start -p 3002 &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:3002 >/dev/null && break
+            sleep 2
+          done
+
       # The e2e setup snapshots and reseeds through `docker exec` on
       # DB_CONTAINER (tests/support/env.ts), `motorcycle_parts_db` on a
       # developer's machine; GitHub names the service container itself, so the
@@ -149,12 +170,60 @@ jobs:
         run: echo "DB_CONTAINER=${{ job.services.postgres.id }}" >> "$GITHUB_ENV"
 
       - name: End-to-end tests
+        id: e2e
         working-directory: apps/web
         run: npx playwright test
 
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: ${{ !cancelled() && steps.e2e.outcome == 'failure' }}
         with:
           name: playwright-report
           path: apps/web/playwright-report/
+          retention-days: 7
+
+      # Visual regression (apps/web/tests/visual*.spec.ts). The e2e run above
+      # needs the real clock, the visual one a frozen API clock, so the API is
+      # restarted at FROZEN_NOW in between (scripts/lib/fixed-clock.cjs).
+      - name: Restart the API at the visual specs' frozen clock
+        if: ${{ !cancelled() && steps.e2e.outcome != 'skipped' }}
+        working-directory: apps/api
+        run: |
+          kill "$(cat "$RUNNER_TEMP/api.pid")"
+          sleep 2
+          NODE_OPTIONS="--require $GITHUB_WORKSPACE/scripts/lib/fixed-clock.cjs" \
+            FIXED_CLOCK=2026-11-01T08:00:00Z node dist/src/main &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:3001/api/docs >/dev/null && break
+            sleep 2
+          done
+
+      # Baselines are per OS. Until the -linux set is committed, this run
+      # takes it and uploads it (artifact visual-baselines-linux) to be
+      # reviewed and committed; after that, it compares.
+      - name: Visual regression
+        id: visual
+        if: ${{ !cancelled() && steps.e2e.outcome != 'skipped' }}
+        working-directory: apps/web
+        run: |
+          if ls tests/visual*.spec.ts-snapshots/*-linux.png >/dev/null 2>&1; then
+            VISUAL=1 npx playwright test tests/visual.spec.ts tests/visual-storefront.spec.ts --output=visual-results
+          else
+            echo "::warning title=No Linux visual baselines::Taking them now; download the visual-baselines-linux artifact, look at it, and commit it."
+            echo "made=1" >> "$GITHUB_OUTPUT"
+            VISUAL=1 npx playwright test tests/visual.spec.ts tests/visual-storefront.spec.ts --update-snapshots --output=visual-results
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.visual.outputs.made == '1' }}
+        with:
+          name: visual-baselines-linux
+          path: apps/web/tests/visual*.spec.ts-snapshots/*-linux.png
+          retention-days: 7
+
+      # On a failed comparison: expected, actual and the diff for each screen.
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.visual.conclusion == 'failure'
+        with:
+          name: visual-diffs
+          path: apps/web/visual-results/
           retention-days: 7
