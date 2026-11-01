@@ -4,6 +4,8 @@
 #   scripts/agent-servers.sh alice start     (after scripts/agent-env.sh alice)
 #   scripts/agent-servers.sh alice stop
 #   scripts/agent-servers.sh alice status
+#   AGENT_CLOCK=2026-11-01T08:00:00Z scripts/agent-servers.sh alice start
+#                                            (the visual-regression run: npm run test:visual)
 #
 # Each app runs in its own process group, and the group ids go in
 # .agent-servers/<name>/pids in this checkout. `stop` kills exactly those
@@ -92,9 +94,17 @@ start() {
 
   mkdir -p "$STATE"; : > "$PIDS"
   local db; db=$(db_url "$NAME")
+  # AGENT_CLOCK=<ISO date> starts the API's clock there (scripts/lib/fixed-clock.cjs),
+  # for the visual-regression run: figures the API works out from "now" (the
+  # dashboard's This month) then match the committed baselines whatever the date.
+  local clock=()
+  if [ -n "${AGENT_CLOCK:-}" ]; then
+    clock=(NODE_OPTIONS="--require $ROOT/scripts/lib/fixed-clock.cjs" FIXED_CLOCK="$AGENT_CLOCK")
+    say "API clock starts at $AGENT_CLOCK"
+  fi
   launch api api env -u PORT DATABASE_URL="$db" PORT="$API_PORT" \
     WEB_ORIGIN="http://localhost:$WEB_PORT" STORE_ORIGIN="http://localhost:$STORE_PORT" \
-    CRON_SECRET=local-cron-secret npm run start:dev
+    CRON_SECRET=local-cron-secret ${clock[@]+"${clock[@]}"} npm run start:dev
   launch web web env -u PORT NEXT_PUBLIC_API_URL="$API_URL" npx next dev -p "$WEB_PORT"
   launch store storefront env -u PORT NEXT_PUBLIC_API_URL="$API_URL" npx next dev -p "$STORE_PORT"
 
