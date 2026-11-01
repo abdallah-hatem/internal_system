@@ -1,7 +1,7 @@
 /**
  * One-off, owner 2026-10-28: "I need to return 1 Y30 Headset from zogmars
  * samples he has 2 just return one in prod". Returning only part of a samples
- * order is queued (BUILD_LOG Next up, "Return some samples, not all"), so this
+ * order is queued (build-log/history/2026-10.md, "Return some samples, not all"), so this
  * does it once with the samples code "They're buying" already uses: the unit
  * is taken off ORD-2026-00006 (`takeFromSamples`), put back on the shelf of the
  * batch it left (`sampleBack`, a SAMPLE_BACK movement), and the order's lines

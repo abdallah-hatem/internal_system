@@ -197,7 +197,7 @@ test.describe('Screens, line by line, in both languages (L7)', () => {
         // The partner cards have landed: until then the page is its skeleton,
         // and the running-costs section drawn inside it is replaced when they do.
         // 30s: /users/participation projects every open cycle in turn, and late in a
-        // full run there are hundreds (BUILD_LOG "Known e2e debt", 2026-10-21).
+        // full run there are hundreds (build-log/history/2026-10.md "Known e2e debt").
         await expect(page.locator('[data-testid="partner-card"]').first()).toBeVisible({ timeout: 30_000 });
         const rc = page.getByTestId('running-costs');
         await expect(rc).toContainText(m.partners.runningCostsTitle);

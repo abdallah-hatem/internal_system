@@ -15,7 +15,7 @@ The figures on the pages are made up so there is something to add up. Ahmad Zogm
 orders. A dashed amber outline marks what is new; the checkbox at the top turns the marks off so the page reads as
 it would in the app.
 
-Already decided (BUILD_LOG "Next up", BUSINESS_LOGIC §7, owner 2026-10-25): one customer with branches under it,
+Already decided (BUILD_LOG "Next up" then, now `docs/build-log/history/2026-10.md`; BUSINESS_LOGIC §7, owner 2026-10-25): one customer with branches under it,
 never a separate customer per branch. Each branch has its own orders, balance and statement. The customer shows the
 combined total. One payment can go to one branch or across several. Credit and contract limits, the storefront login
 and the invoice header belong to the owner.

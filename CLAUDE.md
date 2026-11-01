@@ -105,7 +105,8 @@ move on. The overpayment behaviour was mine: I decided a surplus should be
 kept as credit, wrote a test asserting it, and shipped a rule nobody agreed to.
 The owner's reaction was that it "is not logical", and he was right.
 
-Decisions live in `docs/BUSINESS_LOGIC.md`, dated, with open questions marked
+Decisions live in `docs/BUSINESS_LOGIC.md` (an index; each section's rules are
+in its own file under `docs/business/`), dated, with open questions marked
 open. If a rule reaches code before it reaches that file, it is a guess wearing
 a uniform.
 

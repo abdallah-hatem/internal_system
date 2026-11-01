@@ -1,6 +1,6 @@
 /**
  * Ahmad Zogmar's three branches (owner, 2026-10-25; BUSINESS_LOGIC §7 "A
- * customer with branches", docs/BUILD_LOG.md): Mokattam, Master and LS2, under
+ * customer with branches", docs/build-log/history/2026-10.md): Mokattam, Master and LS2, under
  * his existing customer record, which becomes the owner.
  *
  *   cd apps/api

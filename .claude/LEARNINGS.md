@@ -367,9 +367,13 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 ## Documentation
 
 - Docs move with the code, in the same change, every time (owner 2026-10-19: "make sure that docs are always up to
-  date with everything"). Every feature or fix updates `docs/BUSINESS_LOGIC.md` (rules, dated DECIDED/GUESS),
-  `docs/BUILD_LOG.md` (current stage and next up, kept short) and, when the state of the product changes,
-  `docs/where-things-stand.md`; CLAUDE.md §8 when a reset/seed level changes. Every agent brief says so, and a merge
+  date with everything"). Every feature or fix updates the rules (dated DECIDED/GUESS) in the section's file under
+  `docs/business/`, adds a line to `docs/business/00-recent-changes.md`, and changes that section's line in the index
+  `docs/BUSINESS_LOGIC.md` only if the section's scope changed (a new section gets a file and an index line); read
+  only the sections a task touches. `docs/BUILD_LOG.md` keeps only the current state — current stage, waiting on the
+  owner, next up, the newest entry — and older entries move verbatim to `docs/build-log/history/<YYYY-MM>.md`
+  (how to run things: `docs/build-log/how-to-run.md`). It also updates, when the state of the product
+  changes, `docs/where-things-stand.md`; CLAUDE.md §8 when a reset/seed level changes. Every agent brief says so, and a merge
   is not finished until the docs describe what was merged. `where-things-stand.md` had gone a month stale
   (last touched 2026-09-19) when this was said.
 
