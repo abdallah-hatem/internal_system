@@ -13,9 +13,20 @@ const REMOTE = !API_IS_LOCAL;
  */
 const PRODUCTION_CHECKS = process.env.PRODUCTION_CHECKS === '1' || REMOTE;
 
+/**
+ * The visual-regression specs (`visual*.spec.ts`) compare screens with
+ * committed baselines, and those baselines are per-OS (`-darwin` here,
+ * `-linux` in CI): fonts and anti-aliasing differ. They run only when asked
+ * for — `VISUAL=1`, i.e. `npm run test:visual` — never as part of a full run.
+ */
+const VISUAL = process.env.VISUAL === '1';
+
 export default defineConfig({
   testDir: './tests',
-  testIgnore: PRODUCTION_CHECKS ? [] : ['**/56-production.spec.ts', '**/60-production-audit.spec.ts', '**/61-production-browser.spec.ts', '**/62-production-stock-flow.spec.ts'],
+  testIgnore: [
+    ...(PRODUCTION_CHECKS ? [] : ['**/56-production.spec.ts', '**/60-production-audit.spec.ts', '**/61-production-browser.spec.ts', '**/62-production-stock-flow.spec.ts']),
+    ...(VISUAL ? [] : ['**/visual*.spec.ts']),
+  ],
 
   // The suite shares one API and one database, so it stays sequential. What
   // globalSetup adds is a known starting point: it snapshots the developer's
@@ -63,7 +74,9 @@ export default defineConfig({
       // where they assert things only true of the deployed system, and one of
       // them was never in the production project at all, so it had only ever
       // run against the wrong target.
-      testIgnore: /(storefront\.spec\.ts|production.*\.spec\.ts)$/,
+      // A project's testIgnore replaces the top-level one rather than adding
+      // to it, so the visual opt-in is repeated here.
+      testIgnore: [/(storefront\.spec\.ts|production.*\.spec\.ts)$/, ...(VISUAL ? [] : [/visual.*\.spec\.ts$/])],
       use: { ...devices['Desktop Chrome'] },
     },
     {

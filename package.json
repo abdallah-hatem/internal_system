@@ -16,6 +16,8 @@
     "test:api": "cd apps/api && npx jest",
     "test:web": "cd apps/web && npx playwright test",
     "test:affected": "node scripts/affected-tests.mjs",
+    "test:visual": "cd apps/web && VISUAL=1 npx playwright test tests/visual.spec.ts tests/visual-storefront.spec.ts",
+    "test:visual:update": "cd apps/web && VISUAL=1 npx playwright test tests/visual.spec.ts tests/visual-storefront.spec.ts --update-snapshots",
     "typecheck": "cd apps/api && npx tsc --noEmit && cd ../web && npx tsc --noEmit"
   }
 }
