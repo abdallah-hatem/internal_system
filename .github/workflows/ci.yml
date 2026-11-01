@@ -2,10 +2,47 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    # `dev` is where work lands (CLAUDE.md §14). Running here means the full
+    # suite runs on GitHub after every merge, instead of an agent re-running
+    # it locally; a red run is what brings an agent in.
+    branches: [master, main, dev]
   pull_request:
 
+# A newer push to the same branch makes the older run worthless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Docs move with the code (.claude/LEARNINGS.md, "Documentation"). An agent
+  # remembering that is not a check; this is. It warns rather than fails, since
+  # a refactor or a test-only change legitimately leaves the rules alone.
+  docs-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Warn when code changed and the business docs did not
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No base to compare with (new branch); skipped."
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BASE" "$HEAD")
+          code=$(echo "$changed" | grep -E '^apps/(api/src/modules|api/prisma|web/app|storefront/app)/' | grep -vE '\.spec\.ts$' || true)
+          docs=$(echo "$changed" | grep -E '^docs/(BUSINESS_LOGIC\.md|business/)' || true)
+          if [ -n "$code" ] && [ -z "$docs" ]; then
+            echo "::warning title=Docs not updated::Code changed but nothing under docs/BUSINESS_LOGIC.md or docs/business/ did. If a rule or behaviour changed, the docs should say so."
+            echo "$code"
+          else
+            echo "Docs in step with the code."
+          fi
+
   test:
     runs-on: ubuntu-latest
 
