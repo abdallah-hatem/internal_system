@@ -10,7 +10,7 @@ import PartnersView from './partners-view';
  * The Partners tab drew its running-costs section twice on a fresh load: once
  * while the partners loaded and again, in another place, when they arrived.
  * React mounted it a second time, which closed a period picker a partner had
- * already opened (BUILD_LOG "Known e2e debt", 2026-10-19). One slot now.
+ * already opened (build-log/history/2026-10.md "Known e2e debt"). One slot now.
  */
 
 const mounts = vi.hoisted(() => ({ count: 0 }));

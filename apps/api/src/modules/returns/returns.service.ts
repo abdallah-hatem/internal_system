@@ -238,7 +238,7 @@ export class ReturnsService {
 
     const created = await this.prisma.$transaction(async (tx) => {
       // Two returns at once read the same highest RET- and took the same
-      // number (BUILD_LOG known bugs, 2026-10-26): the series is locked as
+      // number (build-log/history/2026-10.md, known bugs): the series is locked as
       // purchase orders' is (`references.ts`).
       await lockReferenceSeries(tx, 'RET');
       const year = new Date().getFullYear();

@@ -141,7 +141,7 @@ was corrected by a one-off script. On 2026-10-26: the office chat, partner notif
 hint, partner running accounts (migration `20261025100000_partner_running_accounts`), the wizard's choice cards, the
 statement's Profit column, a picker's search box that does not raise a phone's keyboard, units sold on the product
 page, each cycle's funding its own, undone entries leaving every period, the Funding card (`105bd6b`, `42d2272`),
-and server-side lists with the Sales customer filter (`d3955e9`). Earlier releases: BUILD_LOG "Live in production".
+and server-side lists with the Sales customer filter (`d3955e9`). Earlier releases: "Live in production" in `docs/build-log/history/2026-10.md`.
 Nothing is merged and waiting.
 
 **Not shipped:** Edit order on a confirmed order is saved on `feature/edit-order` (`4bdbf1e`, with its migration
@@ -195,7 +195,7 @@ Ordered by what would hurt first.
   which a friend's loan becomes his investment (§18), and **an advance left undrawn on a settled, closed or cancelled
   cycle** (§8, OPEN — stranded today). The biggest older ones for money: running-cost shares (§8), samples kept free
   and write-offs (§4), the default price's basis and rounding (§3), the P&L's dates and buckets.
-- **Known bugs** (BUILD_LOG Next up): the order popup's Allocations show raw batch codes; the CI e2e step fails on
+- **Known bugs** (`docs/build-log/history/2026-10.md`): the order popup's Allocations show raw batch codes; the CI e2e step fails on
   the container name; `POST /ledger/<not-a-uuid>/reverse` answers 500 instead of a coded refusal; return numbers
   (`RET-…`) are given without a lock, so two returns at once can collide; `apps/web/package-lock.json` is out of
   sync, so `npm ci` refuses there.
@@ -235,7 +235,7 @@ Branches: `master` is production, and `dev` was reset to it on 2026-10-27. Edit 
 `feature/edit-order` (`4bdbf1e`); its migration must not reach production unless it ships.
 
 Agents get their own database and ports: `scripts/agent-env.sh <name>` and
-`scripts/agent-servers.sh <name> start` (BUILD_LOG "How to run things here").
+`scripts/agent-servers.sh <name> start` (`docs/build-log/how-to-run.md`).
 
 Read `CLAUDE.md` first — rules written after specific bugs, each naming the bug.
 `.claude/LEARNINGS.md` carries the corrections that would otherwise be repeated,

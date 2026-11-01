@@ -263,7 +263,7 @@ test.describe('Instalment plans', () => {
 /**
  * The scheduler's secret on a local API. `scripts/dev.sh` starts the API with
  * this default, and so must anything else that runs these specs
- * (docs/BUILD_LOG.md "How to run things here").
+ * (docs/build-log/how-to-run.md).
  */
 const CRON = process.env.CRON_SECRET ?? 'local-cron-secret';
 
