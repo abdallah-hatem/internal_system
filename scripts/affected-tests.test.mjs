@@ -7,8 +7,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import {
-  REPO, buildIndex, commands, diffLocale, orphanSpecs, parseNameStatus, realContext, selectTests,
+  REPO, buildIndex, commands, diffLocale, format, isOverlayOnly, orphanSpecs, parseNameStatus, realContext, selectTests,
 } from './affected-tests.mjs';
 
 const base = realContext();
@@ -252,4 +253,229 @@ test('the overrides file names only files that exist', () => {
   const specs = [...Object.values(o.paths).flat(), ...o.i18n, ...o.storefront];
   for (const s of specs) assert.ok(index.fileSet.has(T(s)), `overrides name a missing spec: ${s}`);
   for (const p of Object.keys(o.paths)) assert.ok(index.fileSet.has(p), `overrides name a missing path: ${p}`);
+});
+
+// ── visual regression ────────────────────────────────────────────────────────
+const VIS = 'apps/web/tests/visual.spec.ts';
+const VIS_STORE = 'apps/web/tests/visual-storefront.spec.ts';
+const vtitles = (r) => r.visual.tests.map((t) => t.title).sort();
+const both = (...screens) => screens.flatMap((s) => [`${s} · ar`, `${s} · en`]).sort();
+const OFFICE = ['dashboard', 'analytics', 'sales list', 'sale detail dialog', 'products', 'customers', 'cycles list', 'cycle detail', 'payments', 'ledger'];
+const allVisual = () => index.visual.screens.flatMap((s) => s.tests.map((t) => t.title)).sort();
+
+test('visual fixture sanity: every screen is read from the specs and lands on a real page', () => {
+  const office = index.visual.screens.filter((s) => s.spec === VIS);
+  assert.deepEqual(office.map((s) => s.name), OFFICE);
+  for (const s of office) {
+    assert.ok(s.resolved, `${s.name}: route ${s.route.join('/')} has no page folder`);
+    assert.deepEqual(s.tests.map((t) => t.locale), ['en', 'ar'], s.name);
+  }
+  // The one screen that ends on another URL than it opened: derived from its toHaveURL.
+  const detail = office.find((s) => s.name === 'cycle detail');
+  assert.deepEqual([...detail.pageFiles].filter((f) => f.endsWith('/page.tsx')), ['apps/web/src/app/[locale]/cycles/[cycleId]/page.tsx']);
+  assert.ok(!office.find((s) => s.name === 'cycles list').pageFiles.has('apps/web/src/app/[locale]/cycles/[cycleId]/page.tsx'));
+  // Around every office screen: the root layouts (and so whatever they import).
+  for (const s of office) assert.ok(s.pageFiles.has('apps/web/src/app/[locale]/layout.tsx'), s.name);
+  // Dialog screens need the overrides entry, or a component inside the dialog reaches nothing.
+  for (const s of office.filter((x) => x.overlay)) assert.ok(base.overrides.visual?.[s.name]?.length, `overrides.visual has no entry for ${s.name}`);
+  assert.deepEqual(office.filter((x) => x.overlay).map((x) => x.name), ['sale detail dialog']);
+  assert.deepEqual(index.visual.screens.filter((s) => s.storefront).map((s) => s.name), ['storefront catalogue', 'storefront product', 'storefront sign-in']);
+});
+
+test('visual: every baseline PNG belongs to a test and every test has a baseline', () => {
+  const owned = new Set(index.visual.screens.flatMap((s) => s.tests.map((t) => `${t.spec}-snapshots/${t.snapshot}`)));
+  const pngs = index.files.filter((f) => /^apps\/web\/tests\/visual[^/]*\.spec\.ts-snapshots\/.+\.png$/.test(f));
+  assert.ok(pngs.length >= 24, `only ${pngs.length} baselines`);
+  for (const f of pngs) assert.ok(owned.has(f.replace(/-[a-z0-9]+-darwin\.png$/, '')), `no test takes ${f}`);
+  for (const k of owned) assert.ok(pngs.some((f) => f.startsWith(`${k}-`)), `no baseline for ${k}`);
+});
+
+test('visual: no screen name, used as a grep, matches another screen\'s test', () => {
+  const titles = index.visual.screens.flatMap((s) => s.tests.map((t) => ({ screen: s.name, full: `office · ${t.locale} ${t.title}` })));
+  for (const s of index.visual.screens) {
+    const hits = titles.filter((t) => t.full.includes(s.name)).map((t) => t.screen);
+    assert.deepEqual([...new Set(hits)], [s.name], `-g "${s.name}" also runs ${hits.join(', ')}`);
+  }
+});
+
+test('visual happy path: a sales component → sales list + sale detail dialog, both locales, nothing else', () => {
+  const r = sel(M('apps/web/src/components/sales/order-history.tsx'));
+  assert.deepEqual(vtitles(r), both('sale detail dialog', 'sales list'));
+  assert.equal(r.visual.command, 'cd apps/web && VISUAL=1 npx playwright test tests/visual.spec.ts -g "sales list|sale detail dialog"');
+  assert.equal(commands(r).visual, r.visual.command);
+  assert.ok(!r.e2e.some((s) => /visual/.test(s)), 'visual specs never join the e2e list (they need VISUAL=1)');
+});
+
+test('visual: the shared dialog primitive → only the screen that captures an open dialog', () => {
+  const r = sel(M('apps/web/src/components/ui/dialog.tsx'));
+  assert.equal(r.full, true, 'e2e still treats it as shared');
+  assert.equal(r.visual.full, false);
+  assert.deepEqual(vtitles(r), both('sale detail dialog'));
+});
+
+test('visual: a dialog no captured screen opens → no visual test; one with page-level exports → its pages', () => {
+  for (const f of ['apps/web/src/components/sales/return-samples-dialog.tsx', 'apps/web/src/components/shipment/MarkLostDialog.tsx', 'apps/web/src/components/settlements/leave-in-dialog.tsx']) {
+    const r = sel(M(f));
+    assert.deepEqual(vtitles(r), [], f);
+    assert.equal(r.visual.command, null, f);
+  }
+  // RecordPaymentDialog.tsx also exports canTakePayment, which the list pages call: not dialog-only.
+  // The customers list is not among them — only a customer's own page renders it.
+  const r = sel(M('apps/web/src/components/payments/RecordPaymentDialog.tsx'));
+  assert.deepEqual(vtitles(r), both('payments', 'sale detail dialog', 'sales list'));
+});
+
+test('visual: what is reached only through a dialog-only file stays behind it', () => {
+  const helper = 'apps/web/src/components/shipment/mark-lost-helper.ts';
+  const dlg = 'apps/web/src/components/shipment/MarkLostDialog.tsx';
+  const ctx = {
+    ...base,
+    listFiles: () => [...base.listFiles(), helper],
+    exists: (p) => p === helper || base.exists(p),
+    read: (p) => (p === helper ? 'export const x = 1;\n' : p === dlg ? `import { x } from './mark-lost-helper';\n${base.read(dlg)}` : base.read(p)),
+  };
+  const idx = buildIndex(ctx);
+  assert.ok(idx.routesOf(helper).has('cycles'), 'the e2e graph does reach the cycles page');
+  assert.deepEqual(selectTests(M(helper), ctx, idx).visual.tests, []);
+});
+
+test('isOverlayOnly: only files whose every value export is a *Dialog* component', () => {
+  assert.equal(isOverlayOnly('export interface P {}\nexport function MarkLostDialog() {}'), true);
+  assert.equal(isOverlayOnly('export function Dialog() {}\nexport function DialogAlert() {}\nexport type S = 1;'), true);
+  assert.equal(isOverlayOnly('export function RecordPaymentDialog() {}\nexport function canTakePayment() {}'), false);
+  assert.equal(isOverlayOnly('export const PAID = 1;\nexport function LedgerEntryDialog() {}'), false);
+  assert.equal(isOverlayOnly('export default function FooDialog() {}'), false, 'a default export cannot be told apart');
+  assert.equal(isOverlayOnly("export { FooDialog } from './x';"), false);
+  assert.equal(isOverlayOnly('export type A = 1;\nexport interface B {}'), false, 'types only: nothing says it is a dialog');
+  assert.equal(isOverlayOnly(''), false);
+  assert.equal(isOverlayOnly(null), false);
+});
+
+test('visual: a storefront page → the storefront visual spec only', () => {
+  const f = index.files.find((x) => x.startsWith('apps/storefront/src/app/') && x.endsWith('page.tsx'));
+  const r = sel(M(f));
+  assert.deepEqual(vtitles(r), index.visual.screens.filter((s) => s.storefront).flatMap((s) => s.tests.map((t) => t.title)).sort());
+  assert.equal(r.visual.command, 'cd apps/web && VISUAL=1 npx playwright test tests/visual-storefront.spec.ts');
+  assert.equal(r.visual.precondition, null, 'the storefront spec checks no API clock');
+});
+
+test('visual: FULL rules select every visual test', () => {
+  for (const p of ['apps/api/src/common/money.ts', 'apps/web/src/app/globals.css', 'apps/web/src/app/[locale]/layout.tsx', 'apps/api/prisma/seed.ts', 'apps/web/playwright.config.ts', 'apps/api/src/modules/audit/audit.service.ts']) {
+    const r = sel(M(p));
+    assert.equal(r.visual.full, true, p);
+    assert.deepEqual(vtitles(r), allVisual(), p);
+    assert.equal(r.visual.command, 'npm run test:visual', p);
+  }
+});
+
+test('visual: a component on every office page is every office screen — and not the storefront', () => {
+  const r = sel(M('apps/web/src/components/ui/button.tsx'));
+  assert.equal(r.visual.full, false);
+  assert.deepEqual(vtitles(r), both(...OFFICE));
+  assert.equal(r.visual.command, 'cd apps/web && VISUAL=1 npx playwright test tests/visual.spec.ts');
+});
+
+test('visual: the app shell no page imports is still on every office screen (the layout renders it)', () => {
+  const r = sel(M('apps/web/src/components/layout/app-shell.tsx'));
+  assert.deepEqual(vtitles(r), both(...OFFICE));
+  assert.ok(r.unmapped.length === 1, 'e2e still reports it unmapped — the e2e map is per page');
+});
+
+test('visual: docs only → none, and the output says so', () => {
+  const r = sel(M('docs/BUILD_LOG.md', 'README.md', '.claude/LEARNINGS.md'));
+  assert.deepEqual(r.visual.tests, []);
+  assert.equal(r.visual.command, null);
+  const text = format(r, { label: 'x', total: 3 });
+  assert.match(text, /Visual: no visual screen shows this change/);
+  assert.doesNotMatch(text, /VISUAL=1/);
+});
+
+test('visual: a page with no visual screen → none', () => {
+  for (const p of ['apps/web/src/app/[locale]/lenders/page.tsx', 'apps/web/src/app/[locale]/settlements/page.tsx', 'apps/web/src/app/[locale]/page.tsx']) {
+    assert.ok(index.fileSet.has(p), p);
+    assert.deepEqual(sel(M(p)).visual.tests, [], p);
+  }
+});
+
+test('visual: a changed baseline PNG → exactly its test, one locale', () => {
+  const r = sel(M(`${VIS}-snapshots/ledger-ar-chromium-darwin.png`));
+  assert.deepEqual(vtitles(r), ['ledger · ar']);
+  assert.equal(r.visual.command, 'cd apps/web && VISUAL=1 npx playwright test tests/visual.spec.ts -g "ledger · ar"');
+  assert.deepEqual(r.unmapped, []);
+  assert.deepEqual(r.e2e, []);
+
+  const linux = sel([{ status: 'A', path: `${VIS}-snapshots/sale-detail-en-chromium-linux.png` }]);
+  assert.deepEqual(vtitles(linux), ['sale detail dialog · en']);
+  const gone = sel([{ status: 'D', path: `${VIS_STORE}-snapshots/store-home-en-storefront-darwin.png` }]);
+  assert.deepEqual(vtitles(gone), ['storefront catalogue · en']);
+
+  // A sales-list baseline must not pick the sale detail one (sales-ar vs sale-detail-ar).
+  assert.deepEqual(vtitles(sel(M(`${VIS}-snapshots/sales-ar-chromium-darwin.png`))), ['sales list · ar']);
+
+  const stale = sel(M(`${VIS}-snapshots/nothing-en-chromium-darwin.png`));
+  assert.deepEqual(stale.visual.tests, []);
+  assert.match(stale.unmapped[0].note, /no test takes/);
+});
+
+test('visual: a PNG and a screen together grep by name for the screen and by title for the PNG', () => {
+  const r = sel(M(`${VIS}-snapshots/ledger-ar-chromium-darwin.png`, 'apps/web/src/components/sales/order-history.tsx'));
+  assert.equal(r.visual.command, 'cd apps/web && VISUAL=1 npx playwright test tests/visual.spec.ts -g "sales list|sale detail dialog|ledger · ar"');
+});
+
+test('visual: a changed visual spec → all its tests, never the e2e list', () => {
+  const r = sel(M(VIS));
+  assert.deepEqual(vtitles(r), both(...OFFICE));
+  assert.equal(r.visual.command, 'cd apps/web && VISUAL=1 npx playwright test tests/visual.spec.ts');
+  assert.deepEqual(r.e2e, []);
+  assert.equal(sel(M(VIS, VIS_STORE)).visual.command, 'npm run test:visual');
+  assert.deepEqual(sel([{ status: 'D', path: VIS }]).visual.tests, []);
+});
+
+test('visual: a storefront change and an office screen together → one command over both specs', () => {
+  const store = index.files.find((x) => x.startsWith('apps/storefront/src/app/') && x.endsWith('page.tsx'));
+  const r = sel(M(store, 'apps/web/src/components/sales/order-history.tsx'));
+  assert.equal(r.visual.command, 'cd apps/web && VISUAL=1 npx playwright test tests/visual-storefront.spec.ts tests/visual.spec.ts -g "storefront catalogue|storefront product|storefront sign-in|sales list|sale detail dialog"');
+});
+
+test('visual: an i18n value picks the screens of its namespace, both locales; a removed key is every test', () => {
+  const before = fs.readFileSync(path.join(REPO, EN), 'utf8');
+  const json = JSON.parse(before);
+  const ctxWith = (after) => ({ ...base, read: (p) => (p === EN ? after : base.read(p)), readBase: (p) => (p === EN ? before : null) });
+  const changed = structuredClone(json);
+  changed.ledger.title = 'Cash book';
+  const r = selectTests(M(EN), ctxWith(JSON.stringify(changed)), index);
+  assert.ok(vtitles(r).includes('ledger · en') && vtitles(r).includes('ledger · ar'), vtitles(r).join(', '));
+  assert.ok(!vtitles(r).includes('sales list · en'), 'the sales screens do not render ledger.*');
+  const removed = structuredClone(json);
+  delete removed.ledger.title;
+  assert.equal(selectTests(M(EN), ctxWith(JSON.stringify(removed)), index).visual.command, 'npm run test:visual');
+});
+
+test('visual: an API service → the screens of the pages that call it', () => {
+  const r = sel(M('apps/api/src/modules/returns/returns.service.ts'));
+  assert.ok(vtitles(r).includes('sales list · en'));
+  assert.ok(!vtitles(r).includes('ledger · en'));
+});
+
+test('visual: the precondition is the one visual.spec.ts fails with, copied from it', () => {
+  const src = fs.readFileSync(path.join(REPO, VIS), 'utf8');
+  const iso = new Date(src.match(/FROZEN_NOW = new Date\('([^']+)'\)/)[1]).toISOString();
+  const r = sel(M('apps/web/src/components/sales/order-history.tsx'));
+  assert.equal(r.visual.precondition, `Start it at ${iso} (AGENT_CLOCK=${iso} scripts/agent-servers.sh <name> start) and restart it every 12 hours.`);
+  assert.ok(format(r, { label: 'x', total: 1 }).includes(`AGENT_CLOCK=${iso} scripts/agent-servers.sh <name> start`));
+});
+
+test('visual: --json carries a visual field', () => {
+  const out = execFileSync('node', [path.join(REPO, 'scripts/affected-tests.mjs'), '--files', 'apps/web/src/components/ui/dialog.tsx', '--json'], { cwd: REPO, encoding: 'utf8' });
+  const j = JSON.parse(out);
+  assert.equal(j.visual.command, 'cd apps/web && VISUAL=1 npx playwright test tests/visual.spec.ts -g "sale detail dialog"');
+  assert.equal(j.commands.visual, j.visual.command);
+  assert.equal(j.visual.tests.length, 2);
+});
+
+test('the visual overrides name only screens and files that exist', () => {
+  for (const [screen, files] of Object.entries(base.overrides.visual ?? {})) {
+    assert.ok(index.visual.screens.some((s) => s.name === screen), `overrides.visual names no screen: ${screen}`);
+    for (const f of files) assert.ok(index.fileSet.has(f), `overrides.visual names a missing file: ${f}`);
+  }
 });

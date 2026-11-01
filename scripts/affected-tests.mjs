@@ -25,6 +25,21 @@
  *  - an i18n change: a removed key or changed shape → FULL; a changed or added value picks
  *    the specs whose text contains the old or new value, and the pages of the namespace;
  *  - scripts/affected-tests.overrides.json for the few links none of the above can see.
+ *
+ * Visual regression (apps/web/tests/visual*.spec.ts, opt-in with VISUAL=1) is its own section:
+ *  - each visual test is read from the spec itself: its screen name ("sales list"), the route it
+ *    ends on (page.goto, then any toHaveURL — "cycles/[id]"), its baseline name, whether it
+ *    captures a dialog; the page files of that route are the screen's;
+ *  - a web file selects the screens whose page files it reaches, the same import graph as above
+ *    but exact per screen, so a component shared by many pages is not "all visual" unless it
+ *    reaches every screen. A file that only renders inside an open dialog (every value it
+ *    exports is a *Dialog* component) is a wall: what is reached only through it is never on a
+ *    closed page's screenshot. A dialog screen also takes the files its dialog renders
+ *    (overrides.visual: the roots, and everything they import);
+ *  - the FULL rules, a wide API file and a structural i18n change select every visual test; the
+ *    storefront selects the storefront visual spec; a changed visual spec selects all its tests,
+ *    a changed baseline PNG the one test that owns it; i18n values select the screens of the
+ *    namespace's files.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -85,7 +100,11 @@ const IGNORE = [
 const isCode = (p) => CODE_EXT.some((e) => p.endsWith(e)) && !p.endsWith('.d.ts');
 const isWebUnitTest = (p) => p.startsWith(WEB_SRC) && /\.test\.tsx?$/.test(p);
 const isApiSpec = (p) => p.startsWith(API_SRC) && p.endsWith('.spec.ts');
-const isE2eSpec = (p) => p.startsWith(WEB_TESTS) && /^[^/]+\.spec\.ts$/.test(p.slice(WEB_TESTS.length));
+// Mirrors playwright.config.ts: `visual*.spec.ts` only runs with VISUAL=1, so it is not an e2e spec here.
+const isVisualSpec = (p) => /^apps\/web\/tests\/visual[^/]*\.spec\.ts$/.test(p);
+const isE2eSpec = (p) => p.startsWith(WEB_TESTS) && /^[^/]+\.spec\.ts$/.test(p.slice(WEB_TESTS.length)) && !isVisualSpec(p);
+// A committed baseline: apps/web/tests/visual.spec.ts-snapshots/sales-ar-chromium-darwin.png
+const VISUAL_PNG_RE = /^(apps\/web\/tests\/visual[^/]*\.spec\.ts)-snapshots\/(.+?)-[a-z0-9]+-(?:darwin|linux|win32)\.png$/;
 const specName = (p) => p.slice(WEB_TESTS.length);
 
 function gitOut(args, cwd = REPO) {
@@ -260,7 +279,147 @@ export function buildIndex(ctx) {
     views.set(m[1], [...m[2].matchAll(/slug:\s*['"]([a-z-]+)['"]/g)].map((s) => s[1]).filter((s) => s !== m[1]));
   }
   index.views = views;
+
+  index.visual = buildVisual(ctx, files, imports, importers);
   return index;
+}
+
+// ── visual screens, read from the visual specs ───────────────────────────────
+const TEST_RE = /\btest\(\s*(['"`])(.+?)\1\s*,/g;
+const GOTO_RE = /\.goto\(\s*`\$\{\s*([A-Z]+)\s*\}([^`]*)`/g;
+const URL_RE = /toHaveURL\(\s*\/(.+?)\/[a-z]*\s*\)/g;
+const SNAP_RE = /\bsnap\(\s*page\s*,\s*(['"`])([^'"`]+)\1/g;
+const LOCALE_VAR = '${locale}';
+
+/** "/${locale}/sales?status=ALL" -> ["sales"]; the regex source "\/cycles\/[^/?]+" -> ["cycles", "[]"] */
+function routeSegments(gotoPath, urlRegex) {
+  if (urlRegex) {
+    return urlRegex.split('\\/').filter(Boolean).map((seg) => (/^[a-z][a-z0-9-]*$/.test(seg) ? seg : '[]'));
+  }
+  return gotoPath.split('?')[0].split('/').filter(Boolean).filter((seg) => seg !== LOCALE_VAR && seg !== 'en' && seg !== 'ar');
+}
+
+/** True when nothing this file exports can render outside an open dialog. */
+export function isOverlayOnly(src) {
+  if (!src) return false;
+  const names = [];
+  for (const m of src.matchAll(/^export\s+(default\s+)?(?:async\s+)?(function\*?|const|let|var|class|type|interface|enum|\{|\*)\s*([A-Za-z_$][\w$]*)?/gm)) {
+    if (m[1] || m[2] === '{' || m[2] === '*') return false; // a default or re-export: cannot tell
+    if (m[2] === 'type' || m[2] === 'interface') continue;
+    names.push(m[3]);
+  }
+  return names.length > 0 && names.every((n) => /^[A-Z]\w*Dialog\w*$/.test(n) || /^Dialog\w*$/.test(n));
+}
+
+function buildVisual(ctx, files, imports, importers) {
+  const fileSet = new Set(files);
+  const roots = ctx.overrides?.visual ?? {};
+  const specs = files.filter(isVisualSpec).sort();
+  const screens = [];
+  const preconditions = new Map();
+  for (const spec of specs) {
+    const src = ctx.read(spec) ?? '';
+    const locales = [...(src.match(/const LOCALES[^=]*=\s*\[([^\]]*)\]/)?.[1] ?? "'en','ar'").matchAll(/['"](\w+)['"]/g)].map((m) => m[1]);
+    const frozen = src.match(/FROZEN_NOW\s*=\s*new Date\(\s*['"]([^'"]+)['"]/)?.[1];
+    // The message the spec fails with when the API was not started at FROZEN_NOW, word for word.
+    const msg = src.match(/`[^`]*Start it at[^`]*`(?:\s*\+\s*`[^`]*`)*/)?.[0];
+    if (msg && frozen) {
+      const iso = new Date(frozen).toISOString();
+      preconditions.set(spec, msg.split(/`\s*\+\s*`/).join('').replace(/^`|`$/g, '').replace(/^[\s\S]*?(?=Start it at)/, '').replace(/\$\{FROZEN_NOW\.toISOString\(\)\}/g, iso));
+    }
+    const heads = [...src.matchAll(TEST_RE)];
+    const byName = new Map();
+    heads.forEach((h, i) => {
+      const body = src.slice(h.index, heads[i + 1]?.index ?? src.length);
+      const title = h[2];
+      const name = title.replace(/\s*·\s*(?:\$\{locale\}|en|ar)$/, '');
+      const titleLocales = title.includes(LOCALE_VAR) ? locales : [title.match(/·\s*(en|ar)$/)?.[1] ?? null];
+      const gotos = [...body.matchAll(GOTO_RE)];
+      const last = gotos.at(-1);
+      const url = [...body.matchAll(URL_RE)].filter((u) => !last || u.index > last.index).at(-1);
+      const route = last ? routeSegments(last[2], url?.[1]) : [];
+      const snapName = body.match(SNAP_RE)?.[0]?.match(/(['"`])([^'"`]+)\1/)?.[2] ?? null;
+      const overlay = /getByRole\(\s*['"]dialog['"]/.test(body) && /target:\s*dialog/.test(body);
+      if (!byName.has(name)) {
+        byName.set(name, {
+          spec, name, base: last?.[1] ?? null, route, overlay, tests: [],
+          storefront: /storefront\.spec\.ts$/.test(spec),
+        });
+      }
+      for (const loc of titleLocales) {
+        byName.get(name).tests.push({
+          spec, screen: name, locale: loc,
+          title: loc ? title.replace(LOCALE_VAR, loc) : title,
+          snapshot: snapName ? (loc ? snapName.replace(LOCALE_VAR, loc) : snapName) : null,
+        });
+      }
+    });
+    screens.push(...byName.values());
+  }
+
+  // Office screens: the page files of the route they end on.
+  for (const s of screens) {
+    s.pageFiles = new Set();
+    if (s.storefront || s.base !== 'BASE') continue;
+    let dir = APP_DIR;
+    const chain = [];
+    const names = [];
+    let ok = true;
+    for (const seg of s.route) {
+      const prefix = dir;
+      const next = seg === '[]'
+        ? files.find((f) => f.startsWith(prefix) && /^\[[^/]+\]\//.test(f.slice(prefix.length)))?.slice(prefix.length).split('/')[0]
+        : seg;
+      if (!next || !files.some((f) => f.startsWith(`${prefix}${next}/`))) { ok = false; break; }
+      chain.push(dir);
+      names.push(next);
+      dir = `${prefix}${next}/`;
+    }
+    s.resolved = ok && s.route.length > 0;
+    s.routePath = (ok ? names : s.route).join('/');
+    if (!s.resolved) continue;
+    s.routeDir = dir;
+    for (const f of files) {
+      if (!f.startsWith(dir) || !isCode(f) || /\.test\./.test(f)) continue;
+      if (!f.slice(dir.length).includes('/')) s.pageFiles.add(f);
+    }
+    // The layouts of the folders above it render around it too: what the root layouts import (the
+    // app shell, the sidebar) is on every office screen, though no page imports it.
+    for (const up of ['apps/web/src/app/', ...chain]) {
+      for (const f of files) if (f.startsWith(up) && /^(layout|template|loading|error|not-found)\.tsx?$/.test(f.slice(up.length))) s.pageFiles.add(f);
+    }
+    // A dialog screen also shows what its dialog renders: overrides.visual names the roots.
+    s.renders = new Set();
+    for (const root of roots[s.name] ?? []) for (const f of bfs(root, imports)) if (fileSet.has(f)) s.renders.add(f);
+  }
+
+  const overlayCache = new Map();
+  const overlayOnly = (f) => {
+    if (!overlayCache.has(f)) overlayCache.set(f, /\.tsx$/.test(f) && f.startsWith(WEB_SRC) && isOverlayOnly(ctx.read(f)));
+    return overlayCache.get(f);
+  };
+
+  /** Map(screen -> how) for an office web file that exists. */
+  const screensOf = (f) => {
+    // Up the importers, never through a dialog-only file: past it, things render only when it is open.
+    const seen = new Set([f]);
+    const queue = [f];
+    while (queue.length) {
+      const n = queue.shift();
+      if (overlayOnly(n)) continue;
+      for (const next of importers.get(n) ?? []) if (!seen.has(next)) { seen.add(next); queue.push(next); }
+    }
+    const out = new Map();
+    for (const s of screens) {
+      if (!s.resolved) continue;
+      const page = [...s.pageFiles].find((pf) => seen.has(pf));
+      if (page) out.set(s, page === f ? `on /${s.routePath}` : `on /${s.routePath} via ${page.slice(APP_DIR.length)}`);
+      else if (s.overlay && s.renders.has(f)) out.set(s, `rendered in the ${s.name}`);
+    }
+    return out;
+  };
+
+  return { specs, screens, preconditions, screensOf, overlayOnly };
 }
 
 // ── i18n diff ────────────────────────────────────────────────────────────────
@@ -310,6 +469,13 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
     nodeUnit: new Set(), e2e: new Map(), self: false, unmapped: [], ignored: [], notes: [],
   };
   const pick = (spec, why) => { if (!r.e2e.has(spec)) r.e2e.set(spec, why); };
+  // Visual: tests picked by `${spec}\t${title}`, or every one of them.
+  const V = index.visual;
+  const vis = { all: [], picked: new Map() };
+  const vPickScreen = (s, why) => { for (const t of s.tests) { const k = `${t.spec}\t${t.title}`; if (!vis.picked.has(k)) vis.picked.set(k, `${t.screen}: ${why}`); } };
+  const vPickSpec = (spec, why) => { for (const s of V.screens) if (s.spec === spec) vPickScreen(s, why); };
+  const vPickFile = (f, why) => { for (const [s, how] of V.screensOf(f)) vPickScreen(s, `${how} ← ${why}`); };
+  const vPickRoute = (route, why) => { for (const s of V.screens) if (s.resolved && s.route[0] === route) vPickScreen(s, `on /${route} ← ${why}`); };
   const pickRoute = (route, why) => {
     // A page that hosts several views (lib/page-views.ts) is also reached as each of them.
     for (const name of [route, ...(index.views.get(route) ?? [])]) {
@@ -320,7 +486,7 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
     const hit = (p) => p === prefix || p.startsWith(`${prefix}/`) || p.startsWith(`${prefix}?`);
     for (const [s, info] of index.specInfo) if ([...info.apiPaths].some(hit)) pick(s, `calls /${prefix} ← ${why}`);
     for (const [call, routes] of index.apiToRoutes) {
-      if (hit(call)) for (const route of routes) pickRoute(route, `page calls /${prefix} ← ${why}`);
+      if (hit(call)) for (const route of routes) { pickRoute(route, `page calls /${prefix} ← ${why}`); vPickRoute(route, `page calls /${prefix} ← ${why}`); }
     }
   };
   const overrides = ctx.overrides ?? {};
@@ -352,6 +518,7 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
     const wide = WIDE_RULES.find(([t]) => t(p));
     if (wide) {
       r.fullReasons.push(`${p} — ${wide[1]}`);
+      vis.all.push(`${p} — ${wide[1]}`);
       if (p.startsWith('apps/api/')) r.apiFullReasons.push(p);
       if (p.startsWith('apps/web/') && !p.startsWith(WEB_TESTS) && p !== 'apps/web/playwright.config.ts') r.webUnitAll = true;
       continue;
@@ -375,6 +542,7 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
       const prefixes = new Set(ctrls.flatMap((c) => index.controllers.get(c)));
       if (prefixes.size >= API_WIDE_PREFIXES) {
         r.fullReasons.push(`${p} — reaches ${prefixes.size} API controllers (${[...prefixes].slice(0, 6).join(', ')}, …)`);
+        vis.all.push(`${p} — reaches ${prefixes.size} API controllers`);
         r.apiFullReasons.push(p);
         continue;
       }
@@ -385,14 +553,33 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
 
     // ── e2e specs and their support ──
     if (p.startsWith(WEB_TESTS)) {
+      if (isVisualSpec(p)) {
+        if (deleted) r.notes.push(`${p} ${gone}; nothing to run for it`);
+        else vPickSpec(p, 'the visual spec itself changed');
+        continue;
+      }
+      const png = p.match(VISUAL_PNG_RE);
+      if (png) {
+        const owner = V.screens.flatMap((s) => s.tests).find((t) => t.spec === png[1] && t.snapshot === png[2]);
+        if (owner) vis.picked.set(`${owner.spec}\t${owner.title}`, `${owner.screen}: its baseline ${png[2]}.png ${deleted ? 'was deleted' : 'changed'}`);
+        else r.unmapped.push({ path: p, note: 'a visual baseline no test takes (stale, or a renamed test?)' });
+        continue;
+      }
       if (isE2eSpec(p)) {
         if (deleted) r.notes.push(`${p} ${gone}; nothing to run for it`);
         else pick(p, 'the spec itself changed');
         continue;
       }
-      const users = deleted ? new Set() : new Set([...bfs(p, index.importers)].filter(isE2eSpec));
-      if (users.size >= SUPPORT_WIDE_SPECS) { r.fullReasons.push(`${p} — e2e support used by ${users.size} specs`); continue; }
-      if (!users.size) { r.unmapped.push({ path: p, note: 'e2e support no spec imports' }); continue; }
+      const reached = deleted ? new Set() : bfs(p, index.importers);
+      const users = new Set([...reached].filter(isE2eSpec));
+      if (users.size >= SUPPORT_WIDE_SPECS) {
+        r.fullReasons.push(`${p} — e2e support used by ${users.size} specs`);
+        vis.all.push(`${p} — e2e support used by ${users.size} specs`);
+        continue;
+      }
+      const vUsers = [...reached].filter(isVisualSpec);
+      for (const v of vUsers) vPickSpec(v, `imports ${specName(p)}`);
+      if (!users.size && !vUsers.length) { r.unmapped.push({ path: p, note: 'e2e support no spec imports' }); continue; }
       for (const s of users) pick(s, `imports ${specName(p) || p}`);
       continue;
     }
@@ -409,7 +596,7 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
       const d = diffLocale(ctx.readBase(p), deleted ? null : ctx.read(p));
       for (const s of overrides.i18n ?? []) pick(WEB_TESTS + s, 'i18n override');
       r.webUnitAll = true; // vocabulary/placeholder checks read every key
-      if (d.wide) { r.fullReasons.push(`${p} — ${d.wide}`); continue; }
+      if (d.wide) { r.fullReasons.push(`${p} — ${d.wide}`); vis.all.push(`${p} — ${d.wide}`); continue; }
       for (const { key, before, after } of d.changed) {
         for (const v of [literal(before), literal(after)].filter(Boolean)) {
           for (const [s, info] of index.specInfo) if (info.text.includes(v)) pick(s, `asserts "${v}" (${key})`);
@@ -418,6 +605,8 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
         const parts = key.split('.');
         const users = new Set();
         for (let i = parts.length - 1; i >= 1; i--) for (const f of index.nsFiles.get(parts.slice(0, i).join('.')) ?? []) users.add(f);
+        // Visual: the screens those files are on, both locales (the screen name matches both).
+        for (const f of users) vPickFile(f, `renders ${key}`);
         const routes = new Map();
         for (const f of users) for (const [rt, pg] of index.routesOf(f)) routes.set(rt, pg);
         if (routes.size && routes.size < WEB_WIDE_ROUTES) for (const rt of routes.keys()) pickRoute(rt, `renders ${key}`);
@@ -429,6 +618,7 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
     if (p.startsWith('apps/storefront/')) {
       if (!p.startsWith(STORE_SRC)) { r.unmapped.push({ path: p, note: 'storefront file outside src/' }); continue; }
       for (const [s, info] of index.specInfo) if (info.usesStore) pick(s, `drives the storefront ← ${p}`);
+      for (const s of V.screens) if (s.storefront) vPickScreen(s, `storefront ← ${p}`);
       for (const s of overrides.storefront ?? []) pick(WEB_TESTS + s, 'storefront override');
       continue;
     }
@@ -439,11 +629,13 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
       if (!deleted && isCode(p)) r.vitest.add(p);
       if (deleted) {
         const route = routeOfAppFile(p);
-        if (route !== null) pickRoute(route, `${p} (deleted)`);
+        if (route !== null) { pickRoute(route, `${p} (deleted)`); vPickRoute(route, `${p} (deleted)`); }
         else r.notes.push(`${p} ${gone}; its importers changed too and are mapped on their own`);
         continue;
       }
       const routes = index.routesOf(p);
+      // Visual is exact per screen, so even a file shared by every page picks only the screens it reaches.
+      vPickFile(p, p);
       if (routes.size >= WEB_WIDE_ROUTES) {
         r.fullReasons.push(`${p} — shared by ${routes.size} pages`);
         r.webUnitAll = true;
@@ -472,7 +664,43 @@ export function selectTests(changes, ctx, index = buildIndex(ctx)) {
   if (!r.fullReasons.length && live.length >= Math.ceil(index.specs.length * WIDE_SHARE)) {
     r.fullReasons.push(`the selection is ${live.length} of ${index.specs.length} specs — run them all`);
   }
-  return finish(r);
+  return finish(r, visualSelection(vis, V));
+}
+
+const escRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** The visual tests picked, and the one command that runs exactly them. */
+function visualSelection(vis, V) {
+  const every = V.screens.flatMap((s) => s.tests);
+  const full = vis.all.length > 0;
+  const chosen = full ? every : every.filter((t) => vis.picked.has(`${t.spec}\t${t.title}`));
+  const out = {
+    full, fullReasons: vis.all,
+    tests: chosen.map((t) => ({ spec: t.spec, title: t.title, why: full ? 'FULL' : vis.picked.get(`${t.spec}\t${t.title}`) })),
+    command: null, precondition: null,
+  };
+  if (!chosen.length) return out;
+  const set = new Set(chosen);
+  const specs = V.specs.filter((sp) => chosen.some((t) => t.spec === sp));
+  if (specs.length === V.specs.length && chosen.length === every.length) out.command = 'npm run test:visual';
+  else {
+    const whole = (sp) => every.filter((t) => t.spec === sp).every((t) => set.has(t));
+    let grep = '';
+    if (!specs.every(whole)) {
+      // A screen with every locale picked is matched by its name (both locales), else by the test title.
+      const pats = [];
+      for (const s of V.screens) {
+        if (!specs.includes(s.spec)) continue;
+        if (s.tests.every((t) => set.has(t))) pats.push(escRe(s.name));
+        else for (const t of s.tests) if (set.has(t)) pats.push(escRe(t.title));
+      }
+      grep = ` -g "${pats.join('|')}"`;
+    }
+    out.command = `cd apps/web && VISUAL=1 npx playwright test ${specs.map(webRel).join(' ')}${grep}`;
+  }
+  const pre = specs.map((sp) => V.preconditions.get(sp)).filter(Boolean);
+  if (pre.length) out.precondition = pre[0];
+  return out;
 }
 
 /** Specs nothing derived can select — they only run with FULL or through the overrides file. */
@@ -480,9 +708,10 @@ export function orphanSpecs(index) {
   return [...index.specInfo].filter(([, i]) => !i.routes.size && !i.apiPaths.size && !i.usesStore).map(([s]) => s);
 }
 
-function finish(r) {
+function finish(r, visual) {
   const full = r.fullReasons.length > 0;
   return {
+    visual,
     full,
     fullReasons: r.fullReasons,
     jest: { full: r.apiFullReasons.length > 0, files: [...r.jest].sort() },
@@ -537,6 +766,7 @@ export function commands(sel) {
   if (sel.self) cmds.self = 'node --test scripts/affected-tests.test.mjs';
   if (sel.full) cmds.e2e = 'cd apps/web && npx playwright test';
   else if (sel.e2e.length) cmds.e2e = `cd apps/web && npx playwright test ${sel.e2e.map(webRel).join(' ')}`;
+  if (sel.visual?.command) cmds.visual = sel.visual.command;
   return cmds;
 }
 
@@ -574,6 +804,22 @@ export function format(sel, { label, total, jestSpecs, showWhy = true }) {
     if (sel.full) for (const why of sel.fullReasons) out.push(`    FULL because ${why}`);
     else if (showWhy) for (const [s, why] of Object.entries(sel.e2eReasons)) out.push(`    · ${specName(s)}: ${why}`);
     out.push('');
+  }
+  if (sel.visual.command) {
+    const v = sel.visual;
+    const screens = [...new Set(v.tests.map((t) => t.title.replace(/\s*·\s*(en|ar)$/, '')))];
+    out.push(`Visual (VISUAL=1)${v.full ? ': FULL' : `: ${v.tests.length} test(s), ${screens.length} screen(s)`} — never run from here; only when the owner asks`);
+    out.push(`  ${v.command}`);
+    if (v.full) for (const why of v.fullReasons) out.push(`    FULL because ${why}`);
+    else if (showWhy) for (const why of new Set(v.tests.map((t) => t.why))) out.push(`    · ${why}`);
+    if (v.precondition) {
+      out.push('  Needs the API started at the frozen clock — visual.spec.ts refuses to run otherwise:');
+      out.push(`    ${v.precondition}`);
+    }
+    out.push('  (in an agent environment, with that environment\'s exports: scripts/agent-servers.sh)');
+    out.push('');
+  } else if (total > 0) {
+    out.push('Visual: no visual screen shows this change — nothing to run.', '');
   }
   if (sel.unmapped.length) {
     out.push('Unmapped (no rule covers these — decide yourself):');

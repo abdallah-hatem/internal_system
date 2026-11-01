@@ -7,5 +7,22 @@
     "apps/web/src/lib/push.ts": ["58-office-push.spec.ts"]
   },
   "i18n": ["40-wizard-i18n.spec.ts"],
-  "storefront": ["52-portal-fence.spec.ts", "53-portal.spec.ts"]
+  "storefront": ["52-portal-fence.spec.ts", "53-portal.spec.ts"],
+  "_visual": "A dialog screen in apps/web/tests/visual*.spec.ts, by screen name (the test title without the locale): the components its dialog renders. Everything they import comes with them; the page it opens on is read from the spec.",
+  "visual": {
+    "sale detail dialog": [
+      "apps/web/src/components/ui/dialog.tsx",
+      "apps/web/src/components/sales/order-history.tsx",
+      "apps/web/src/components/sales/adjust-price.tsx",
+      "apps/web/src/components/sales/contract-plan.tsx",
+      "apps/web/src/components/sales/below-cost.tsx",
+      "apps/web/src/components/ui/tab-bar.tsx",
+      "apps/web/src/components/ui/data-table.tsx",
+      "apps/web/src/components/ui/empty-state.tsx",
+      "apps/web/src/components/ui/batch-ref.tsx",
+      "apps/web/src/components/ui/money.tsx",
+      "apps/web/src/components/ui/entity-link.tsx",
+      "apps/web/src/components/ui/latin-text.tsx"
+    ]
+  }
 }
