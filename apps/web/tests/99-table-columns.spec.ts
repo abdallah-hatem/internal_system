@@ -256,6 +256,18 @@ const LISTS: { name: string; nav: NavKey; columns: number }[] = [
   { name: 'Analytics top products', nav: 'analytics', columns: 4 },
 ];
 
+// KNOWN PRODUCT BUG — OPEN (2026-11-02), not a test fault; three Arabic checks
+// are left failing on purpose: TC-COL-01.07 (ar), TC-COL-01.11 (ar), TC-COL-04.04 (ar).
+// Arabic is not drawn in IBM Plex Sans Arabic wherever Arial is installed.
+// next/font puts "IBM Plex Sans Fallback" — `local(Arial)` over every code point
+// (U+0-10FFFF) — inside --font-plex-sans, ahead of --font-plex-arabic, so on a
+// Mac or Windows Arial draws the Arabic and Plex Arabic is never loaded. On
+// Linux (CI; and phones without Arial) Plex Arabic is used, as the layout
+// intends, and it is wider: "سعر الصرف إلى الجنيه" 114px in a 112px column,
+// "العائد على الاستثمار" 104px in 96px (Linux, hinting off as the config sets
+// it; 117 and 107 with it on). The column widths were sized against
+// Arial. Fixing the font changes every Arabic screen and its `-darwin`
+// baselines, so it is the owner's call.
 for (const locale of ['en', 'ar'] as const) {
   test.describe(`Table columns (${locale}, 1440px)`, () => {
     test.use({ viewport: { width: 1440, height: 900 } });

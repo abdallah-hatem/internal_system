@@ -59,7 +59,13 @@ const DASHBOARD_ROWS = (width: number) =>
 const CUSTOMER_ROWS = 3 + 3 + 4 + 4;
 const CYCLE_ROWS = 4 + 2 + 3 + 3 + 3 + 3;
 const stamp = Date.now().toString(36).toUpperCase();
-const CUSTOMER = `Skeleton Shop ${stamp}`;
+// Short enough to sit on one line in Sales' customer column whatever the stamp:
+// "Skeleton Shop <stamp>" was within a few pixels of the column's width, so it
+// wrapped for some stamps ("MVZ23CUE", "MVZ4KX50") and not others, and Sales'
+// first row came out two lines tall (CI, 2026-11-02; the Linux image, 1 in 1).
+// The skeleton traces a one-line row; a name long enough to wrap is a
+// different test (99-table-columns).
+const CUSTOMER = `Skel ${stamp}`;
 
 let cycleCode = '';
 
@@ -209,6 +215,14 @@ for (const viewport of [
   test.describe(`Skeletons at ${viewport.width}px`, () => {
     test.use({ viewport });
 
+    // KNOWN PRODUCT ISSUE — OPEN (2026-11-02), not a test fault; left failing on purpose.
+    // The dashboard shows the business's own totals, and a tile whose figure
+    // has eight digits or more ("19,733,358.93 EGP") wraps to two lines at 1440
+    // and at 390, so the real first row lands 24–34px taller than the skeleton
+    // traces. A full run reaches that scale (earlier specs sell 9,000,000 at a
+    // time), so CI fails here 3/3; on the Mac one owed order of 19,685,158.93
+    // fails it the same way. Whether a figure that size shrinks, the tile keeps
+    // two lines' room, or the skeleton allows for it is the owner's call.
     test(`TC-SKEL-01 the Dashboard shows its skeleton, not "Loading", at ${viewport.width}px`, async ({ page }) => {
       const gate = await gateApi(page);
       gate.hold();
