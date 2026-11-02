@@ -203,7 +203,7 @@ Ordered by what would hurt first.
   (next/font's Arial fallback sits ahead of Plex Arabic; on Linux Plex Arabic loads and overflows TC-COL-01.07,
   01.11, 04.04 ar); dashboard tile figures of 8+ digits wrap to two lines (TC-SKEL-01); the contracts table's
   Total and Paid columns (8.5rem, `contracts-list.tsx`) can't fit 4,000,000.00 EGP (TC-COL-04.10; 10rem fits —
-  owner said "not now"). Fixed 2026-11-02: the Partners tab kept pre-payout figures after Mark paid. (Fixed 2026-11-01: CI's container name, and the web and
+  owner said "not now"). Fixed 2026-11-02: the Partners tab kept pre-payout figures after Mark paid (the first fix, refetchType 'all', joined the in-flight request instead of replacing it; refresh() now cancels it first). (Fixed 2026-11-01: CI's container name, and the web and
   storefront lockfiles that stopped `npm ci`.)
 - **Change split** writes each participant's share separately and only the dialog checks they add to 100 (the
   server checks at settlement); one server-side save is queued.
