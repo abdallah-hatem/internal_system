@@ -111,11 +111,14 @@ export default function SettlementsPage() {
   // figures — payouts, profit earned, running costs taken — are usually in
   // the cache already, and they change with every approve, pay and reverse.
   // Refreshing the settlements alone left that tab showing "Nothing paid out
-  // yet" for a minute after a payout.
+  // yet" for a minute after a payout. refetchType 'all' because that tab is
+  // usually unmounted here: invalidating an inactive query only marks it, and a
+  // participation request already in flight (opening this tab starts one) then
+  // lands with pre-payout figures and is stored as fresh. Refetching cancels it.
   const refresh = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ['settlements'] }),
-      queryClient.invalidateQueries({ queryKey: ['users', 'participation'] }),
+      queryClient.invalidateQueries({ queryKey: ['users', 'participation'], refetchType: 'all' }),
       queryClient.invalidateQueries({ queryKey: ['running-costs'] }),
       queryClient.invalidateQueries({ queryKey: ['cycles'] }),
     ]);
