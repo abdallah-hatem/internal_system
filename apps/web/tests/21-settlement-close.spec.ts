@@ -7,7 +7,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { API } from './support/env';
-import { cycleByCode } from './support/fixtures';
+import { cycleByCode, settleableCycle } from './support/fixtures';
 
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
@@ -19,21 +19,16 @@ async function token(request: any) {
   return (await auth.json()).data.accessToken;
 }
 
-/** A cycle that has stock and sales, so a settlement is meaningful. */
-async function settleableCycle(request: any, h: any) {
-  const cycles = (await (await request.get(`${API}/analytics/cycle-profitability`, { headers: h })).json()).data;
-  return cycles.find((c: any) => c.status !== 'CLOSED' && Number(c.totalRevenue) > 0);
-}
 
 
 
 test.describe('Settlement close', () => {
   test('TC-SET-10: paying refuses while stock is still on the shelf', async ({ request }) => {
     const h = { Authorization: `Bearer ${await token(request)}` };
-    const target = await settleableCycle(request, h);
-    test.skip(!target || Number(target.unitsRemaining) === 0, 'no open cycle with remaining stock');
+    const target = await settleableCycle(request, h, { unsold: true });
+    test.skip(!target, 'no open, funded cycle with remaining stock');
 
-    const cycle = await cycleByCode(request, h, target.cycleCode);
+    const cycle = await cycleByCode(request, h, String(target!.cycleCode));
     const settlement = (await (await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers: h })).json()).data;
     await request.post(`${API}/settlements/${settlement.id}/approve`, { headers: h });
 
@@ -52,7 +47,7 @@ test.describe('Settlement close', () => {
     const target = await settleableCycle(request, h);
     test.skip(!target, 'no open cycle with sales');
 
-    const cycle = await cycleByCode(request, h, target.cycleCode);
+    const cycle = await cycleByCode(request, h, String(target!.cycleCode));
     const settlement = (await (await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers: h })).json()).data;
     await request.post(`${API}/settlements/${settlement.id}/approve`, { headers: h });
     const paid = await request.post(`${API}/settlements/${settlement.id}/pay`, {
@@ -74,10 +69,16 @@ test.describe('Settlement close', () => {
       .filter((l: any) => l.component === 'CAPITAL_RETURN')
       .reduce((s: number, l: any) => s + Number(l.amount), 0);
     const totalPaid = payouts.reduce((s: number, e: any) => s + Number(e.amount), 0);
+    // Running costs waiting when Mark paid is pressed come out of the partners'
+    // payouts (§8, L7): the payout rows are the cash handed over, net of them.
+    // Whether any are waiting depends on what earlier specs recorded.
+    const runningCosts = ((body.lines ?? []) as { component: string; amount: string }[])
+      .filter((l) => l.component === 'RUNNING_COSTS')
+      .reduce((s, l) => s + Number(l.amount), 0);
 
     // The fee line is a memo of a deduction already inside the profit share;
     // counting it again made the payouts disagree with the settlement screen.
-    expect(totalPaid).toBeCloseTo(capital + Number(settlement.grossProfitEgp), 2);
+    expect(totalPaid).toBeCloseTo(capital + Number(settlement.grossProfitEgp) + runningCosts, 2);
 
     await request.post(`${API}/settlements/${settlement.id}/reverse`, {
       headers: h, data: { reason: 'Reopened for a costing correction' },
@@ -89,7 +90,7 @@ test.describe('Settlement close', () => {
     const target = await settleableCycle(request, h);
     test.skip(!target, 'no open cycle with sales');
 
-    const cycle = await cycleByCode(request, h, target.cycleCode);
+    const cycle = await cycleByCode(request, h, String(target!.cycleCode));
     const first = (await (await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers: h })).json()).data;
     await request.post(`${API}/settlements/${first.id}/approve`, { headers: h });
     await request.post(`${API}/settlements/${first.id}/pay`, {
@@ -111,7 +112,7 @@ test.describe('Settlement close', () => {
     const target = await settleableCycle(request, h);
     test.skip(!target, 'no open cycle with sales');
 
-    const cycle = await cycleByCode(request, h, target.cycleCode);
+    const cycle = await cycleByCode(request, h, String(target!.cycleCode));
     const settlement = (await (await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers: h })).json()).data;
     await request.post(`${API}/settlements/${settlement.id}/approve`, { headers: h });
     await request.post(`${API}/settlements/${settlement.id}/pay`, {
@@ -141,7 +142,7 @@ test.describe('Settlement close', () => {
     const target = await settleableCycle(request, h);
     test.skip(!target, 'no open cycle with sales');
 
-    const cycle = await cycleByCode(request, h, target.cycleCode);
+    const cycle = await cycleByCode(request, h, String(target!.cycleCode));
     const settlement = (await (await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers: h })).json()).data;
 
     const res = await request.post(`${API}/settlements/${settlement.id}/reverse`, {
@@ -159,7 +160,7 @@ test('TC-SET-17: Calculate and Approve fired together never answer 500', async (
   const h = { Authorization: `Bearer ${await token(request)}` };
   const target = await settleableCycle(request, h);
   test.skip(!target, 'no open cycle with sales');
-  const cycle = await cycleByCode(request, h, target.cycleCode);
+  const cycle = await cycleByCode(request, h, String(target!.cycleCode));
 
   for (let round = 0; round < 5; round++) {
     const draft = await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers: h });

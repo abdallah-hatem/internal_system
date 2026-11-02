@@ -364,3 +364,39 @@ export async function cycleByCode(
   expect(cycle, `cycle ${code} is listed`).toBeTruthy();
   return cycle as { id: string; code: string; status: string };
 }
+
+/**
+ * An open cycle a settlement can be worked out on: it has sold something and
+ * somebody's contribution is recorded on it — settling an unfunded cycle is
+ * refused (§8, `CYCLE_NOT_FUNDED`). With `unsold`, it still holds stock.
+ *
+ * "The first open cycle with sales" was whichever the profitability list
+ * happened to put first (it has no order), and in a full run that was a cycle
+ * an earlier spec had sold from without funding: calculate refused it, and
+ * seven settlement tests read `.id` of nothing (CI, 2026-11-02).
+ */
+export async function settleableCycle(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  opts: { unsold?: boolean } = {},
+): Promise<ApiRow | undefined> {
+  const res = await request.get(`${API}/analytics/cycle-profitability`, { headers });
+  expect(res.ok(), `cycle-profitability: ${res.status()}`).toBeTruthy();
+  const reported = (await res.json()).data as ApiRow[];
+  const funded = new Set(
+    (await allPages(request, headers, 'cycles'))
+      .filter((c) =>
+        ((c.participants ?? []) as unknown as { contributionAmount: string }[]).some(
+          (p) => Number(p.contributionAmount) > 0,
+        ),
+      )
+      .map((c) => c.code),
+  );
+  return reported.find(
+    (c) =>
+      c.status !== 'CLOSED' &&
+      Number(c.totalRevenue) > 0 &&
+      funded.has(c.cycleCode) &&
+      (!opts.unsold || Number(c.unitsRemaining) > 0),
+  );
+}

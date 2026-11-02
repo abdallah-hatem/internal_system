@@ -7,7 +7,7 @@
  */
 import { test, expect, Page } from '@playwright/test';
 import { WEB as BASE, API } from './support/env';
-import { allPages, cycleByCode } from './support/fixtures';
+import { allPages, cycleByCode, settleableCycle } from './support/fixtures';
 
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
@@ -204,15 +204,10 @@ test.describe('Settlements', () => {
 test.describe('Settlement actions from the page', () => {
   /** Approve a settlement for a cycle that has sales, so Mark paid is on screen. */
   async function approvedSettlement(request: any, h: any) {
-    const profitability = (await (
-      await request.get(`${API}/analytics/cycle-profitability`, { headers: h })
-    ).json()).data;
-    const target = profitability.find(
-      (c: any) => c.status !== 'CLOSED' && Number(c.totalRevenue) > 0,
-    );
+    const target = await settleableCycle(request, h);
     if (!target) return null;
 
-    const cycle = await cycleByCode(request, h, target.cycleCode);
+    const cycle = await cycleByCode(request, h, String(target.cycleCode));
     if (!cycle) return null;
 
     const settlement = (await (
