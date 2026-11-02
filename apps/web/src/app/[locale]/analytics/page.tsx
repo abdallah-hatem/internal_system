@@ -116,7 +116,12 @@ export default function AnalyticsPage() {
   const isLoading = loadingProducts || loadingCycles;
 
   // Top products: the name (its SKU under it), quantity sold, revenue,
-  // margin. The revenue fits "123,456.00 EGP".
+  // margin. The revenue fits "99,999,999.00 EGP" ("23,685,158.93 EGP" is 124px).
+  //
+  // Sized to fit its half of the page at 1280 (2026-11-02): it was 28.5rem,
+  // 456px in a 426px card, so it scrolled sideways and Margin was cut off at
+  // the right edge. The figures keep their room; the name gives up the rest
+  // (two lines, then cut, the whole of it on hover), 26.25rem in all.
   const topProductColumns: Column<TopProduct>[] = [
     {
       key: 'product', header: t('product'), width: 'auto', title: (p) => localName(p, locale),
@@ -129,15 +134,15 @@ export default function AnalyticsPage() {
       ),
     },
     {
-      key: 'quantity', header: t('quantitySold'), width: '6.5rem', kind: 'value', align: 'end', className: 'text-gray-900',
+      key: 'quantity', header: t('quantitySold'), width: '6.25rem', kind: 'value', align: 'end', className: 'text-gray-900',
       skeleton: { kind: 'text', share: 'w-1/4' }, cell: (p) => formatNumber(p.totalQuantitySold),
     },
     {
-      key: 'revenue', header: t('revenue'), width: '8rem', kind: 'value', align: 'end', className: 'text-gray-900',
+      key: 'revenue', header: t('revenue'), width: '9rem', kind: 'value', align: 'end', className: 'text-gray-900',
       skeleton: { kind: 'text', share: 'w-2/3' }, cell: (p) => <Money value={p.revenueEgp} />,
     },
     {
-      key: 'margin', header: t('margin'), width: '5rem', kind: 'value', align: 'end',
+      key: 'margin', header: t('margin'), width: '4rem', kind: 'value', align: 'end',
       skeleton: { kind: 'text', share: 'w-1/2' },
       cell: (p) =>
         p.marginPct === null ? (
@@ -175,7 +180,9 @@ export default function AnalyticsPage() {
         <>
           {/* Revenue by month lived here; its figures are the profit and loss
               chart's columns now (owner 2026-10-18, "Option A"). */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Side by side from 1280 (xl), where Top Products fits half the
+              page; below that each takes the whole width (2026-11-02). */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Top Products */}
             <section className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -204,7 +211,7 @@ export default function AnalyticsPage() {
                 <DataTable
                   frame="none"
                   density="compact"
-                  autoMin="9rem"
+                  autoMin="7rem"
                   isLoading={loadingProducts}
                   skeletonRows={ANALYTICS_TOP}
                   rows={productList}

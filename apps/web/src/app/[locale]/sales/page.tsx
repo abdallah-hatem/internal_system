@@ -615,9 +615,16 @@ function SalesPageContent() {
   // (components/ui/data-table.tsx). Each fixed column fits its title in
   // English and Arabic; the amounts fit "-123,456.00 EGP" and are
   // end-aligned so the digits line up; the customer takes what is left.
+  //
+  // The whole table fits a 1280px screen (2026-11-02): at 68.5rem it was 1096px
+  // in a 974px card there, so it scrolled sideways and the last column — Date,
+  // at the left edge in Arabic — was cut off. It now uses the `tight` padding
+  // the other eight-column lists use (Cycles, Shipments), each width taking
+  // off what the padding gave back so every column keeps the same room for its
+  // content, and Customer may narrow to 6.5rem: 60.75rem, 972px.
   const columns: Column<SaleOrder>[] = [
     {
-      key: 'orderNo', header: t('orderNo'), width: '8.5rem', skeleton: { kind: 'text', share: 'w-3/4' },
+      key: 'orderNo', header: t('orderNo'), width: '8.25rem', skeleton: { kind: 'text', share: 'w-3/4' },
       cell: (order) => (
         // The whole row opens the order. The order number is a real button,
         // so a keyboard reaches the same place.
@@ -643,37 +650,42 @@ function SalesPageContent() {
       cell: (order) => customerCell(order),
     },
     {
-      key: 'channel', header: t('channel'), width: '6rem', skeleton: { kind: 'pill', share: 'w-1/2' },
+      key: 'channel', header: t('channel'), width: '4.75rem', skeleton: { kind: 'pill', share: 'w-1/2' },
       cell: (order) => channelBadge(order.channel),
     },
     {
       // Wide enough for its longest pill, "Samples written off" (128px; "Samples · 12 units"
       // is 122px) in either language. It was 12.5rem, which squeezed Customer to its
       // minimum at 1440 and wrapped a plain shop name onto two lines (2026-10-21).
-      key: 'status', header: tc('status'), width: '10.5rem', skeleton: { kind: 'pill', share: 'w-3/4' },
+      // 136px inside the tight padding.
+      key: 'status', header: tc('status'), width: '9.75rem', skeleton: { kind: 'pill', share: 'w-3/4' },
       cell: (order) => statusBadge(order.status, order),
     },
     {
       // Wide enough for "sold at -123,456.00 EGP" under the value now (§4,
-      // 2026-10-22): 134px at text-xs; 9.5rem left 120.
-      key: 'total', header: t('total'), width: '10.5rem', kind: 'value', align: 'end',
+      // 2026-10-22): 134px at text-xs; 136px inside the tight padding.
+      key: 'total', header: t('total'), width: '9.75rem', kind: 'value', align: 'end',
       className: 'text-gray-900 font-medium', skeleton: { kind: 'text', share: 'w-2/3' },
       cell: (order) => totalCell(order),
     },
     {
-      key: 'outstanding', header: t('outstanding'), width: '9.5rem', kind: 'value', align: 'end',
+      // An eight-digit order still owed, "19,685,158.93 EGP", is 125px
+      // (2026-11-02; it spilled 5px out of the 120 this column had): 128px.
+      key: 'outstanding', header: t('outstanding'), width: '9.25rem', kind: 'value', align: 'end',
       skeleton: { kind: 'text', share: 'w-2/3' },
       cell: (order) => outstandingCell(order),
     },
     {
-      key: 'date', header: t('date'), width: '7rem', kind: 'value', className: 'text-gray-500 text-xs',
+      // The longest Arabic date in Plex Arabic is "28 أغسطس 2026", 91px at
+      // text-xs (December 81; 2026-11-02): 96px.
+      key: 'date', header: t('date'), width: '7.25rem', kind: 'value', className: 'text-gray-500 text-xs',
       skeleton: { kind: 'text', share: 'w-3/4' },
       // The day it was sold, which a back-dated sale has before the day it was typed in (§4).
       cell: (order) => formatDate(order.orderedAt ?? order.createdAt),
     },
     {
       // The real badges sit on the text's baseline, which makes the line 21px, not 20.
-      key: 'actions', header: tc('actions'), width: '5.5rem', skeleton: { kind: 'text', share: 'w-2/3', line: 'h-5.25' },
+      key: 'actions', header: tc('actions'), width: '5.25rem', skeleton: { kind: 'text', share: 'w-2/3', line: 'h-5.25' },
       cell: (order) => (
         <button
           type="button"
@@ -897,8 +909,10 @@ function SalesPageContent() {
         <DataTable
           testId="sales-table"
           // The status column grew for "Samples · N units" (§4); the
-          // customer gives up the room, so the table still fits a laptop.
-          autoMin="11rem"
+          // customer gives up the room, so the table still fits a laptop —
+          // at 1280 too (2026-11-02, see the columns above).
+          autoMin="6.5rem"
+          density="tight"
           className="hidden md:block"
           columns={columns}
           rows={orders}

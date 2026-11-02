@@ -251,9 +251,13 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - Headless Chromium on Linux rounds every glyph to a whole pixel, so Latin labels come out wider than on the
   Mac and fixed-width columns fail only on CI. `playwright.config.ts` launches Chromium with
   `--font-render-hinting=none` on Linux, which makes Latin widths match the Mac. Don't remove it. — 2026-11-02
-- Arabic is drawn in Arial on Mac and Windows: next/font's "IBM Plex Sans Fallback" (`local(Arial)`) sits ahead
-  of Plex Arabic in the stack, so Plex Arabic only loads where Arial is missing (Linux CI), and is wider there.
-  An Arabic column that fits on the Mac can overflow on CI. Open product bug, owner's call. — 2026-11-02
+- A Latin next/font face ahead of another script's face in a font stack hides it: next/font adds a "<Font>
+  Fallback" face (`local(Arial)`, no unicode-range) to the Latin variable, and wherever Arial is installed it
+  draws the Arabic, so Plex Arabic only ever loaded on Linux CI, where it was wider and broke columns sized on
+  the Mac. Fixed by giving the Latin face `fallback: ['IBM Plex Sans Arabic']` — Turbopack still emits the Arial
+  face with `adjustFontFallback: false` alone; only `fallback` replaces it. Check a script's real font with CDP
+  `CSS.getPlatformFontsForNode`, not the computed font-family. The Arabic `-darwin` baselines were retaken in Plex
+  Arabic. — 2026-11-02
 
 ## Tests that click the moment a page changes
 

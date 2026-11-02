@@ -207,13 +207,15 @@ export default function CyclesPage() {
       cell: (cycle) => <ProfitFigure figure={profitByCode.get(cycle.code)} />,
     },
     {
-      key: 'roi', header: t('roi'), width: '7.25rem', kind: 'value', align: 'end',
+      // "العائد على الاستثمار" is 104px in Plex Arabic (2026-11-02; 7.25rem left 96).
+      key: 'roi', header: t('roi'), width: '8rem', kind: 'value', align: 'end',
       skeleton: { kind: 'text', share: 'w-1/3' },
       cellProps: () => ({ 'data-testid': 'cycle-roi' }),
       cell: (cycle) => <RoiFigure figure={profitByCode.get(cycle.code)} />,
     },
     {
-      key: 'date', header: tc('date'), width: '6.75rem', kind: 'value', className: 'text-gray-500 text-xs',
+      // "10 أغسطس 2026" is 89px in Plex Arabic (2026-11-02; 6.75rem left 88).
+      key: 'date', header: tc('date'), width: '7rem', kind: 'value', className: 'text-gray-500 text-xs',
       skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (cycle) => <bdi>{formatDate(cycle.startedOn)}</bdi>,
     },
     {

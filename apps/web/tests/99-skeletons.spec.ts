@@ -215,14 +215,11 @@ for (const viewport of [
   test.describe(`Skeletons at ${viewport.width}px`, () => {
     test.use({ viewport });
 
-    // KNOWN PRODUCT ISSUE — OPEN (2026-11-02), not a test fault; left failing on purpose.
-    // The dashboard shows the business's own totals, and a tile whose figure
-    // has eight digits or more ("19,733,358.93 EGP") wraps to two lines at 1440
-    // and at 390, so the real first row lands 24–34px taller than the skeleton
-    // traces. A full run reaches that scale (earlier specs sell 9,000,000 at a
-    // time), so CI fails here 3/3; on the Mac one owed order of 19,685,158.93
-    // fails it the same way. Whether a figure that size shrinks, the tile keeps
-    // two lines' room, or the skeleton allows for it is the owner's call.
+    // The dashboard shows the business's own totals, and a full run reaches
+    // eight digits (earlier specs sell 9,000,000 at a time): "19,733,358.93
+    // EGP" wrapped to two lines at 1440 and 390, and the real first row landed
+    // 24–34px taller than the skeleton (CI 3/3, 2026-11-02). A tile's figure is
+    // one line since, stepping down in size only as far as it must to fit.
     test(`TC-SKEL-01 the Dashboard shows its skeleton, not "Loading", at ${viewport.width}px`, async ({ page }) => {
       const gate = await gateApi(page);
       gate.hold();

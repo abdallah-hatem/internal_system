@@ -26,7 +26,8 @@
  *  a cycle's goods and shipment, a settlement, the running costs, a lender's
  *  repayments, a plan's instalments, a product's batches) get TC-COL-02 and
  *  TC-COL-03 the same way (TC-COL-04); the invoice and the statement also fit
- *  A4 on paper with every column shown (TC-COL-05).
+ *  A4 on paper with every column shown (TC-COL-05). The sales list and
+ *  Analytics' Top Products also show every column at 1280 (TC-COL-06).
  *
  *  The fixtures build every row the way the business does — stock only
  *  through a cycle, a purchase and a verified receipt; a confirmed sale; a
@@ -256,18 +257,10 @@ const LISTS: { name: string; nav: NavKey; columns: number }[] = [
   { name: 'Analytics top products', nav: 'analytics', columns: 4 },
 ];
 
-// KNOWN PRODUCT BUG — OPEN (2026-11-02), not a test fault; three Arabic checks
-// are left failing on purpose: TC-COL-01.07 (ar), TC-COL-01.11 (ar), TC-COL-04.04 (ar).
-// Arabic is not drawn in IBM Plex Sans Arabic wherever Arial is installed.
-// next/font puts "IBM Plex Sans Fallback" — `local(Arial)` over every code point
-// (U+0-10FFFF) — inside --font-plex-sans, ahead of --font-plex-arabic, so on a
-// Mac or Windows Arial draws the Arabic and Plex Arabic is never loaded. On
-// Linux (CI; and phones without Arial) Plex Arabic is used, as the layout
-// intends, and it is wider: "سعر الصرف إلى الجنيه" 114px in a 112px column,
-// "العائد على الاستثمار" 104px in 96px (Linux, hinting off as the config sets
-// it; 117 and 107 with it on). The column widths were sized against
-// Arial. Fixing the font changes every Arabic screen and its `-darwin`
-// baselines, so it is the owner's call.
+// Arabic is drawn in IBM Plex Sans Arabic on every OS since 2026-11-02 (before,
+// next/font's Arial fallback drew it wherever Arial was installed, and the
+// columns were sized against Arial: Linux CI, with Plex Arabic, failed
+// TC-COL-01.07, 01.11 and 04.04 in Arabic). The `ar` checks hold whatever the OS.
 for (const locale of ['en', 'ar'] as const) {
   test.describe(`Table columns (${locale}, 1440px)`, () => {
     test.use({ viewport: { width: 1440, height: 900 } });
@@ -304,6 +297,38 @@ for (const locale of ['en', 'ar'] as const) {
         expect(await cellProblems(page), 'TC-COL-03').toEqual([]);
         expect(await scrollProblems(page), 'TC-COL-03: the whole table in sight at 1440').toEqual([]);
         await shot(page, `${list.nav}-${locale}-1440-loaded`);
+      });
+    }
+  });
+}
+
+// ─── At 1280 ────────────────────────────────────────────────────────────
+
+/**
+ * A laptop at 1280: the lists that ran out of room there (2026-11-02, seen in
+ * the visual baselines) — the sales list was 1096px in a 974px card, so in
+ * Arabic its Date column was cut off at the left edge (in English, at the
+ * right); Analytics' Top Products, half the page, was 456px in 426 and lost its
+ * Margin column. Every column in sight, every title and cell inside it: TC-COL-06.
+ */
+const AT_1280: { name: string; nav: NavKey }[] = [
+  { name: 'Sales', nav: 'sales' },
+  { name: 'Analytics top products', nav: 'analytics' },
+];
+
+for (const locale of ['en', 'ar'] as const) {
+  test.describe(`Table columns (${locale}, 1280px)`, () => {
+    test.use({ viewport: { width: 1280, height: 900 } });
+    for (const [i, list] of AT_1280.entries()) {
+      test(`TC-COL-06.${String(i + 1).padStart(2, '0')} ${list.name}: every column in sight at 1280 (${locale})`, async ({ page }) => {
+        await login(page, locale);
+        await openNav(page, messages(locale).nav[list.nav] as string);
+        await expect(page.locator('main table tbody tr:not([data-testid="skeleton-row"])').filter({ visible: true }).first()).toBeVisible();
+        await expect(page.locator('main tr[data-testid="skeleton-row"]').filter({ visible: true })).toHaveCount(0);
+        expect(await scrollProblems(page), 'TC-COL-06: the whole table in sight at 1280').toEqual([]);
+        expect(await headerProblems(page), 'TC-COL-02').toEqual([]);
+        expect(await cellProblems(page), 'TC-COL-03').toEqual([]);
+        await shot(page, `${list.nav}-${locale}-1280-loaded`);
       });
     }
   });
@@ -400,14 +425,9 @@ const DETAILS: { name: string; open: (page: Page, locale: Locale) => Promise<voi
     },
   },
   {
-    // KNOWN PRODUCT BUG — OPEN (CI 2026-11-02, reproduced on the Mac too):
-    // Payments → Contracts sizes Total and Paid at 8.5rem, and a 7-figure
-    // contract does not fit: "4,000,000.00 EGP" (67-assistant-read-tools leaves
-    // one, overdue, so it lists first) spills 12px in en and ar, on Linux and
-    // on the Mac alike — not glyph rounding. A `value` column is sized for its
-    // largest ordinary value (data-table.tsx); 10rem, as the Sales and shop
-    // totals nearly are (10.5rem), makes this pass in the same state. The
-    // owner's call: how large a contract the columns must carry.
+    // A 7-figure contract, "4,000,000.00 EGP" (67-assistant-read-tools leaves
+    // one, overdue, so it lists first late in a full run), spilled 12px out of
+    // Total and Paid at 8.5rem; both are 10.5rem since 2026-11-02, as Sales' is.
     name: 'the contracts',
     open: async (page, locale) => {
       // Contracts are the second tab of Payments (2026-10-16; Instalment plans until 2026-10-17).

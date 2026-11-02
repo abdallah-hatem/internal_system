@@ -196,14 +196,18 @@ Ordered by what would hurt first.
   cycle** (§8, OPEN — stranded today). The biggest older ones for money: running-cost shares (§8), samples kept free
   and write-offs (§4), the default price's basis and rounding (§3), the P&L's dates and buckets.
 - **Known bugs** (`docs/build-log/history/2026-10.md`): the order popup's Allocations show raw batch codes; `POST /ledger/<not-a-uuid>/reverse` answers 500 instead of a coded refusal; return numbers
-  (`RET-…`) are given without a lock, so two returns at once can collide. Seen in the visual baselines
-  (2026-11-01): on the Arabic sales list the Date column is cut off at the left edge; on English Analytics
-  the Top Products table cuts off its last column. Found by CI's full e2e run (2026-11-02), each left failing in
-  its spec with a `KNOWN PRODUCT BUG — OPEN` note, owner's call: Arabic is drawn in Arial on Mac/Windows
-  (next/font's Arial fallback sits ahead of Plex Arabic; on Linux Plex Arabic loads and overflows TC-COL-01.07,
-  01.11, 04.04 ar); dashboard tile figures of 8+ digits wrap to two lines (TC-SKEL-01); the contracts table's
-  Total and Paid columns (8.5rem, `contracts-list.tsx`) can't fit 4,000,000.00 EGP (TC-COL-04.10; 10rem fits —
-  owner said "not now"). Fixed 2026-11-02: the Partners tab kept pre-payout figures after Mark paid (the first fix, refetchType 'all', joined the in-flight request instead of replacing it; refresh() now cancels it first). (Fixed 2026-11-01: CI's container name, and the web and
+  (`RET-…`) are given without a lock, so two returns at once can collide. Seen in a full-run state
+  (2026-11-02, not fixed): with an 8-digit owed order, the Customers list's balance (13px) and the Cycles list's
+  profit (8px) spill their columns at 1440; Cycles also cuts off its Actions column at 1280; and an Arabic date in
+  August ("28 أغسطس 2026", 91px at text-xs in Plex Arabic) is wider than the 80px most date columns hold.
+  Fixed 2026-11-02 (owner: "Fix the product bugs"): Arabic was drawn in Arial on Mac/Windows — next/font's
+  `local(Arial)` fallback sat ahead of Plex Arabic; the Latin face now names Plex Arabic as its fallback (Turbopack
+  ignores `adjustFontFallback: false` alone), and the Arabic columns it overflowed are wider (Purchases' FX rate
+  9.5rem, Cycles' ROI 8rem and Date 7rem, Shipments' dates 7rem); dashboard tile figures of 8+ digits no longer
+  wrap — one line, stepping down in size only as far as the length needs, the line keeping the skeleton's height;
+  the contracts table's Total and Paid are 10.5rem (4,000,000.00 EGP spilled 12px out of 8.5rem); the sales list
+  fits 1280 (tight padding, Date no longer cut off at the left in Arabic, TC-COL-06.01); Analytics' Top Products
+  fits its half of the page at 1280 and stacks below it (TC-COL-06.02). Fixed 2026-11-02: the Partners tab kept pre-payout figures after Mark paid (the first fix, refetchType 'all', joined the in-flight request instead of replacing it; refresh() now cancels it first). (Fixed 2026-11-01: CI's container name, and the web and
   storefront lockfiles that stopped `npm ci`.)
 - **Change split** writes each participant's share separately and only the dialog checks they add to 100 (the
   server checks at settlement); one server-side save is queued.
