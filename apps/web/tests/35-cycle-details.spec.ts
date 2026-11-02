@@ -191,7 +191,12 @@ test.describe('The three partners fund a cycle equally by default', () => {
     const participants = (await res.json()).data.participants ?? [];
 
     const users = await (await request.get(`${API}/users?role=CORE_PARTNER&limit=100`, { headers })).json();
-    const corePartners = (users.data ?? users).filter((u: any) => u.role === 'CORE_PARTNER');
+    // The active ones (§8: a new cycle starts with the core partners who are
+    // active). A partner who has left stays in the user list: TC-INV-66 adds a
+    // fourth and deactivates him, so counting every CORE_PARTNER expected 4 in
+    // a full run while the cycle rightly had 3 (CI, 2026-11-02).
+    const corePartners = (users.data ?? users).filter((u: any) => u.role === 'CORE_PARTNER' && u.status === 'ACTIVE');
+    expect(corePartners.length).toBeGreaterThan(0);
 
     expect(participants).toHaveLength(corePartners.length);
     expect(participants.every((p: any) => p.participantType === 'CORE_PARTNER')).toBe(true);
