@@ -622,9 +622,15 @@ function SalesPageContent() {
   // the other eight-column lists use (Cycles, Shipments), each width taking
   // off what the padding gave back so every column keeps the same room for its
   // content, and Customer may narrow to 6.5rem: 60.75rem, 972px.
+  //
+  // That fitted the Mac's card (974px) and not Windows' or Linux's (964px):
+  // there `main`'s scrollbar takes 10px of the page's width, where a Mac's
+  // floats over it (CI, 2026-11-02). Order # 8rem (its number is 98px; 102
+  // inside the padding), Actions 5rem ("View" and its arrow are 52px; 54) and
+  // Customer down to 6rem: 59.75rem, 956px, so it fits with 8px to spare.
   const columns: Column<SaleOrder>[] = [
     {
-      key: 'orderNo', header: t('orderNo'), width: '8.25rem', skeleton: { kind: 'text', share: 'w-3/4' },
+      key: 'orderNo', header: t('orderNo'), width: '8rem', skeleton: { kind: 'text', share: 'w-3/4' },
       cell: (order) => (
         // The whole row opens the order. The order number is a real button,
         // so a keyboard reaches the same place.
@@ -685,7 +691,7 @@ function SalesPageContent() {
     },
     {
       // The real badges sit on the text's baseline, which makes the line 21px, not 20.
-      key: 'actions', header: tc('actions'), width: '5.25rem', skeleton: { kind: 'text', share: 'w-2/3', line: 'h-5.25' },
+      key: 'actions', header: tc('actions'), width: '5rem', skeleton: { kind: 'text', share: 'w-2/3', line: 'h-5.25' },
       cell: (order) => (
         <button
           type="button"
@@ -910,8 +916,9 @@ function SalesPageContent() {
           testId="sales-table"
           // The status column grew for "Samples · N units" (§4); the
           // customer gives up the room, so the table still fits a laptop —
-          // at 1280 too (2026-11-02, see the columns above).
-          autoMin="6.5rem"
+          // at 1280 too, beside a scrollbar that takes room (2026-11-02, see
+          // the columns above).
+          autoMin="6rem"
           density="tight"
           className="hidden md:block"
           columns={columns}

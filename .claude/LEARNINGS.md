@@ -237,6 +237,15 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - Feature branches reach `dev` through a PR (`gh pr create --base dev`) with the Code tab's **Auto-fix**
   on, so a failing check wakes the session that opened it, which fixes and pushes. Merging into `dev` is
   still the owner's call (CLAUDE.md §14). — 2026-11-01
+- CI's Chromium has classic scrollbars that take layout width (10px with `scrollbar-width: thin`); the Mac's float
+  over the content and take none. A width that fits the Mac by less than a bar's width fails on CI — and on every
+  Windows machine. `scrollbar-gutter: stable` reserves the width even when nothing scrolls: on `html` it cost the
+  whole office 10px for a bar the one-screen app frame never shows (now `auto` there). Reproduce CI exactly on the
+  Mac: `docker run … mcr.microsoft.com/playwright:v1.62.1-noble npx playwright@1.62.1 run-server --port 3999 --host
+  0.0.0.0 --unsafe`, a small Node proxy in the container forwarding localhost:31N1–31N3 to `host.docker.internal`,
+  and a throwaway config adding `connectOptions: { wsEndpoint }` and `launchOptions.args:
+  ['--font-render-hinting=none']` — without `--unsafe` run-server drops the args silently and Latin text measures
+  1px wider than CI. Gave CI's numbers to the pixel (972/954, 420/416, 1116/1114). — 2026-11-02
 
 ## Visual baselines
 

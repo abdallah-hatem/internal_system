@@ -265,17 +265,40 @@ export default function DashboardPage() {
       value: egp(Number(data.owedToLenders?.totalEgp ?? 0)),
       icon: HandCoins,
       color: 'bg-accent-600',
+      // One line, as its skeleton (2026-11-02). It wrapped — a line per two
+      // currencies, two more for the no-rate note — and a full run's friends
+      // (111,482.31 AED, 1,000.00 HKD with no rate) made the whole first row
+      // 34px taller than its skeleton on the Mac and 50px on Linux, pushing
+      // everything under it down when the figures landed. The currencies run
+      // on one line and are cut at the tile's edge; all of them, and the note,
+      // are a hover away and read out in full; a missing rate shows as a
+      // warning sign in front. Each friend's own amounts are on Lenders, where
+      // the tile leads.
       sub:
         owedLines.length === 0 ? (
           t('owedToLendersNone')
         ) : (
-          <span className="flex flex-col gap-0.5">
-            <span className="flex flex-wrap gap-x-2" data-testid="owed-to-lenders-lines">
-              {owedLines.map((l) => (
-                <Money key={l.currency} value={l.owed} currency={l.currency} />
+          <span
+            className="flex min-w-0 items-center gap-1"
+            title={[
+              owedLines.map((l) => egp(l.owed, l.currency)).join(' · '),
+              data.owedToLenders?.missingRate ? t('owedToLendersNoRate') : null,
+            ].filter(Boolean).join('\n')}
+          >
+            {data.owedToLenders?.missingRate && (
+              <>
+                <AlertTriangle data-testid="owed-to-lenders-no-rate" className="size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+                <span className="sr-only">{t('owedToLendersNoRate')}</span>
+              </>
+            )}
+            <span className="min-w-0 truncate" data-testid="owed-to-lenders-lines">
+              {owedLines.map((l, i) => (
+                <span key={l.currency}>
+                  {i > 0 && ' · '}
+                  <Money value={l.owed} currency={l.currency} />
+                </span>
               ))}
             </span>
-            {data.owedToLenders?.missingRate && <span>{t('owedToLendersNoRate')}</span>}
           </span>
         ),
     },
