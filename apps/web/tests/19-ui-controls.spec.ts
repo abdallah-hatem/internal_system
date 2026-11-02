@@ -183,7 +183,11 @@ test.describe('Date picker', () => {
     await page.locator('[data-date-picker="receivedOn"]').click();
 
     const grid = page.getByRole('grid');
-    const day = grid.locator('[data-day]:not([data-outside])').nth(9);
+    // A day the picker offers. "The 10th of this month" was a future day —
+    // disabled, a payment cannot be received tomorrow — on the 1st to the 9th
+    // of every month (CI, 2026-11-02). The first offered day of the month shown
+    // exists on every day of the year: on the 1st it is today.
+    const day = grid.locator('[data-day]:not([data-outside]):not([disabled])').first();
     const iso = await day.getAttribute('data-day');
     await day.click();
 

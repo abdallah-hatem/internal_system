@@ -40,8 +40,12 @@ async function open(page: Page, path: 'sales' | 'payments') {
   await expect(page).toHaveURL(new RegExp(`/en/${path}$`), { timeout: 15000 });
 }
 
-/** Open a picker, step to the month, click the day — as a person picks one. */
-async function pickDate(page: Page, name: string, iso: string) {
+/**
+ * Open a picker and step to the month of `iso`, as a person looking for that
+ * day does. A picker with no value opens on this month, so "five days ago" is
+ * on another page of the calendar for the first five days of every month.
+ */
+async function openAt(page: Page, name: string, iso: string) {
   await page.locator(`[data-date-picker="${name}"]`).click();
   const grid = page.getByRole('grid');
   await grid.waitFor({ state: 'visible' });
@@ -51,6 +55,12 @@ async function pickDate(page: Page, name: string, iso: string) {
     if (shownMonth === iso.slice(0, 7)) break;
     await page.getByTestId(shownMonth < iso.slice(0, 7) ? 'calendar-next' : 'calendar-prev').click();
   }
+  return grid;
+}
+
+/** Open a picker, step to the month, click the day — as a person picks one. */
+async function pickDate(page: Page, name: string, iso: string) {
+  const grid = await openAt(page, name, iso);
   await grid.locator(`[data-day="${iso}"]:not([data-outside])`).click();
   await expect(page.locator(`input[type="hidden"][name="${name}"]`)).toHaveValue(iso);
 }
@@ -160,20 +170,20 @@ test.describe('Sales and Payments: date range and CSV (I1)', () => {
     await open(page, 'sales');
 
     await pickDate(page, 'salesFrom', day(-5));
-    await page.locator('[data-date-picker="salesTo"]').click();
-    const grid = page.getByRole('grid');
+    // To opens on this month; look at From's month, where the days around it are.
+    const grid = await openAt(page, 'salesTo', day(-5));
     // Days before From are disabled; From itself is allowed (both ends included).
     for (const n of [-6, -7]) {
       const cell = grid.locator(`[data-day="${day(n)}"]`).first();
       if (await cell.count()) await expect(cell).toBeDisabled();
     }
-    await expect(grid.locator(`[data-day="${day(-5)}"]`).first()).toBeEnabled();
+    await expect(grid.locator(`[data-day="${day(-5)}"]:not([data-outside])`)).toBeEnabled();
     await page.keyboard.press('Escape');
 
     await pickDate(page, 'salesTo', day(-5));
-    await page.locator('[data-date-picker="salesFrom"]').click();
-    const after = page.getByRole('grid').locator(`[data-day="${day(-4)}"]`).first();
-    if (await after.count()) await expect(after).toBeDisabled();
+    const fromGrid = await openAt(page, 'salesFrom', day(-4));
+    const after = fromGrid.locator(`[data-day="${day(-4)}"]:not([data-outside])`);
+    await expect(after).toBeDisabled();
   });
 
   test('TC-DR-04: the server refuses a reversed range and a non-date on both lists, with a code said in both languages; an investor is refused', async ({
