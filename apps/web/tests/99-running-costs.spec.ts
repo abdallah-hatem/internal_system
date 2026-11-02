@@ -143,6 +143,18 @@ test.describe('A payout takes his share of the running costs and says so (L7, §
     const partnerA = page.locator('[data-testid="partner-card"][data-email="abdallah@motoparts.com"]');
     const payout = partnerA.getByTestId('payout-history').getByRole('button').filter({ hasText: w.cycle.code });
     // The refetch after paying is /users/participation, slow late in a full run (above).
+    //
+    // KNOWN PRODUCT BUG — OPEN (2026-11-02), not a test fault; left failing on purpose.
+    // Opening the Settlements tab also starts /users/participation. If Mark paid
+    // lands while that request is still out, settlements-view's refresh() marks
+    // the (inactive) query invalid, then the answer the server read *before* the
+    // payout arrives and TanStack stores it as fresh — the Partners tab shows no
+    // payout for the office's minute of staleTime. CI's late run (participation
+    // took 2.5s) failed here 3/3; locally, holding that one answer back 2.5s
+    // (route.fetch, then fulfill) fails the same way. Candidate fix, for the
+    // owner to accept: invalidate ['users','participation'] with
+    // `refetchType: 'all'` in settlements-view's refresh(). See the report of
+    // the CI fix on feature/ci-visual.
     await expect(payout).toBeVisible({ timeout: 30_000 });
     await payout.click();
     await expect(partnerA.getByTestId(`breakdown-${pidA}`)).toContainText(today());
