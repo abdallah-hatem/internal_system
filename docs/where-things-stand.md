@@ -198,7 +198,12 @@ Ordered by what would hurt first.
 - **Known bugs** (`docs/build-log/history/2026-10.md`): the order popup's Allocations show raw batch codes; `POST /ledger/<not-a-uuid>/reverse` answers 500 instead of a coded refusal; return numbers
   (`RET-…`) are given without a lock, so two returns at once can collide. Seen in the visual baselines
   (2026-11-01): on the Arabic sales list the Date column is cut off at the left edge; on English Analytics
-  the Top Products table cuts off its last column. (Fixed 2026-11-01: CI's container name, and the web and
+  the Top Products table cuts off its last column. Found by CI's full e2e run (2026-11-02), each left failing in
+  its spec with a `KNOWN PRODUCT BUG — OPEN` note, owner's call: Arabic is drawn in Arial on Mac/Windows
+  (next/font's Arial fallback sits ahead of Plex Arabic; on Linux Plex Arabic loads and overflows TC-COL-01.07,
+  01.11, 04.04 ar); dashboard tile figures of 8+ digits wrap to two lines (TC-SKEL-01); the contracts table's
+  Total and Paid columns (8.5rem, `contracts-list.tsx`) can't fit 4,000,000.00 EGP (TC-COL-04.10; 10rem fits —
+  owner said "not now"). Fixed 2026-11-02: the Partners tab kept pre-payout figures after Mark paid. (Fixed 2026-11-01: CI's container name, and the web and
   storefront lockfiles that stopped `npm ci`.)
 - **Change split** writes each participant's share separately and only the dialog checks they add to 100 (the
   server checks at settlement); one server-side save is queued.
