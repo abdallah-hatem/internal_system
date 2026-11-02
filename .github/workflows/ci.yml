@@ -131,11 +131,17 @@ jobs:
 
       - name: Build web
         working-directory: apps/web
-        run: npm run build
+        # next/font downloads the Google fonts at build time, and that download
+        # fails now and then on the runner ("next/font/google queries have
+        # exactly one entry"; runs 41469815925, 41543823071). One retry.
+        run: npm run build || { echo "::warning::build failed, retrying once (Google Fonts download)"; npm run build; }
 
       - name: Build storefront
         working-directory: apps/storefront
-        run: npm run build
+        # next/font downloads the Google fonts at build time, and that download
+        # fails now and then on the runner ("next/font/google queries have
+        # exactly one entry"; runs 41469815925, 41543823071). One retry.
+        run: npm run build || { echo "::warning::build failed, retrying once (Google Fonts download)"; npm run build; }
 
       - name: Install Playwright browsers
         working-directory: apps/web
