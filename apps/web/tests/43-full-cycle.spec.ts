@@ -486,7 +486,7 @@ test.describe('A cycle taken out of order', () => {
 
     await fundEqually(request, headers, run.cycle.id, run.landedTotal);
     await sellAndCollect(mk, run, 10, 40);
-    const { paid } = await settle(request, headers, run.cycle.id, true);
+    const { settlement, paid } = await settle(request, headers, run.cycle.id, true);
     expect(paid.ok()).toBeTruthy();
 
     const again = await request.post(`${API}/settlements/calculate/${run.cycle.id}`, {
@@ -495,10 +495,31 @@ test.describe('A cycle taken out of order', () => {
     expect(again.status()).toBe(400);
     expect((await again.json()).error.code).toBe('SETTLEMENT_LOCKED');
 
-    // The payouts stand at one round, not two.
-    const rows = await cycleLedger(request, headers, run.cycle.id);
-    const payouts = rows.filter((r: any) => r.category === 'settlement');
-    expect(payouts.length).toBe(3);
+    // Nor can the same settlement be paid a second time.
+    const payAgain = await request.post(`${API}/settlements/${settlement.id}/pay`, {
+      headers,
+      data: { acceptRemainingStock: true },
+    });
+    expect(payAgain.status()).toBe(400);
+    expect((await payAgain.json()).error.code).toBe('ONLY_APPROVED_PAYABLE');
+
+    // The payouts stand at one round, not two: what was handed over plus the
+    // running costs taken from it come to the 100 put in and the 300 profit,
+    // once. Counting payout rows (one per partner) was wrong whenever running
+    // costs left by earlier specs were waiting: a partner whose whole payout
+    // went to them is handed nothing, so he has no payout row (§8, L7). In CI
+    // (2026-11-02) Fares's 133.34 went to running costs and 2 rows stood.
+    const rows = (await cycleLedger(request, headers, run.cycle.id)).filter(
+      (r: any) => r.relatedId === settlement.id,
+    );
+    const handedOver = rows
+      .filter((r: any) => r.category === 'settlement')
+      .reduce((s: number, r: any) => s + (r.direction === 'OUTFLOW' ? num(r.amount) : -num(r.amount)), 0);
+    const runningCostsTaken = rows
+      .filter((r: any) => r.category === 'running_cost_share')
+      .reduce((s: number, r: any) => s + num(r.amount), 0);
+    expect(handedOver + runningCostsTaken).toBeCloseTo(run.landedTotal + 300, 2);
+    expect(rows.filter((r: any) => r.category === 'settlement').length).toBeLessThanOrEqual(3);
   });
 
   test('TC-CYCLE-10: a cycle with nobody on it cannot be settled', async ({ request }) => {

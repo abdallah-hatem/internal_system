@@ -400,6 +400,14 @@ const DETAILS: { name: string; open: (page: Page, locale: Locale) => Promise<voi
     },
   },
   {
+    // KNOWN PRODUCT BUG — OPEN (CI 2026-11-02, reproduced on the Mac too):
+    // Payments → Contracts sizes Total and Paid at 8.5rem, and a 7-figure
+    // contract does not fit: "4,000,000.00 EGP" (67-assistant-read-tools leaves
+    // one, overdue, so it lists first) spills 12px in en and ar, on Linux and
+    // on the Mac alike — not glyph rounding. A `value` column is sized for its
+    // largest ordinary value (data-table.tsx); 10rem, as the Sales and shop
+    // totals nearly are (10.5rem), makes this pass in the same state. The
+    // owner's call: how large a contract the columns must carry.
     name: 'the contracts',
     open: async (page, locale) => {
       // Contracts are the second tab of Payments (2026-10-16; Instalment plans until 2026-10-17).
