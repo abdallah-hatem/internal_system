@@ -205,6 +205,11 @@ test.describe('Cash on hand', () => {
     const net = rows
       .filter((r) => !(NOT_CASH_CATEGORIES as readonly string[]).includes(String(r.category)))
       .filter((r) => !(NOT_CASH_TYPES as readonly string[]).includes(String(r.type)))
+      // An expense a partner paid from his own pocket moves no business cash
+      // (§9 "Paid by", 2026-10-27; CASH_ROWS_WHERE's `paidByUserId: null`).
+      // Missing here, the sum was off by exactly such a row whenever a spec
+      // before this one had recorded one (106 sorts before 49: CI, 550).
+      .filter((r) => !r.paidByUserId)
       .filter((r) => !r.reversalOfId && !undone.has(r.id))
       .reduce((s: number, r) => s + (r.direction === 'INFLOW' ? num(r.amount) : -num(r.amount)), 0);
 
