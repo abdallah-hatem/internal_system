@@ -19,7 +19,7 @@
  *  raise double-counting, a backfill running twice.
  */
 import { test, expect, Page } from '@playwright/test';
-import { allLedgerRows, apiCtx, API } from './support/fixtures';
+import { allLedgerRows, allPages, apiCtx, API } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 
 const EMAIL = 'abdallah@motoparts.com';
@@ -177,9 +177,11 @@ test.describe('Partner capital', () => {
 
     // Every participant's current figure, summed, must equal what the ledger
     // says came in. Drift between the two is the bug this guards.
-    const cycles = await (await request.get(`${API}/cycles?limit=100`, { headers })).json();
+    // Every cycle, page by page: `?limit=100` read the newest hundred, and once
+    // a full run had made more (CI, 2026-11-02) the seeded cycles' contributions
+    // fell out of the sum and it came out 587,100 short of the ledger.
     let declared = 0;
-    for (const c of cycles.data?.items ?? cycles.data ?? []) {
+    for (const c of await allPages(request, headers, 'cycles')) {
       const detail = await (await request.get(`${API}/cycles/${c.id}`, { headers })).json();
       for (const p of (detail.data ?? detail).participants ?? []) {
         declared += Number(p.contributionAmount);
