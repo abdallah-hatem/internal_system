@@ -248,6 +248,12 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   commit them on the branch. Never accept a baseline without looking at it — that is the whole check.
 - The baselines carry the demo seed and 2026-11-01. A change to the demo seed, or to FROZEN_NOW in
   `visual.spec.ts`, means retaking every baseline in both sets. — 2026-11-01
+- Headless Chromium on Linux rounds every glyph to a whole pixel, so Latin labels come out wider than on the
+  Mac and fixed-width columns fail only on CI. `playwright.config.ts` launches Chromium with
+  `--font-render-hinting=none` on Linux, which makes Latin widths match the Mac. Don't remove it. — 2026-11-02
+- Arabic is drawn in Arial on Mac and Windows: next/font's "IBM Plex Sans Fallback" (`local(Arial)`) sits ahead
+  of Plex Arabic in the stack, so Plex Arabic only loads where Arial is missing (Linux CI), and is wider there.
+  An Arabic column that fits on the Mac can overflow on CI. Open product bug, owner's call. — 2026-11-02
 
 ## Tests that click the moment a page changes
 
