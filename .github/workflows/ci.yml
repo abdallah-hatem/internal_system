@@ -64,6 +64,13 @@ jobs:
       JWT_EXPIRATION: 24h
       PORT: 3001
       NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+      # The specs call the cron endpoints with CRON_SECRET (default
+      # local-cron-secret); an API with none set refuses: CRON_NOT_CONFIGURED.
+      CRON_SECRET: local-cron-secret
+      # The business runs on Cairo time and so does every developer machine.
+      # On UTC, between Cairo's midnight and UTC's, the API, the browser and
+      # the specs disagreed about which day "today" is.
+      TZ: Africa/Cairo
 
     steps:
       - uses: actions/checkout@v4
