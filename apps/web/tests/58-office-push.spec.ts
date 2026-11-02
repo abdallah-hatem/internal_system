@@ -82,11 +82,26 @@ test.describe('Office push', () => {
     expect(res.status()).toBe(401);
   });
 
-  test('TC-PUSH-04: Settings offers alerts for this device', async ({ page }) => {
+  test('TC-PUSH-04: Settings offers alerts for this device', async ({ page, request }) => {
+    // The section exists only where the API has VAPID keys: with none it offers
+    // nothing rather than a button that cannot work (push-alerts.tsx). CI's API
+    // has none (fake env, no secrets), so there it must be absent — the same
+    // condition TC-PUSH-02 skips on.
+    const key = await request.get(`${API}/notifications/push-key`, { headers: await headers(request) });
+    expect(key.ok()).toBeTruthy();
+    const publicKey = (await key.json()).data.publicKey;
+    const keyAnswered = page.waitForResponse((r) => r.url().includes('/notifications/push-key'));
+
     await login(page);
     await page.goto(`${BASE}/en/settings`);
 
     const section = page.getByTestId('push-alerts');
+    if (!publicKey) {
+      await keyAnswered;
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(section).toHaveCount(0);
+      test.skip(true, 'VAPID keys are not configured on this API: nothing to offer, as checked');
+    }
     await expect(section).toBeVisible({ timeout: 15000 });
     // The scope is the thing people get wrong about push, so it is on screen.
     await expect(section).toContainText(/one browser on one device/i);
