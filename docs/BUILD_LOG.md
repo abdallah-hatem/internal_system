@@ -63,9 +63,12 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   index + `docs/business/` sections and BUILD_LOG trimmed (history in `build-log/history/`); `npm run test:affected`
   prints the Jest / web-unit / e2e / visual tests a change touches; visual regression specs (`npm run test:visual`,
   10 office screens EN+AR, 4 storefront); CI fixed (lockfiles had stopped `npm ci` since ≥ 2026-10-28) and now runs
-  on `dev` too. PR #2 (open, Auto-fix on): CI starts the storefront and runs the visual specs, taking the Linux
-  baselines. How it all works: `.claude/LEARNINGS.md`, "CI" and "Visual baselines". Two layout bugs the baselines
-  show are listed under Known bugs in `docs/where-things-stand.md`. 15 stale agent worktrees removed (~30 GB).
+  on `dev` too. PR #2 merged into `dev` 2026-11-03 (`823018b`, CI fully green): CI starts the storefront, runs the
+  visual specs against reviewed darwin + linux baselines, retries a build once on a Google Fonts download failure;
+  the full e2e suite passes on any day and in any order. Product fixes it found: Plex Arabic on every OS, one-line
+  dashboard figures, compact Owed to lenders tile (owner's pick), tables that fit beside a Windows scrollbar, the
+  Partners tab showing a payout right after Mark paid. How it all works: `.claude/LEARNINGS.md`, "CI" and "Visual
+  baselines"; what's still open: Known bugs in `docs/where-things-stand.md`. Shipped to production 2026-11-03 (owner: "Ship dev"). 15 stale agent worktrees removed (~30 GB).
 - **Live 2026-10-31** (was `feature/pnl-adds-up-open`) (owner 2026-10-31: "in analytics how it adds up should be open by
   default"): Analytics' "How it adds up" opens already unfolded; its header still folds it. Web only, no migration.
   Tests: `profit-and-loss-section.test.tsx` (open at first, folds and reopens — seen to fail on the old code).
