@@ -19,6 +19,7 @@
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { allLedgerRows, apiCtx, API, daysAgo, Mk } from './support/fixtures';
+import { NOT_CASH_CATEGORIES } from '../../api/src/common/ledger-categories';
 
 /** Every status a UAE-direct cycle passes through, in order. */
 const UAE_ROUTE = [
@@ -188,9 +189,13 @@ async function stockOf(request: APIRequestContext, headers: any, productId: stri
   return { total: num(row?.totalStock), available: num(row?.availableStock) };
 }
 
-/** The net of the whole ledger: money in, less money out. */
-async function ledgerNet(request: APIRequestContext, headers: any) {
-  return netOf(await allLedgerRows(request, headers));
+/** The ledger netted over the rows that move money (NOT_CASH_CATEGORIES left out). */
+async function cashNet(request: APIRequestContext, headers: any) {
+  return netOf(
+    (await allLedgerRows(request, headers)).filter(
+      (r) => !(NOT_CASH_CATEGORIES as readonly string[]).includes(String(r.category)),
+    ),
+  );
 }
 
 /** Every ledger row raised against one cycle. */
@@ -311,8 +316,17 @@ test.describe('A cycle end to end', () => {
     // against the payment, not the cycle, because FIFO lets one sale draw on
     // batches from several cycles — so a cycle-scoped net is short by exactly
     // the revenue and reads as −4,000 on a cycle that balances perfectly.
+    //
+    // One thing may stay behind, by design: running costs (§8, L7). If general
+    // costs are waiting when the payout is made, each partner's share is taken
+    // from what he is handed. That money stays in the business — it paid those
+    // costs earlier — so cash rises by exactly what was taken, and the
+    // deduction's own `running_cost_share` row (an INFLOW that moves no cash,
+    // NOT_CASH_CATEGORIES) is left out of the net. Whether costs are waiting
+    // depends on what earlier specs recorded: in a full run (CI, 2026-11-02)
+    // the books moved by 2,666.72 and the old "net unchanged" failed.
     const { headers, mk } = await apiCtx(request);
-    const before = await ledgerNet(request, headers);
+    const before = await cashNet(request, headers);
 
     const run = await buyAndLand(request, headers, mk, {
       qty: 50,
@@ -325,12 +339,16 @@ test.describe('A cycle end to end', () => {
 
     const { paid } = await settle(request, headers, run.cycle.id, true);
     expect(paid.ok(), `pay: ${await paid.text()}`).toBeTruthy();
+    const lines: { component: string; amount: string }[] = (await paid.json()).data.lines ?? [];
+    const runningCostsTaken = -lines
+      .filter((l) => l.component === 'RUNNING_COSTS')
+      .reduce((s, l) => s + num(l.amount), 0);
 
     // The cycle did move money, so this is not a vacuous zero.
     const rows = await cycleLedger(request, headers, run.cycle.id);
     expect(rows.length).toBeGreaterThan(0);
 
-    expect(await ledgerNet(request, headers)).toBeCloseTo(before, 2);
+    expect(await cashNet(request, headers)).toBeCloseTo(before + runningCostsTaken, 2);
     expect((await stockOf(request, headers, run.product.id)).total).toBeCloseTo(0, 3);
   });
 });
@@ -468,7 +486,7 @@ test.describe('A cycle taken out of order', () => {
 
     await fundEqually(request, headers, run.cycle.id, run.landedTotal);
     await sellAndCollect(mk, run, 10, 40);
-    const { paid } = await settle(request, headers, run.cycle.id, true);
+    const { settlement, paid } = await settle(request, headers, run.cycle.id, true);
     expect(paid.ok()).toBeTruthy();
 
     const again = await request.post(`${API}/settlements/calculate/${run.cycle.id}`, {
@@ -477,10 +495,31 @@ test.describe('A cycle taken out of order', () => {
     expect(again.status()).toBe(400);
     expect((await again.json()).error.code).toBe('SETTLEMENT_LOCKED');
 
-    // The payouts stand at one round, not two.
-    const rows = await cycleLedger(request, headers, run.cycle.id);
-    const payouts = rows.filter((r: any) => r.category === 'settlement');
-    expect(payouts.length).toBe(3);
+    // Nor can the same settlement be paid a second time.
+    const payAgain = await request.post(`${API}/settlements/${settlement.id}/pay`, {
+      headers,
+      data: { acceptRemainingStock: true },
+    });
+    expect(payAgain.status()).toBe(400);
+    expect((await payAgain.json()).error.code).toBe('ONLY_APPROVED_PAYABLE');
+
+    // The payouts stand at one round, not two: what was handed over plus the
+    // running costs taken from it come to the 100 put in and the 300 profit,
+    // once. Counting payout rows (one per partner) was wrong whenever running
+    // costs left by earlier specs were waiting: a partner whose whole payout
+    // went to them is handed nothing, so he has no payout row (§8, L7). In CI
+    // (2026-11-02) Fares's 133.34 went to running costs and 2 rows stood.
+    const rows = (await cycleLedger(request, headers, run.cycle.id)).filter(
+      (r: any) => r.relatedId === settlement.id,
+    );
+    const handedOver = rows
+      .filter((r: any) => r.category === 'settlement')
+      .reduce((s: number, r: any) => s + (r.direction === 'OUTFLOW' ? num(r.amount) : -num(r.amount)), 0);
+    const runningCostsTaken = rows
+      .filter((r: any) => r.category === 'running_cost_share')
+      .reduce((s: number, r: any) => s + num(r.amount), 0);
+    expect(handedOver + runningCostsTaken).toBeCloseTo(run.landedTotal + 300, 2);
+    expect(rows.filter((r: any) => r.category === 'settlement').length).toBeLessThanOrEqual(3);
   });
 
   test('TC-CYCLE-10: a cycle with nobody on it cannot be settled', async ({ request }) => {

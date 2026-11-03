@@ -64,6 +64,13 @@ jobs:
       JWT_EXPIRATION: 24h
       PORT: 3001
       NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+      # The specs call the cron endpoints with CRON_SECRET (default
+      # local-cron-secret); an API with none set refuses: CRON_NOT_CONFIGURED.
+      CRON_SECRET: local-cron-secret
+      # The business runs on Cairo time and so does every developer machine.
+      # On UTC, between Cairo's midnight and UTC's, the API, the browser and
+      # the specs disagreed about which day "today" is.
+      TZ: Africa/Cairo
 
     steps:
       - uses: actions/checkout@v4
@@ -75,6 +82,7 @@ jobs:
           cache-dependency-path: |
             apps/api/package-lock.json
             apps/web/package-lock.json
+            apps/storefront/package-lock.json
 
       - name: Install API dependencies
         working-directory: apps/api
@@ -82,6 +90,12 @@ jobs:
 
       - name: Install web dependencies
         working-directory: apps/web
+        run: npm ci
+
+      # The storefront project in playwright.config.ts opens STORE_URL
+      # (localhost:3002); nothing started it here, so those specs had no app.
+      - name: Install storefront dependencies
+        working-directory: apps/storefront
         run: npm ci
 
       # Proves the migration path works from an empty database — the gap that
@@ -117,7 +131,17 @@ jobs:
 
       - name: Build web
         working-directory: apps/web
-        run: npm run build
+        # next/font downloads the Google fonts at build time, and that download
+        # fails now and then on the runner ("next/font/google queries have
+        # exactly one entry"; runs 41469815925, 41543823071). One retry.
+        run: npm run build || { echo "::warning::build failed, retrying once (Google Fonts download)"; npm run build; }
+
+      - name: Build storefront
+        working-directory: apps/storefront
+        # next/font downloads the Google fonts at build time, and that download
+        # fails now and then on the runner ("next/font/google queries have
+        # exactly one entry"; runs 41469815925, 41543823071). One retry.
+        run: npm run build || { echo "::warning::build failed, retrying once (Google Fonts download)"; npm run build; }
 
       - name: Install Playwright browsers
         working-directory: apps/web
@@ -127,17 +151,30 @@ jobs:
         working-directory: apps/api
         run: |
           node dist/src/main &
+          echo $! > "$RUNNER_TEMP/api.pid"
           for i in $(seq 1 30); do
             curl -fsS http://localhost:3001/api/docs >/dev/null && break
             sleep 2
           done
 
+      # The job's PORT=3001 is the API's; `next start` reads PORT too, so
+      # without -p the web app tried 3001, collided with the API and exited,
+      # and every page test failed on a refused connection to 3000.
       - name: Start web
         working-directory: apps/web
         run: |
-          npm run start &
+          npx next start -p 3000 &
           for i in $(seq 1 30); do
             curl -fsS http://localhost:3000 >/dev/null && break
+            sleep 2
+          done
+
+      - name: Start storefront
+        working-directory: apps/storefront
+        run: |
+          npx next start -p 3002 &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:3002 >/dev/null && break
             sleep 2
           done
 
@@ -149,12 +186,67 @@ jobs:
         run: echo "DB_CONTAINER=${{ job.services.postgres.id }}" >> "$GITHUB_ENV"
 
       - name: End-to-end tests
+        id: e2e
         working-directory: apps/web
         run: npx playwright test
 
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: ${{ !cancelled() && steps.e2e.outcome == 'failure' }}
         with:
           name: playwright-report
           path: apps/web/playwright-report/
+          retention-days: 7
+
+      # Visual regression (apps/web/tests/visual*.spec.ts). The e2e run above
+      # needs the real clock, the visual one a frozen API clock, so the API is
+      # restarted at FROZEN_NOW in between (scripts/lib/fixed-clock.cjs).
+      - name: Restart the API at the visual specs' frozen clock
+        if: ${{ !cancelled() && steps.e2e.outcome != 'skipped' }}
+        working-directory: apps/api
+        run: |
+          kill "$(cat "$RUNNER_TEMP/api.pid")"
+          sleep 2
+          NODE_OPTIONS="--require $GITHUB_WORKSPACE/scripts/lib/fixed-clock.cjs" \
+            FIXED_CLOCK=2026-11-01T08:00:00Z node dist/src/main &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:3001/api/docs >/dev/null && break
+            sleep 2
+          done
+
+      # Baselines are per OS (-darwin from a Mac, -linux here). A screen with
+      # no -linux baseline (the first run, a new screen, or one whose PNG was
+      # deleted after a deliberate change) gets one taken now; the new files
+      # are uploaded as visual-baselines-linux to be looked at and committed.
+      # Every other screen is compared.
+      - name: Visual regression
+        id: visual
+        if: ${{ !cancelled() && steps.e2e.outcome != 'skipped' }}
+        working-directory: apps/web
+        run: VISUAL=1 npx playwright test tests/visual.spec.ts tests/visual-storefront.spec.ts --update-snapshots=missing --output=visual-results
+
+      - name: Collect new Linux baselines
+        id: baselines
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' }}
+        run: |
+          new=$(git ls-files --others --exclude-standard -- 'apps/web/tests/*-snapshots/*-linux.png')
+          if [ -n "$new" ]; then
+            mkdir -p "$RUNNER_TEMP/baselines"
+            echo "$new" | while read -r f; do mkdir -p "$RUNNER_TEMP/baselines/$(dirname "$f")"; cp "$f" "$RUNNER_TEMP/baselines/$f"; done
+            echo "made=1" >> "$GITHUB_OUTPUT"
+            echo "::warning title=New Linux visual baselines::$(echo "$new" | wc -l | tr -d ' ') taken; download visual-baselines-linux, look at them, and commit them."
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.baselines.outputs.made == '1' }}
+        with:
+          name: visual-baselines-linux
+          path: ${{ runner.temp }}/baselines/
+          retention-days: 7
+
+      # On a failed comparison: expected, actual and the diff for each screen.
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.visual.conclusion == 'failure'
+        with:
+          name: visual-diffs
+          path: apps/web/visual-results/
           retention-days: 7

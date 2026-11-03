@@ -49,6 +49,14 @@ export default defineConfig({
   ...(REMOTE ? { timeout: 240_000, expect: { timeout: 60_000 } } : {}),
 
   use: {
+    // Headless Chromium on Linux (CI) snaps every glyph's advance to a whole
+    // pixel, so Latin text came out wider than in any browser a person uses:
+    // "Tracking Ref" 85px in an 84px column where the Mac draws it in 84 with
+    // room to spare (CI, 2026-11-02). Measured in
+    // the Playwright Linux image: with hinting off, Latin widths equal the
+    // Mac's to the hundredth of a pixel. Linux only, so the Mac's runs and its
+    // `-darwin` baselines are untouched.
+    ...(process.platform === 'linux' ? { launchOptions: { args: ['--font-render-hinting=none'] } } : {}),
     baseURL: WEB,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',

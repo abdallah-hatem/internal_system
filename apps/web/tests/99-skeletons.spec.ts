@@ -59,7 +59,13 @@ const DASHBOARD_ROWS = (width: number) =>
 const CUSTOMER_ROWS = 3 + 3 + 4 + 4;
 const CYCLE_ROWS = 4 + 2 + 3 + 3 + 3 + 3;
 const stamp = Date.now().toString(36).toUpperCase();
-const CUSTOMER = `Skeleton Shop ${stamp}`;
+// Short enough to sit on one line in Sales' customer column whatever the stamp:
+// "Skeleton Shop <stamp>" was within a few pixels of the column's width, so it
+// wrapped for some stamps ("MVZ23CUE", "MVZ4KX50") and not others, and Sales'
+// first row came out two lines tall (CI, 2026-11-02; the Linux image, 1 in 1).
+// The skeleton traces a one-line row; a name long enough to wrap is a
+// different test (99-table-columns).
+const CUSTOMER = `Skel ${stamp}`;
 
 let cycleCode = '';
 
@@ -209,6 +215,11 @@ for (const viewport of [
   test.describe(`Skeletons at ${viewport.width}px`, () => {
     test.use({ viewport });
 
+    // The dashboard shows the business's own totals, and a full run reaches
+    // eight digits (earlier specs sell 9,000,000 at a time): "19,733,358.93
+    // EGP" wrapped to two lines at 1440 and 390, and the real first row landed
+    // 24–34px taller than the skeleton (CI 3/3, 2026-11-02). A tile's figure is
+    // one line since, stepping down in size only as far as it must to fit.
     test(`TC-SKEL-01 the Dashboard shows its skeleton, not "Loading", at ${viewport.width}px`, async ({ page }) => {
       const gate = await gateApi(page);
       gate.hold();

@@ -103,8 +103,12 @@ test.beforeAll(async ({ request }) => {
         WHERE table_schema = 'public' AND table_name <> '_prisma_migrations'
           AND data_type IN ('timestamp without time zone', 'timestamp with time zone', 'date')
       LOOP
+        -- A day either side: the app writes a date column as Cairo's day, and
+        -- current_date is the database's (UTC). Seeded at 00:30 in Cairo, a
+        -- payment read Nov 3 against a current_date of Nov 2 and kept its real
+        -- date, so This month's Collected dropped to 0 (CI run 41538122534).
         IF c.data_type = 'date' THEN
-          EXECUTE format('UPDATE %I SET %I = %L::date WHERE %I = current_date', c.table_name, c.column_name, '${SEEDED_AT}', c.column_name);
+          EXECUTE format('UPDATE %I SET %I = %L::date WHERE %I BETWEEN current_date - 1 AND current_date + 1', c.table_name, c.column_name, '${SEEDED_AT}', c.column_name);
           CONTINUE;
         END IF;
         -- Prisma's DateTime is UTC wall time without a zone.

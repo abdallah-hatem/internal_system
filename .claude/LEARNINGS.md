@@ -220,6 +220,54 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   `AGENT_CLOCK=2026-11-01T08:00:00Z scripts/agent-servers.sh <name> start` — visual.spec.ts refuses any
   other clock. — 2026-11-01
 
+## CI (GitHub Actions, `.github/workflows/ci.yml`)
+
+- Runs on every push to `dev` and `master` and on every PR. Free: the repo is public. On a fresh Linux
+  machine with a throwaway Postgres and fake env values (no production access, no secrets): `npm ci` for
+  api, web and storefront; migrations from empty, a schema-drift check, seed; tsc; API Jest; builds of all
+  three; the full Playwright suite (office + storefront, not the production specs); then the visual specs
+  with the API restarted at the frozen clock. A `docs-sync` job warns when app code changed and
+  `docs/business/` did not. A newer push to the same branch cancels the older run. — 2026-11-01
+- A red run is the trigger for an agent, not a reason to run the 13-minute suite locally "to check". Read
+  the failed step with `gh run view <id> --log-failed`; the Playwright report and visual diffs are run
+  artifacts (`gh run download <id>`). — 2026-11-01
+- CI was red on every push from at least 2026-10-28 to 2026-11-01 without anyone noticing: a lockfile out
+  of step with package.json stops `npm ci` before any test. After changing dependencies, run
+  `npm ci --dry-run` in that app before committing. — 2026-11-01
+- Feature branches reach `dev` through a PR (`gh pr create --base dev`) with the Code tab's **Auto-fix**
+  on, so a failing check wakes the session that opened it, which fixes and pushes. Merging into `dev` is
+  still the owner's call (CLAUDE.md §14). — 2026-11-01
+- CI's Chromium has classic scrollbars that take layout width (10px with `scrollbar-width: thin`); the Mac's float
+  over the content and take none. A width that fits the Mac by less than a bar's width fails on CI — and on every
+  Windows machine. `scrollbar-gutter: stable` reserves the width even when nothing scrolls: on `html` it cost the
+  whole office 10px for a bar the one-screen app frame never shows (now `auto` there). Reproduce CI exactly on the
+  Mac: `docker run … mcr.microsoft.com/playwright:v1.62.1-noble npx playwright@1.62.1 run-server --port 3999 --host
+  0.0.0.0 --unsafe`, a small Node proxy in the container forwarding localhost:31N1–31N3 to `host.docker.internal`,
+  and a throwaway config adding `connectOptions: { wsEndpoint }` and `launchOptions.args:
+  ['--font-render-hinting=none']` — without `--unsafe` run-server drops the args silently and Latin text measures
+  1px wider than CI. Gave CI's numbers to the pixel (972/954, 420/416, 1116/1114). — 2026-11-02
+
+## Visual baselines
+
+- Two sets per screen: `-darwin.png` (taken on the Mac, `npm run test:visual`) and `-linux.png` (taken by
+  CI). They are not interchangeable — fonts render differently.
+- A deliberate change to a screen: run `npm run test:visual:update` locally against the AGENT_CLOCK stack,
+  look at the new `-darwin` PNGs, delete that screen's `-linux` PNGs, push. CI takes new Linux ones
+  (`--update-snapshots=missing`) and uploads them as the `visual-baselines-linux` artifact; download, look,
+  commit them on the branch. Never accept a baseline without looking at it — that is the whole check.
+- The baselines carry the demo seed and 2026-11-01. A change to the demo seed, or to FROZEN_NOW in
+  `visual.spec.ts`, means retaking every baseline in both sets. — 2026-11-01
+- Headless Chromium on Linux rounds every glyph to a whole pixel, so Latin labels come out wider than on the
+  Mac and fixed-width columns fail only on CI. `playwright.config.ts` launches Chromium with
+  `--font-render-hinting=none` on Linux, which makes Latin widths match the Mac. Don't remove it. — 2026-11-02
+- A Latin next/font face ahead of another script's face in a font stack hides it: next/font adds a "<Font>
+  Fallback" face (`local(Arial)`, no unicode-range) to the Latin variable, and wherever Arial is installed it
+  draws the Arabic, so Plex Arabic only ever loaded on Linux CI, where it was wider and broke columns sized on
+  the Mac. Fixed by giving the Latin face `fallback: ['IBM Plex Sans Arabic']` — Turbopack still emits the Arial
+  face with `adjustFontFallback: false` alone; only `fallback` replaces it. Check a script's real font with CDP
+  `CSS.getPlatformFontsForNode`, not the computed font-family. The Arabic `-darwin` baselines were retaken in Plex
+  Arabic. — 2026-11-02
+
 ## Tests that click the moment a page changes
 
 - A nav click starts a client navigation; it does not finish one. TC-RP-06 clicked the

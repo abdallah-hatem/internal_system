@@ -123,6 +123,58 @@ describe('dashboard tiles lead to their lists', () => {
     expect(within(el).getByTestId('owed-to-lenders-lines').textContent).toContain('20,000.00 AED');
   });
 
+  it('owed to lenders: many currencies and a missing rate stay on one line, every amount and the note still there (2026-11-02)', async () => {
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) {
+        return Promise.resolve({
+          data: {
+            data: {
+              ...KPIS,
+              owedToLenders: {
+                lines: [
+                  { currency: 'AED', owed: '111482.31', rateToEgp: '13.8500', owedEgp: '1544029.99' },
+                  { currency: 'HKD', owed: '1000.00', rateToEgp: null, owedEgp: null },
+                  { currency: 'USD', owed: '2500.00', rateToEgp: '50.0000', owedEgp: '125000.00' },
+                ],
+                totalEgp: '1669029.99',
+                missingRate: true,
+              },
+            },
+          },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    const el = await tile('owedToLenders');
+    const lines = within(el).getByTestId('owed-to-lenders-lines');
+    // One line that is cut at the tile's edge, never one that wraps.
+    expect(lines.className).toContain('truncate');
+    for (const amount of ['111,482.31 AED', '1,000.00 HKD', '2,500.00 USD']) {
+      expect(lines.textContent).toContain(amount);
+      expect(lines.parentElement!.getAttribute('title')).toContain(amount);
+    }
+    // The note is a hover and a screen reader away, with a sign on screen.
+    expect(within(el).getByTestId('owed-to-lenders-no-rate')).toBeTruthy();
+    expect(lines.parentElement!.getAttribute('title')).toContain(en.dashboard.owedToLendersNoRate);
+    expect(within(el).getByText(en.dashboard.owedToLendersNoRate).className).toContain('sr-only');
+  });
+
+  it('owed to lenders: no sign when every currency has a rate', async () => {
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) {
+        return Promise.resolve({
+          data: { data: { ...KPIS, owedToLenders: { lines: [{ currency: 'AED', owed: '10.00', rateToEgp: '13.85', owedEgp: '138.50' }], totalEgp: '138.50', missingRate: false } } },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    const el = await tile('owedToLenders');
+    expect(within(el).queryByTestId('owed-to-lenders-no-rate')).toBeNull();
+    expect(within(el).queryByText(en.dashboard.owedToLendersNoRate)).toBeNull();
+  });
+
   it('cost of goods sold and cash paid out are not on the dashboard (owner 2026-10-23: on Analytics)', async () => {
     renderPage();
     await tile('revenue');

@@ -51,13 +51,22 @@ test.describe('Dashboard tiles open their lists', () => {
     await expect(page).toHaveURL(/\/en\/inventory\?stock=low/);
     await expect(page.getByTestId('low-stock-chip')).toBeVisible();
 
+    // The search is sent once typing rests, and written to the address. Wait
+    // for it: the low product is on the low-stock page before the search lands,
+    // so seeing it proved nothing, and "Show all" clicked inside that pause was
+    // overtaken by the search arriving after it (CI, 2026-11-02:
+    // `?stock=low`, then `?q=<stamp>`, never the bare /inventory expected).
     await page.getByPlaceholder(/search/i).fill(`${stamp}`);
+    await expect(page).toHaveURL(new RegExp(`[?&]q=${stamp}(&|$)`));
+    await expect(page).toHaveURL(/[?&]stock=low(&|$)/);
     await expect(page.getByText(low.name).first()).toBeVisible();
     await expect(page.getByText(fine.name)).toHaveCount(0);
 
-    // "Show all" brings the rest back without leaving the page.
+    // "Show all" brings the rest back without leaving the page — the search
+    // still typed in the box, and still in the address.
     await page.getByRole('button', { name: 'Show all' }).click();
-    await expect(page).toHaveURL(/\/en\/inventory$/);
+    await expect(page).toHaveURL(new RegExp(`/en/inventory\\?q=${stamp}$`));
+    await expect(page.getByTestId('low-stock-chip')).toHaveCount(0);
     await expect(page.getByText(fine.name).first()).toBeVisible();
   });
 

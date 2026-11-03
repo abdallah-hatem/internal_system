@@ -112,11 +112,25 @@ export default function SettlementsPage() {
   // the cache already, and they change with every approve, pay and reverse.
   // Refreshing the settlements alone left that tab showing "Nothing paid out
   // yet" for a minute after a payout.
+  //
+  // Those queries are cancelled first. Opening this tab starts a participation
+  // request, slow once there are hundreds of cycles (2.4 s on CI), so it can
+  // still be in flight when Mark paid lands — with the server's pre-payout
+  // answer. TanStack never cancels a query's first fetch to refetch it (it only
+  // does so once the query holds data); invalidating, even with refetchType
+  // 'all', joins that request and stores its answer as fresh. The Partners tab
+  // then showed no payout for the office's minute of staleTime (TC-RC-01, CI
+  // runs 41416019717 and 41436878046). refetchType 'all' because that tab is
+  // usually unmounted here, and an inactive query would only be marked.
+  const refetchNow = async (queryKey: string[]) => {
+    await queryClient.cancelQueries({ queryKey });
+    await queryClient.invalidateQueries({ queryKey, refetchType: 'all' });
+  };
   const refresh = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ['settlements'] }),
-      queryClient.invalidateQueries({ queryKey: ['users', 'participation'] }),
-      queryClient.invalidateQueries({ queryKey: ['running-costs'] }),
+      refetchNow(['users', 'participation']),
+      refetchNow(['running-costs']),
       queryClient.invalidateQueries({ queryKey: ['cycles'] }),
     ]);
 

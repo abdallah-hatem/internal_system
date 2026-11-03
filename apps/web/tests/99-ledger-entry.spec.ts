@@ -223,7 +223,10 @@ test.describe('Record money in or out (L6)', () => {
     await page.getByRole('option', { name: new RegExp(`^${en.codes.ledgerCategory.rent}`) }).first().click();
     const rows = page.locator('table tbody tr').filter({ visible: true });
     await expect(rows.first()).toContainText(en.codes.ledgerCategory.rent);
-    expect(await rows.filter({ hasNotText: en.codes.ledgerCategory.rent }).count()).toBe(0);
+    // Waited for, not read once: the newest row is the rent entry above, so the
+    // line before passes while the unfiltered page is still on screen, and a
+    // single count taken then saw its other rows (CI, 2026-11-02: 8).
+    await expect(rows.filter({ hasNotText: en.codes.ledgerCategory.rent })).toHaveCount(0);
   });
 
   test('TC-L6-07: a refusal from the server keeps the form, in the reader’s language (Arabic)', async ({ page, request }) => {

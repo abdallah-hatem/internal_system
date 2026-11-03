@@ -268,6 +268,18 @@ a:focus-visible,
   scrollbar-gutter: auto;
 }
 
+/* Inside the office the page itself never scrolls: the frame is one screen
+   tall (`h-dvh overflow-hidden`) and `main` scrolls beside the sidebar, with
+   its own gutter. A stable gutter on `html` there reserved a second bar's
+   width at the window's edge that no bar ever filled — invisible on a Mac,
+   whose bars float over the content, but 10px on Windows and Linux, whose bars
+   take room: every card in the office was 20px narrower than on the Mac, and
+   tables sized there scrolled sideways (CI, 2026-11-02). Pages that do scroll
+   as a whole (sign-in) keep it. */
+html:has([data-app-frame]) {
+  scrollbar-gutter: auto;
+}
+
 /* Fields scroll their own text; they are not containers anyone marks up, so
    they take the same look here rather than per element. */
 textarea {

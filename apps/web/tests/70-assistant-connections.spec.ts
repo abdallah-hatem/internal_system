@@ -40,6 +40,24 @@ interface Account {
 
 // ─────────────────────────────────────────────────────────────── accounts
 
+/**
+ * Every core partner this file makes, so they leave again when it is done.
+ * An active core partner joins every new cycle and shares every running cost
+ * (§8), so the ones left behind here turned the business's three partners into
+ * seventeen for every spec after this one: TC-FUND-04 found 17 split fields
+ * where it filled three, TC-ACC-01 17 paid rows (CI, 2026-11-02). TC-INV-66
+ * does the same for the partner it adds.
+ */
+const madePartners: string[] = [];
+
+test.afterAll(async ({ request }) => {
+  const { headers } = await apiCtx(request);
+  for (const id of madePartners.splice(0)) {
+    const res = await request.put(`${API}/users/${id}`, { headers, data: { status: 'INACTIVE' } });
+    expect(res.ok(), await res.text()).toBeTruthy();
+  }
+});
+
 /** A fresh account, made by a partner the way the office makes one. */
 async function newAccount(
   request: APIRequestContext,
@@ -52,7 +70,9 @@ async function newAccount(
     data: { email, password: 'password123', displayName: `Conn ${stamp()}`, role },
   });
   expect(res.ok(), `create ${role}: ${await res.text()}`).toBeTruthy();
-  return { id: (await res.json()).data.id as string, email, password: 'password123' };
+  const id = (await res.json()).data.id as string;
+  if (role === 'CORE_PARTNER') madePartners.push(id);
+  return { id, email, password: 'password123' };
 }
 
 /** The office's own login for an account. */

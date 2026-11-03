@@ -59,6 +59,13 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `dev` 2026-11-01 — fewer tokens per change** (owner 2026-11-01: "try to do all"): BUSINESS_LOGIC split into an
+  index + `docs/business/` sections and BUILD_LOG trimmed (history in `build-log/history/`); `npm run test:affected`
+  prints the Jest / web-unit / e2e / visual tests a change touches; visual regression specs (`npm run test:visual`,
+  10 office screens EN+AR, 4 storefront); CI fixed (lockfiles had stopped `npm ci` since ≥ 2026-10-28) and now runs
+  on `dev` too. PR #2 (open, Auto-fix on): CI starts the storefront and runs the visual specs, taking the Linux
+  baselines. How it all works: `.claude/LEARNINGS.md`, "CI" and "Visual baselines". Two layout bugs the baselines
+  show are listed under Known bugs in `docs/where-things-stand.md`. 15 stale agent worktrees removed (~30 GB).
 - **Live 2026-10-31** (was `feature/pnl-adds-up-open`) (owner 2026-10-31: "in analytics how it adds up should be open by
   default"): Analytics' "How it adds up" opens already unfolded; its header still folds it. Web only, no migration.
   Tests: `profit-and-loss-section.test.tsx` (open at first, folds and reopens — seen to fail on the old code).
@@ -132,6 +139,12 @@ Standing items:
   scheduled `pg_dump` of production to storage the owner controls, and one dump restored into a scratch database to
   prove it. Needs the owner's Neon access (console, or the Neon CLI with a key) — steps 1–2 with him.
 - Selling on Amazon (Egypt + UAE) — BUSINESS_LOGIC §17, PLANNED, six questions still OPEN.
+- CI watcher on a VPS (owner 2026-11-02: "I will let you know when i have the vps"; waiting on him to get one). The
+  desktop app's Auto-fix only watches while his Mac is awake. Plan: Ubuntu VPS (≥ 4 vCPU / 8 GB: Postgres, API, two
+  Next apps and Playwright at once), Docker, Node 22, Claude Code signed in with his subscription, the repo, no
+  production secrets. A cron script checks `gh run list` every few minutes (no tokens); on a new red run of a feature
+  branch or PR it runs `claude -p "CI run <id> failed on <branch>; read the log, fix, push"`, remembers handled runs,
+  gives up after 2–3 attempts, never pushes to `master`, and notifies him. Deliver: setup script + watcher + cron line.
 
 ## Phases
 - Walk-in + assistant sales — shipped 2026-10-11 · [decisions](build-log/decisions/walk-in-and-assistant-sales.md)

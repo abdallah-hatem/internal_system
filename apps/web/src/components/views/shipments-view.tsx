@@ -160,11 +160,12 @@ export default function ShipmentsPage() {
       cell: (ship) => <StatusBadge status={ship.status} />,
     },
     {
-      key: 'departedOn', header: t('departedOn'), width: '6.75rem', kind: 'value', className: 'text-gray-500 text-xs',
+      // "14 أغسطس 2026" is 89px in Plex Arabic (2026-11-02; 6.75rem left 88).
+      key: 'departedOn', header: t('departedOn'), width: '7rem', kind: 'value', className: 'text-gray-500 text-xs',
       skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (ship) => formatDate(ship.departedOn),
     },
     {
-      key: 'arrivedOn', header: t('arrivedOn'), width: '6.75rem', kind: 'value', className: 'text-gray-500 text-xs',
+      key: 'arrivedOn', header: t('arrivedOn'), width: '7rem', kind: 'value', className: 'text-gray-500 text-xs',
       skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (ship) => formatDate(ship.arrivedOn),
     },
     {

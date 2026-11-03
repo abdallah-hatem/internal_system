@@ -15,11 +15,29 @@ import '../globals.css';
 // bilingual app: the two scripts share weight and rhythm instead of looking
 // like two different products. Its figures are properly tabular, so money
 // columns line up digit for digit.
+//
+// The Latin face names its own fallback, because it sits ahead of the Arabic
+// one in --font-sans (globals.css). Left to itself, next/font adds an "IBM Plex
+// Sans Fallback" face to this variable — `local(Arial)` with no unicode-range,
+// so it claims every character the Latin subset does not — and on a Mac or
+// Windows machine Arial drew all the Arabic: Plex Arabic was never reached.
+// Only Linux, with no Arial, ever showed Plex Arabic, and its wider glyphs
+// broke columns sized on the Mac (2026-11-02).
+//
+// `adjustFontFallback: false` alone is not enough: Turbopack (dev and build)
+// still emits the Arial face unless `fallback` is given, which replaces it. The
+// fallback named is Plex Arabic itself — the family next/font registers for the
+// face below — so a character Plex Sans lacks goes straight to the Arabic face;
+// where that name does not match, it matches nothing and is skipped, and the
+// rest of --font-sans carries on. Measured with CSS.getPlatformFontsForNode: an
+// Arabic header on the Mac is drawn in IBM Plex Sans Arabic, not ArialMT.
 const sans = IBM_Plex_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-plex-sans',
   display: 'swap',
+  adjustFontFallback: false,
+  fallback: ['IBM Plex Sans Arabic'],
 });
 
 const arabic = IBM_Plex_Sans_Arabic({

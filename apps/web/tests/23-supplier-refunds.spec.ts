@@ -7,6 +7,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { API } from './support/env';
+import { allPages } from './support/fixtures';
 
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
@@ -28,11 +29,22 @@ async function anyPurchaseOrder(request: any, h: any) {
  * still in planning has no batches and is not reported, so asserting against
  * it would silently skip.
  */
-async function purchaseOrderWithReportedCycle(request: any, h: any) {
+/** A purchase order as the list sends it, the fields read here. */
+type ListedOrder = { id: string; cycle?: { code: string }; fxRateToEgp: string; items?: { lineTotal: string }[] };
+
+async function purchaseOrderWithReportedCycle(request: any, h: any, refundEgp: number): Promise<ListedOrder | undefined> {
   const cycles = (await (await request.get(`${API}/analytics/cycle-profitability`, { headers: h })).json()).data;
   const codes = new Set(cycles.map((c: any) => c.cycleCode));
-  const list = (await (await request.get(`${API}/purchases?limit=50`, { headers: h })).json()).data ?? [];
-  return list.find((po: any) => codes.has(po.cycle?.code));
+  // Every order, not the newest fifty, and one big enough to give the refund
+  // back: a supplier cannot refund more than the order was worth (§6,
+  // REFUND_EXCEEDS_ORDER). The newest order on a reported cycle was a 30 EGP
+  // one some earlier spec made, refused the 242.50 below, and the test then
+  // compared figures nothing had changed (CI, 2026-11-02). Room for this
+  // refund several times over, so TC-SUP-01's refunds and a retry still fit.
+  const list = (await allPages(request, h, 'purchases')) as unknown as ListedOrder[];
+  const valueEgp = (po: ListedOrder) =>
+    (po.items ?? []).reduce((s, i) => s + Number(i.lineTotal), 0) * Number(po.fxRateToEgp);
+  return list.find((po) => codes.has(po.cycle?.code) && valueEgp(po) >= 10 * refundEgp);
 }
 
 function cycle(cycles: any[], code: string) {
@@ -42,14 +54,16 @@ function cycle(cycles: any[], code: string) {
 test.describe('Supplier refunds', () => {
   test('TC-SUP-01: a refund reaches the ledger in EGP', async ({ request }) => {
     const h = await auth(request);
-    const po = await anyPurchaseOrder(request, h);
-    test.skip(!po, 'no purchase orders');
+    // An order that can give 485 back — the newest one may be smaller (below).
+    const found = await purchaseOrderWithReportedCycle(request, h, 10 * 48.5);
+    test.skip(!found, 'no purchase orders');
+    const po = found!;
 
     const res = await request.post(`${API}/purchases/${po.id}/refunds`, {
       headers: h,
       data: { amount: 10, currency: 'USD', fxRateToEgp: 48.5, reason: 'damaged in transit' },
     });
-    expect(res.ok()).toBeTruthy();
+    expect(res.ok(), await res.text()).toBeTruthy();
     const refund = (await res.json()).data;
 
     const ledger = (await (await request.get(`${API}/ledger?limit=200`, { headers: h })).json()).data ?? [];
@@ -64,18 +78,20 @@ test.describe('Supplier refunds', () => {
 
   test('TC-SUP-02: a refund reduces what the cycle cost and lifts its profit', async ({ request }) => {
     const h = await auth(request);
-    const po = await purchaseOrderWithReportedCycle(request, h);
-    test.skip(!po, 'no purchase order on a reported cycle');
+    const amount = 5;
+    const fx = 48.5;
+    const found = await purchaseOrderWithReportedCycle(request, h, amount * fx);
+    test.skip(!found, 'no purchase order on a reported cycle');
+    const po = found!;
 
     const cyclesBefore = (await (await request.get(`${API}/analytics/cycle-profitability`, { headers: h })).json()).data;
     const before = cyclesBefore.find((c: any) => c.cycleCode === po.cycle?.code);
 
-    const amount = 5;
-    const fx = 48.5;
-    await request.post(`${API}/purchases/${po.id}/refunds`, {
+    const refunded = await request.post(`${API}/purchases/${po.id}/refunds`, {
       headers: h,
       data: { amount, currency: 'USD', fxRateToEgp: fx, reason: 'short shipment' },
     });
+    expect(refunded.ok(), `refund: ${await refunded.text()}`).toBeTruthy();
 
     const cyclesAfter = (await (await request.get(`${API}/analytics/cycle-profitability`, { headers: h })).json()).data;
     const after = cyclesAfter.find((c: any) => c.cycleCode === po.cycle?.code);

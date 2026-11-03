@@ -143,6 +143,10 @@ test.describe('A payout takes his share of the running costs and says so (L7, §
     const partnerA = page.locator('[data-testid="partner-card"][data-email="abdallah@motoparts.com"]');
     const payout = partnerA.getByTestId('payout-history').getByRole('button').filter({ hasText: w.cycle.code });
     // The refetch after paying is /users/participation, slow late in a full run (above).
+    // A participation request already in flight when Mark paid lands must not
+    // be kept as fresh (fixed 2026-11-02: refresh() cancels it, then refetches;
+    // TanStack never cancels a first fetch on its own, so refetchType 'all'
+    // alone joined the stale request and CI still failed 3/3).
     await expect(payout).toBeVisible({ timeout: 30_000 });
     await payout.click();
     await expect(partnerA.getByTestId(`breakdown-${pidA}`)).toContainText(today());

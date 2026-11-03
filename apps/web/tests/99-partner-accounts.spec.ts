@@ -63,7 +63,20 @@ test.describe('Running accounts', () => {
     await expect(panel.getByTestId('contribute-short').first()).toBeVisible();
     await expect(panel.getByRole('button', { name: new RegExp(`^${en.accounts.contribute}`) })).toBeDisabled();
     const res = await request.post(`${API}/cycles/${cycle.id}/account-contributions`, { headers, data: { totalEgp: 999999999 } });
-    expect((await res.json()).error.code).toBe('ACCOUNT_BALANCE_TOO_LOW');
+    expect(res.status()).toBe(400);
+    const { error } = await res.json();
+    // Which refusal depends on the partner it names: with money in his account
+    // advanced for other cycles it says so (ACCOUNT_MONEY_FOR_OTHER_CYCLE),
+    // with nothing elsewhere it is the plain ACCOUNT_BALANCE_TOO_LOW (§8,
+    // owner 2026-10-26). Earlier specs leave advances standing on their cycles,
+    // so in a full run Abdallah had 66.67 elsewhere (CI, 2026-11-02): read his
+    // account from the cycle's own funding view rather than assume it is empty.
+    const funding = (await (await request.get(`${API}/cycles/${cycle.id}/account-funding`, { headers })).json()).data;
+    const named = (funding.partners as any[]).find((p) => p.name === error.params?.partner);
+    expect(named, `the refusal names a partner on the cycle: ${error.message}`).toBeTruthy();
+    expect(error.code).toBe(Number(named.elsewhereEgp) > 0 ? 'ACCOUNT_MONEY_FOR_OTHER_CYCLE' : 'ACCOUNT_BALANCE_TOO_LOW');
+    // And nothing was contributed.
+    expect(Number(funding.putIn.totalEgp)).toBe(0);
   });
 
   test('TC-ACC-03: the Partners page shows each account, and taking out more than it holds is refused in the dialog', async ({ page, request }) => {

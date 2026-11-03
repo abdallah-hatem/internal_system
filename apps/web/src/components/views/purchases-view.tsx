@@ -259,7 +259,10 @@ export default function PurchasesPage() {
       skeleton: { kind: 'text', share: 'w-1/3' }, cell: (po) => po.currency,
     },
     {
-      key: 'fxRate', header: t('fxRate'), width: '9rem', kind: 'value', className: 'text-gray-600',
+      // "سعر الصرف إلى الجنيه" is 114px in IBM Plex Sans Arabic, which the
+      // Arabic pages are drawn in on every OS since 2026-11-02 (Arial drew it
+      // at 9rem's 112px before); 9.5rem leaves 120.
+      key: 'fxRate', header: t('fxRate'), width: '9.5rem', kind: 'value', className: 'text-gray-600',
       skeleton: { kind: 'text', share: 'w-1/4' }, cell: (po) => po.fxRateToEgp,
     },
     {

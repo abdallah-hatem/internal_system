@@ -180,8 +180,11 @@ export function ContractsList({ customerId }: { customerId?: string }) {
           },
         ]),
     { key: 'contract', header: t('contract'), width: scoped ? 'auto' : '10rem', kind: 'plain', cell: contractCell },
-    { key: 'total', header: t('total'), width: '8.5rem', kind: 'value', align: 'end', className: 'text-foreground', cell: (p) => <Money value={p.totalEgp} /> },
-    { key: 'paid', header: t('paid'), width: '8.5rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: (p) => <Money value={p.paidEgp} /> },
+    // Total and Paid are sized as the Sales list's Total is: a 7-figure
+    // contract, "4,000,000.00 EGP", spilled 12px out of 8.5rem (2026-11-02), and
+    // 10.5rem carries "99,999,999.00 EGP".
+    { key: 'total', header: t('total'), width: '10.5rem', kind: 'value', align: 'end', className: 'text-foreground', cell: (p) => <Money value={p.totalEgp} /> },
+    { key: 'paid', header: t('paid'), width: '10.5rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: (p) => <Money value={p.paidEgp} /> },
     {
       key: 'next', header: t('nextDue'), width: '8.5rem', kind: 'plain', align: 'end',
       skeleton: { kind: 'text', share: 'w-3/4' },

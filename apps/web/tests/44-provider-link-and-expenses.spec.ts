@@ -137,13 +137,32 @@ test.describe('The dashboard adds up', () => {
     request,
   }) => {
     const { headers } = await apiCtx(request);
+    // Other income is part of profit (§9, L6) and is not revenue: record some,
+    // so the sum is checked with every term in it whatever earlier specs left.
+    // Comparing against revenue − cost − expenses alone held only while no
+    // spec before this one had recorded a refund or other income — a fresh
+    // seed — and was 2,183.50 off in a full run (CI, 2026-11-02).
+    const income = await request.post(`${API}/ledger`, {
+      headers,
+      data: { kind: 'OTHER_INCOME', category: 'interest', amount: 75, currency: 'EGP', note: `TC-DASH-01 ${Date.now()}` },
+    });
+    expect(income.status(), await income.text()).toBe(201);
     const body = await (
       await request.get(`${API}/analytics/dashboard`, { headers })
     ).json();
     const d = body.data ?? body;
+    expect(num(d.totalOtherIncomeEgp)).toBeGreaterThan(0);
 
+    // Net profit (§6, §9, §18): revenue less cost of goods less expenses, plus
+    // refunds recovered and other income, less the exchange difference on
+    // repaying friends.
     expect(num(d.netProfit)).toBeCloseTo(
-      num(d.totalRevenue) - num(d.totalCogs) - num(d.totalExpenses),
+      num(d.totalRevenue) -
+        num(d.totalCogs) -
+        num(d.totalExpenses) +
+        num(d.totalRecoveredEgp) +
+        num(d.totalOtherIncomeEgp) -
+        num(d.exchangeDifferenceEgp),
       2,
     );
   });
@@ -165,10 +184,12 @@ test.describe('The dashboard adds up', () => {
     await expect(month).toBeVisible({ timeout: 15000 });
     await expect(month.getByRole('heading', { name: 'This month' })).toBeVisible();
 
-    const text = await month.innerText();
+    // The heading is drawn before the tiles land (CI, 2026-11-02: the card read
+    // "This month / Profit and loss" and nothing else), so wait for them.
     for (const label of ['Revenue', 'Collected', 'Expenses', 'Net profit']) {
-      expect(text).toContain(label);
+      await expect(month).toContainText(label);
     }
+    const text = await month.innerText();
     // Cost of goods sold is not on the dashboard any more.
     expect(await page.locator('main').first().innerText()).not.toContain('Cost of Goods Sold');
 
