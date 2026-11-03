@@ -154,13 +154,14 @@ export default function CyclesPage() {
     );
 
   // ── Columns ───────────────────────────────────────────────────────
-  // Code (with its origin under it), status, participants, purchases, profit,
-  // ROI, date, actions (components/ui/data-table.tsx). Short values — a status
-  // chip, money, a date — never wrap. Each fixed column fits its title in
-  // English and Arabic ("العائد على الاستثمار" sets ROI's), and the actions
-  // fit Continue setup beside Details. Nine columns that wide did not fit a
-  // 1440 screen, so the origin, a two-word fact, moved under the code — the
-  // way the phone card shows it.
+  // Code (with its origin under it), status, participants, purchases, profit
+  // (with its ROI under it), date, actions (components/ui/data-table.tsx).
+  // Short values — a status chip, money, a date — never wrap. Each fixed
+  // column fits its title in English and Arabic, and the actions fit Continue
+  // setup beside Details. Nine columns that wide did not fit a 1440 screen, so
+  // the origin, a two-word fact, moved under the code — the way the phone card
+  // shows it. Eight did not fit 1280 (1060px in a 974px card, 2026-11-02), so
+  // the ROI moved under the profit it is the return of: 952px.
   const columns: Column<Cycle>[] = [
     {
       key: 'code', header: t('code'), width: 'auto',
@@ -201,17 +202,30 @@ export default function CyclesPage() {
       skeleton: { kind: 'text', share: 'w-1/4' }, cell: (cycle) => cycle.purchaseOrders?.length ?? 0,
     },
     {
-      key: 'profit', header: t('profit'), width: '8.5rem', kind: 'value', align: 'end',
-      skeleton: { kind: 'text', share: 'w-2/3' },
-      cellProps: () => ({ 'data-testid': 'cycle-profit' }),
-      cell: (cycle) => <ProfitFigure figure={profitByCode.get(cycle.code)} />,
-    },
-    {
-      // "العائد على الاستثمار" is 104px in Plex Arabic (2026-11-02; 7.25rem left 96).
-      key: 'roi', header: t('roi'), width: '8rem', kind: 'value', align: 'end',
-      skeleton: { kind: 'text', share: 'w-1/3' },
-      cellProps: () => ({ 'data-testid': 'cycle-roi' }),
-      cell: (cycle) => <RoiFigure figure={profitByCode.get(cycle.code)} />,
+      // Sized as the Sales list's Total is, for "-99,999,999.99 EGP" (132px):
+      // an 8-digit profit spilled 8px out of 8.5rem (2026-11-02).
+      key: 'profit', header: t('profitRoi'), width: '9.75rem', kind: 'value', align: 'end',
+      skeleton: {
+        kind: 'custom',
+        render: () => (
+          <>
+            <SkeletonText className="ms-auto w-2/3" />
+            <SkeletonText size="xs" className="ms-auto w-1/3" />
+          </>
+        ),
+      },
+      cell: (cycle) => {
+        const figure = profitByCode.get(cycle.code);
+        return (
+          <div className="flex flex-col items-end">
+            <span data-testid="cycle-profit"><ProfitFigure figure={figure} /></span>
+            {/* Nothing sold, nothing to return: one dash for the pair, not two. */}
+            {figure?.roiPct != null && (
+              <span data-testid="cycle-roi" className="text-xs" title={t('roi')}><RoiFigure figure={figure} /></span>
+            )}
+          </div>
+        );
+      },
     },
     {
       // "10 أغسطس 2026" is 89px in Plex Arabic (2026-11-02; 6.75rem left 88).
@@ -226,7 +240,14 @@ export default function CyclesPage() {
           {/* Continue setup comes first and Details last, so Details sits at
               the column's end in every row whether or not the cycle still has
               setup to do. */}
-          <ContinueSetupLink cycleId={cycle.id} status={cycle.status} />
+          {/* Tighter than its own default (px-3, gap-1) so it sits beside
+              Details inside the column: 200px of actions spilled 5px out of
+              194 (2026-11-02). */}
+          <ContinueSetupLink
+            cycleId={cycle.id}
+            status={cycle.status}
+            className="inline-flex min-h-9 cursor-pointer items-center gap-0.5 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm font-medium whitespace-nowrap text-primary-700 transition-colors hover:bg-primary-100 touch-manipulation"
+          />
           {/* Details is offered for every cycle, in every status. A closed
               one is the one you most want to look back at. */}
           <button

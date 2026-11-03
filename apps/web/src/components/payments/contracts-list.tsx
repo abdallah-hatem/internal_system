@@ -186,7 +186,8 @@ export function ContractsList({ customerId }: { customerId?: string }) {
     { key: 'total', header: t('total'), width: '10.5rem', kind: 'value', align: 'end', className: 'text-foreground', cell: (p) => <Money value={p.totalEgp} /> },
     { key: 'paid', header: t('paid'), width: '10.5rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: (p) => <Money value={p.paidEgp} /> },
     {
-      key: 'next', header: t('nextDue'), width: '8.5rem', kind: 'plain', align: 'end',
+      // The due date is text-sm: "10 أغسطس 2026" is 105px in Plex Arabic, and 8.5rem held 104 (2026-11-04).
+      key: 'next', header: t('nextDue'), width: '8.75rem', kind: 'plain', align: 'end',
       skeleton: { kind: 'text', share: 'w-3/4' },
       cell: nextCell,
     },

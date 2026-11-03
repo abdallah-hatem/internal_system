@@ -254,7 +254,8 @@ export default function LedgerPage() {
   // amount fits "-123,456.00 EGP".
   const columns: Column<LedgerEntry>[] = [
     {
-      key: 'date', header: t('date'), width: '7.5rem', kind: 'value', className: 'text-gray-500 text-xs',
+      // "10 أغسطس 2026" is 90px at text-xs in Plex Arabic: 7.5rem held 88 (2026-11-02).
+      key: 'date', header: t('date'), width: '8rem', kind: 'value', className: 'text-gray-500 text-xs',
       skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (e) => formatDate(entryDate(e)),
     },
     {

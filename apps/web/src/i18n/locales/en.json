@@ -297,6 +297,7 @@
     "continueSetup": "Continue setup",
     "profit": "Profit",
     "roi": "ROI",
+    "profitRoi": "Profit · ROI",
     "emptyTitle": "No import cycles yet",
     "emptyHint": "A cycle is one shipment: what was ordered, how it travelled, and what it sold for.",
     "statusUpdated": "Cycle status updated",
