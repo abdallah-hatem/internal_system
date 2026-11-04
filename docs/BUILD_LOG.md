@@ -59,6 +59,10 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `dev` 2026-11-04, not shipped — table widths** (owner: "Yes, fix them", "Merge into dev"): `feature/table-widths`
+  merged (`37f9bda`). Customers' Balance and Cycles' Profit hold the largest amounts, ROI moved under Profit so the
+  setup cycle's two actions fit, four date columns hold the widest Arabic month (TC-COL-04.11/06/07). Ledger at 1280
+  still scrolls sideways (Known bugs).
 - **On `dev` 2026-11-01 — fewer tokens per change** (owner 2026-11-01: "try to do all"): BUSINESS_LOGIC split into an
   index + `docs/business/` sections and BUILD_LOG trimmed (history in `build-log/history/`); `npm run test:affected`
   prints the Jest / web-unit / e2e / visual tests a change touches; visual regression specs (`npm run test:visual`,

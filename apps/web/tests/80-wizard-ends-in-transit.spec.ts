@@ -338,8 +338,9 @@ test.describe('The cycle list', () => {
     await openCycleList(page);
     await page.getByPlaceholder(/search/i).fill(cycle.code);
     const row = page.locator('tr', { hasText: cycle.code });
+    // Profit and ROI share one column since 2026-11-04: one dash, and no ROI line under it.
     await expect(row.getByTestId('cycle-profit')).toHaveText('—');
-    await expect(row.getByTestId('cycle-roi')).toHaveText('—');
+    await expect(row.getByTestId('cycle-roi')).toHaveCount(0);
   });
 
   test('TC-F1B-09: in Arabic the first chip is "All", Continue setup is translated, statuses are words', async ({
