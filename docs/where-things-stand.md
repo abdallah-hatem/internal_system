@@ -197,7 +197,7 @@ Ordered by what would hurt first.
   and write-offs (§4), the default price's basis and rounding (§3), the P&L's dates and buckets.
 - **Known bugs** (`docs/build-log/history/2026-10.md`): the order popup's Allocations show raw batch codes; `POST /ledger/<not-a-uuid>/reverse` answers 500 instead of a coded refusal; return numbers
   (`RET-…`) are given without a lock, so two returns at once can collide. Seen in a full-run state
-  2026-11-02, fixed 2026-11-04 (`feature/table-widths`): with an 8-digit owed order the Customers list's balance
+  2026-11-02, fixed 2026-11-04 (`feature/table-widths`, merged into `dev` 2026-11-04 with CI green, not shipped): with an 8-digit owed order the Customers list's balance
   (13px) and the Cycles list's profit (8px) spilled their columns at 1440 — Balance is 10.5rem and Profit 9.75rem
   now, sized for "-99,999,999.99 EGP" as Sales' Total is; Cycles cut off its Actions at 1280 (1060px in a 974px
   card) — ROI moved under Profit, as the origin sits under the code, so the list is 952px; a cycle still in setup

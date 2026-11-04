@@ -246,6 +246,21 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   and a throwaway config adding `connectOptions: { wsEndpoint }` and `launchOptions.args:
   ['--font-render-hinting=none']` — without `--unsafe` run-server drops the args silently and Latin text measures
   1px wider than CI. Gave CI's numbers to the pixel (972/954, 420/416, 1116/1114). — 2026-11-02
+- A change that removes or renames something a person sees (a column, a `data-testid`, a label) breaks tests outside
+  the specs you ran. Merging Profit and ROI into one column (2026-11-04) passed spec 99 on the Mac and in the Linux
+  browser, and dev's CI then failed TC-F1B-08 in spec 80, which still looked for a dash in a `cycle-roi` cell that no
+  longer exists. Before calling it done, grep every spec for the old test id and the old i18n key
+  (`grep -rn "cycle-roi" apps/web/tests`), and fix every hit in the same change. — 2026-11-04
+- Let CI run on the branch before it reaches `dev`: open the PR first (`gh pr create --base dev`), take the Linux
+  baselines and fix what fails there, then merge. Merging `feature/table-widths` straight into `dev` (2026-11-04) made
+  two red runs on `dev`: one for the 7 deleted Linux baselines, which is expected, and one for the test above. Both
+  would have shown up on the PR, with `dev` never red. A screen whose `-linux` PNGs were deleted always fails its
+  first run ("A snapshot doesn't exist … writing actual"). That is the run that makes the new images, not a
+  failure to fix. — 2026-11-04
+- The Google Fonts download fails in streaks, not one request at a time: on 2026-11-04 the storefront build and its
+  immediate retry both died with 24 × "Can't resolve '@vercel/turbopack-next/internal/font/google/font'", which is
+  next/font failing to fetch, not a missing package. The retry now waits 60 s first. If both attempts still fail,
+  `gh run rerun <id> --failed` once. Don't change code for it. — 2026-11-04
 
 ## Visual baselines
 
@@ -254,7 +269,8 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - A deliberate change to a screen: run `npm run test:visual:update` locally against the AGENT_CLOCK stack,
   look at the new `-darwin` PNGs, delete that screen's `-linux` PNGs, push. CI takes new Linux ones
   (`--update-snapshots=missing`) and uploads them as the `visual-baselines-linux` artifact; download, look,
-  commit them on the branch. Never accept a baseline without looking at it — that is the whole check.
+  commit them on the branch — the PR's branch, before the merge (see CI above). Never accept a baseline without
+  looking at it — that is the whole check.
 - The baselines carry the demo seed and 2026-11-01. A change to the demo seed, or to FROZEN_NOW in
   `visual.spec.ts`, means retaking every baseline in both sets. — 2026-11-01
 - Headless Chromium on Linux rounds every glyph to a whole pixel, so Latin labels come out wider than on the
