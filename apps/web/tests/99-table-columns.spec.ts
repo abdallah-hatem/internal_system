@@ -26,8 +26,13 @@
  *  a cycle's goods and shipment, a settlement, the running costs, a lender's
  *  repayments, a plan's instalments, a product's batches) get TC-COL-02 and
  *  TC-COL-03 the same way (TC-COL-04); the invoice and the statement also fit
- *  A4 on paper with every column shown (TC-COL-05). The sales list and
- *  Analytics' Top Products also show every column at 1280 (TC-COL-06).
+ *  A4 on paper with every column shown (TC-COL-05). The sales list,
+ *  Analytics' Top Products, Cycles and Customers also show every column at
+ *  1280 (TC-COL-06). The widest rows there are — an 8-digit balance and profit,
+ *  a 7-digit loss, a cycle still in setup, a date in August — are found by
+ *  search and measured at 1280 and 1440 (TC-COL-07). Every date cell on every
+ *  screen is measured against the widest date of any month, so a column sized
+ *  on this month's dates fails before the month that does not fit arrives.
  *
  *  The fixtures build every row the way the business does — stock only
  *  through a cycle, a purchase and a verified receipt; a confirmed sale; a
@@ -40,7 +45,7 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import { aCorePartnerUser, apiCtx, daysAgo, owedOrder, stockedProduct } from './support/fixtures';
 import { API } from './support/env';
-import { login, messages, openCustomer, openNav, openView, type Locale } from './support/ui';
+import { BASE, login, messages, openCustomer, openNav, openView, type Locale } from './support/ui';
 import { PAGE_VIEWS } from '../src/lib/page-views';
 import { gateApi, go } from './support/gate';
 import { recordCost, soldOutCycle } from './support/running-costs';
@@ -54,7 +59,24 @@ const SHOT_DIR = '../../.ui-audit/table-columns';
 
 let orderNo = '';
 let cycleCode = '';
+let productId = '';
 let settledCode = '';
+
+/**
+ * The largest figures the office shows (2026-11-02, found in a full run): an
+ * 8-digit balance spilled 13px out of Customers' column and an 8-digit profit
+ * 8px out of Cycles', at 1440. "19,847,808.93 EGP" owed and a cycle that lost
+ * "-4,692,036.46 EGP" — a sale below a very dear purchase — are as long as a
+ * figure gets here; a cycle still in setup carries the widest Actions
+ * ("Continue setup" beside Details). Rent paid on 10 August lands a
+ * ledger row in August, the widest Arabic month ("10 أغسطس 2026").
+ */
+const BIG_SHOP = `Biggest Balance Motor Parts ${stamp}`;
+const BIG_OWED = 19_847_808.93;
+const AUGUST_RENT = 1_234.56;
+let bigCycleCode = '';
+let lossCycleCode = '';
+let setupCycleCode = '';
 
 async function build(request: APIRequestContext) {
   const { headers, mk } = await apiCtx(request);
@@ -66,6 +88,7 @@ async function build(request: APIRequestContext) {
   });
   const { product, cycle } = await stockedProduct(request, headers, mk, LONG, 50);
   cycleCode = cycle.code;
+  productId = product.id;
   const order = await owedOrder(mk, customer.id, product.id, 123_456);
   orderNo = order.orderNo;
   // Put on the shop's orders, as Record payment does: a contract's plan is what the sale still owes (2026-10-17).
@@ -95,6 +118,20 @@ async function build(request: APIRequestContext) {
   const sold = await soldOutCycle(request, `Settled ${LONG.slice(0, 40)}`, [[partner.id, 'CORE_PARTNER', 1000]]);
   await mk(`settlements/calculate/${sold.cycle.id}`, {});
   settledCode = sold.cycle.code;
+
+  // The largest figures (see BIG_SHOP). With the loss-making sale (10) the
+  // shop owes exactly BIG_OWED.
+  const bigShop = await mk('customers', { displayName: BIG_SHOP, type: 'B2B', phone: '+201000000778' });
+  const big = await stockedProduct(request, headers, mk, `Biggest ${stamp}`, 5);
+  bigCycleCode = big.cycle.code;
+  await owedOrder(mk, bigShop.id, big.product.id, Math.round((BIG_OWED - 10) * 100) / 100);
+  const loss = await stockedProduct(request, headers, mk, `Loss ${stamp}`, 1, undefined, 4_692_046.46);
+  lossCycleCode = loss.cycle.code;
+  await owedOrder(mk, bigShop.id, loss.product.id, 10);
+  // A running cost paid in August: a ledger row dated 10 August.
+  await recordCost(request, headers, { amount: AUGUST_RENT, category: 'rent', occurredOn: '2026-08-10' });
+  // Planning: the wizard is not finished, so the row offers Continue setup.
+  setupCycleCode = (await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' })).code;
 }
 
 test.beforeAll(async ({ request }) => {
@@ -206,6 +243,89 @@ async function cellProblems(page: Page) {
   });
 }
 
+/**
+ * A date cell whose column could not hold the widest date of its kind. The
+ * rows on screen carry whatever month today's data has, so a column sized on
+ * November's dates spilled in August: "10 أغسطس 2026" is 90px in Plex Arabic
+ * at text-xs, wider than the 88 a 7.5rem column held (2026-11-02). Every cell
+ * that shows a date is measured against the widest date its column can be
+ * asked to show — every month, every day, and every hour where it carries a
+ * time — in the cell's own font, so the check holds whatever month it runs in.
+ */
+function dateProblems(page: Page) {
+  return page.evaluate(() => {
+    const ar = document.documentElement.lang === 'ar';
+    // As lib/dates.ts formatDate writes them.
+    const fmt = (d: Date, time: boolean) => {
+      if (ar) {
+        return new Intl.DateTimeFormat('ar-EG', {
+          numberingSystem: 'latn', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+          ...(time ? { hour: 'numeric', minute: '2-digit', hour12: true } : {}),
+        }).format(d);
+      }
+      const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+      return time ? `${date}, ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}` : date;
+    };
+    const months = Array.from({ length: 12 }, (_, m) => fmt(new Date(Date.UTC(2026, m, 15)), false).replace(/[\d,\s]+/g, ' ').trim());
+    // The whole text is a date (and maybe a time), not a sentence that holds one.
+    const isDate = (s: string) => {
+      const month = months.find((m) => s.includes(m));
+      return !!month && /\b20\d\d\b/.test(s) && /^[\d\s,،:]*(AM|PM|ص|م)?$/.test(s.replace(month, '').trim());
+    };
+    // Measured inside the date's own element, so it inherits every font
+    // property the date is drawn with (`font` alone comes back empty once
+    // tabular-nums or a feature setting is in play, and the probe then measured
+    // at the page's 16px).
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;top:0';
+    const widest = new Map<string, [number, string]>();
+    const widestFor = (el: Element, time: boolean): [number, string] => {
+      const cs = getComputedStyle(el);
+      const key = [cs.fontFamily, cs.fontSize, cs.fontWeight, cs.fontStyle, cs.fontVariantNumeric, cs.fontFeatureSettings, cs.letterSpacing, time].join('|');
+      const known = widest.get(key);
+      if (known) return known;
+      el.appendChild(probe);
+      let best: [number, string] = [0, ''];
+      for (let m = 0; m < 12; m++) {
+        for (let day = 1; day <= 28; day++) {
+          for (const hour of time ? [0, 1, 10, 11, 12, 13, 22, 23] : [12]) {
+            const s = fmt(new Date(Date.UTC(2026, m, day, hour, time ? 58 : 0)), time);
+            probe.textContent = s;
+            const w = probe.getBoundingClientRect().width;
+            if (w > best[0]) best = [w, s];
+          }
+        }
+      }
+      probe.remove();
+      widest.set(key, best);
+      return best;
+    };
+    const out: string[] = [];
+    for (const table of document.querySelectorAll('main table, [role="dialog"] table')) {
+      if (!(table as HTMLElement).offsetParent) continue;
+      const rows = [...table.querySelectorAll(':scope > tbody > tr')].filter((r) => !r.closest('[data-skeleton]')).slice(0, 10);
+      for (const tr of rows) {
+        for (const td of tr.querySelectorAll(':scope > td')) {
+          const cell = td as HTMLTableCellElement;
+          if (!cell.offsetParent || cell.colSpan > 1) continue;
+          const cs = getComputedStyle(cell);
+          const room = cell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+          const texts: Node[] = [];
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node);
+          for (const node of texts) {
+            const text = node.textContent?.trim() ?? '';
+            if (!isDate(text) || !node.parentElement) continue;
+            const [w, s] = widestFor(node.parentElement, /\d:\d\d/.test(text));
+            if (w > room + 0.5) out.push(`"${text}" could be "${s}", ${Math.ceil(w)}px in a ${Math.floor(room)}px column`);
+          }
+        }
+      }
+    }
+    return [...new Set(out)];
+  });
+}
+
 /** Left and right of every cell in the first row matching `selector`, in the n-th visible table of main. */
 function edgesOf(page: Page, tableIndex: number, selector: string) {
   return page.evaluate(
@@ -251,7 +371,8 @@ const LISTS: { name: string; nav: NavKey; columns: number }[] = [
   { name: 'Shipments', nav: 'shipments', columns: 9 },
   { name: 'Suppliers', nav: 'suppliers', columns: 5 },
   { name: 'Providers', nav: 'providers', columns: 5 },
-  { name: 'Cycles', nav: 'cycles', columns: 8 },
+  // Seven since ROI moved under Profit to fit 1280 (2026-11-04).
+  { name: 'Cycles', nav: 'cycles', columns: 7 },
   { name: 'Lenders', nav: 'lenders', columns: 4 },
   { name: 'Audit logs', nav: 'auditLogs', columns: 6 },
   { name: 'Analytics top products', nav: 'analytics', columns: 4 },
@@ -295,6 +416,7 @@ for (const locale of ['en', 'ar'] as const) {
           .toEqual(before);
         expect(await headerProblems(page), 'TC-COL-02').toEqual([]);
         expect(await cellProblems(page), 'TC-COL-03').toEqual([]);
+        expect(await dateProblems(page), 'TC-COL-03: every month\'s date fits').toEqual([]);
         expect(await scrollProblems(page), 'TC-COL-03: the whole table in sight at 1440').toEqual([]);
         await shot(page, `${list.nav}-${locale}-1440-loaded`);
       });
@@ -314,6 +436,9 @@ for (const locale of ['en', 'ar'] as const) {
 const AT_1280: { name: string; nav: NavKey }[] = [
   { name: 'Sales', nav: 'sales' },
   { name: 'Analytics top products', nav: 'analytics' },
+  // 1060px of columns in a 954px card cut its Actions off (2026-11-02).
+  { name: 'Cycles', nav: 'cycles' },
+  { name: 'Customers', nav: 'customers' },
 ];
 
 for (const locale of ['en', 'ar'] as const) {
@@ -328,10 +453,58 @@ for (const locale of ['en', 'ar'] as const) {
         expect(await scrollProblems(page), 'TC-COL-06: the whole table in sight at 1280').toEqual([]);
         expect(await headerProblems(page), 'TC-COL-02').toEqual([]);
         expect(await cellProblems(page), 'TC-COL-03').toEqual([]);
+        expect(await dateProblems(page), 'TC-COL-03: every month\'s date fits').toEqual([]);
         await shot(page, `${list.nav}-${locale}-1280-loaded`);
       });
     }
   });
+}
+
+// ─── The largest figures ────────────────────────────────────────────────
+
+/**
+ * The rows that are as wide as a row gets (see BIG_SHOP), found by search the
+ * way a person would, at 1280 and 1440: every cell inside its column and the
+ * whole table inside its card — TC-COL-07. On Linux and Windows a classic
+ * scrollbar takes width, so CI's run is the one with no room to spare.
+ */
+type Messages = ReturnType<typeof messages>;
+const BIGGEST: { name: string; nav: NavKey; placeholder: (m: Messages) => string; find: () => string; shows: (locale: Locale) => (string | RegExp)[]; widths?: number[] }[] = [
+  { name: 'Customers: an 8-digit balance', nav: 'customers', placeholder: (m) => m.customers.search, find: () => BIG_SHOP, shows: () => [BIG_SHOP, /19,847,808\.93/] },
+  { name: 'Cycles: an 8-digit profit', nav: 'cycles', placeholder: (m) => m.cycles.search, find: () => bigCycleCode, shows: () => [bigCycleCode, /\d\d,\d{3},\d{3}\.\d\d/] },
+  { name: 'Cycles: a 7-digit loss', nav: 'cycles', placeholder: (m) => m.cycles.search, find: () => lossCycleCode, shows: () => [lossCycleCode, /-4,692,036\.46/] },
+  { name: 'Cycles: a cycle still in setup', nav: 'cycles', placeholder: (m) => m.cycles.search, find: () => setupCycleCode, shows: (l) => [setupCycleCode, messages(l).cycles.continueSetup] },
+  // The search by amount also finds other rows holding those digits; the August one is measured with them.
+  // At 1440 only: the ledger is 1064px at 1280 whatever its dates (seen 2026-11-04, not fixed).
+  { name: 'Ledger: rent paid in August', nav: 'ledger', placeholder: (m) => m.ledger.search, find: () => String(AUGUST_RENT), shows: (l) => [/1,234\.56/, l === 'ar' ? 'أغسطس' : 'Aug'], widths: [1440] },
+];
+
+for (const locale of ['en', 'ar'] as const) {
+  for (const width of [1280, 1440]) {
+    test.describe(`The largest figures (${locale}, ${width}px)`, () => {
+      test.use({ viewport: { width, height: 900 } });
+      for (const [i, row] of BIGGEST.entries()) {
+        if (row.widths && !row.widths.includes(width)) continue;
+        test(`TC-COL-07.${String(i + 1).padStart(2, '0')} ${row.name}: inside its column, the table in sight (${locale}, ${width})`, async ({ page }) => {
+          const m = messages(locale);
+          await login(page, locale);
+          await openNav(page, m.nav[row.nav] as string);
+          await page.getByPlaceholder(row.placeholder(m)).fill(row.find());
+          const rows = page.locator('main table tbody tr:not([data-testid="skeleton-row"])').filter({ visible: true });
+          let match = rows;
+          for (const text of row.shows(locale)) match = match.filter({ hasText: text });
+          await expect(match).toHaveCount(1);
+          await expect(page.locator('main tr[data-testid="skeleton-row"]').filter({ visible: true })).toHaveCount(0);
+          expect(await headerProblems(page), 'TC-COL-02').toEqual([]);
+          expect(await cellProblems(page), 'TC-COL-03').toEqual([]);
+          expect(await dateProblems(page), 'TC-COL-03: every month\'s date fits').toEqual([]);
+          expect(await scrollProblems(page), `TC-COL-07: the whole table in sight at ${width}`).toEqual([]);
+          await shot(page, `biggest-${i + 1}-${locale}-${width}`);
+          if (SHOTS) await page.locator('main table').filter({ visible: true }).first().locator('xpath=..').screenshot({ path: `${SHOT_DIR}/biggest-${i + 1}-${locale}-${width}-table.png` });
+        });
+      }
+    });
+  }
 }
 
 // ─── The tables that are not lists ──────────────────────────────────────
@@ -436,6 +609,14 @@ const DETAILS: { name: string; open: (page: Page, locale: Locale) => Promise<voi
       await expect(page.getByTestId('contract-row').filter({ hasText: orderNo }).first()).toBeVisible();
     },
   },
+  {
+    // Arrived and Checked in are text-sm dates: "10 أغسطس 2026" is 105px, and 7.5rem held 96 (2026-11-04).
+    name: "a product's page: its batches",
+    open: async (page, locale) => {
+      await page.goto(`${BASE}/${locale}/products/${productId}`);
+      await expect(page.getByTestId('batch-row').first()).toBeVisible();
+    },
+  },
 ];
 
 for (const locale of ['en', 'ar'] as const) {
@@ -447,6 +628,7 @@ for (const locale of ['en', 'ar'] as const) {
         await detail.open(page, locale);
         expect(await headerProblems(page), 'TC-COL-02').toEqual([]);
         expect(await cellProblems(page), 'TC-COL-03').toEqual([]);
+        expect(await dateProblems(page), 'TC-COL-03: every month\'s date fits').toEqual([]);
         expect(await scrollProblems(page), 'TC-COL-03: the whole table in sight at 1440').toEqual([]);
         await shot(page, `detail-${i + 1}-${locale}-1440`);
       });

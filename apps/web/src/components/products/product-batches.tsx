@@ -81,8 +81,9 @@ const WIDTHS = {
   received: '5.25rem',
   remaining: '5.25rem',
   landedCost: '7.25rem',
-  arrived: '7.5rem',
-  checkedIn: '7.5rem',
+  // Dates at text-sm: "10 أغسطس 2026" is 105px in Plex Arabic; 7.5rem held 96 (2026-11-04).
+  arrived: '8.25rem',
+  checkedIn: '8.25rem',
   toggle: 'auto',
 } as const;
 const AUTO_MIN = '3.25rem';

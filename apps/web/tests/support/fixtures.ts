@@ -271,6 +271,8 @@ export async function stockedProduct(
   qty = 100,
   /** Optional, so a test can filter by a category nothing else can be in. */
   categoryId?: string,
+  /** What each unit cost the supplier, in EGP: a large one makes a cycle that sells below cost lose a large sum. */
+  unitPrice = 10,
 ) {
   const product = await mk('products', {
     name: `${label} Part`,
@@ -282,7 +284,7 @@ export async function stockedProduct(
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
   await mk(`cycles/${cycle.id}/purchases`, {
     supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
-    items: [{ productId: product.id, orderedQty: qty, unitPrice: 10 }],
+    items: [{ productId: product.id, orderedQty: qty, unitPrice }],
   });
   // The departure and arrival dates are the point: a cycle cannot pass a stage
   // its shipment has not reached, so stock cannot exist without them.

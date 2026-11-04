@@ -197,9 +197,16 @@ Ordered by what would hurt first.
   and write-offs (§4), the default price's basis and rounding (§3), the P&L's dates and buckets.
 - **Known bugs** (`docs/build-log/history/2026-10.md`): the order popup's Allocations show raw batch codes; `POST /ledger/<not-a-uuid>/reverse` answers 500 instead of a coded refusal; return numbers
   (`RET-…`) are given without a lock, so two returns at once can collide. Seen in a full-run state
-  (2026-11-02, not fixed): with an 8-digit owed order, the Customers list's balance (13px) and the Cycles list's
-  profit (8px) spill their columns at 1440; Cycles also cuts off its Actions column at 1280; and an Arabic date in
-  August ("28 أغسطس 2026", 91px at text-xs in Plex Arabic) is wider than the 80px most date columns hold.
+  2026-11-02, fixed 2026-11-04 (`feature/table-widths`): with an 8-digit owed order the Customers list's balance
+  (13px) and the Cycles list's profit (8px) spilled their columns at 1440 — Balance is 10.5rem and Profit 9.75rem
+  now, sized for "-99,999,999.99 EGP" as Sales' Total is; Cycles cut off its Actions at 1280 (1060px in a 974px
+  card) — ROI moved under Profit, as the origin sits under the code, so the list is 952px; a cycle still in setup
+  spilled "Continue setup Details" 5px at 1440 — Continue setup is tighter in the table (px-2); and Arabic dates
+  in August ("10 أغسطس 2026", 90px at text-xs and 105px at text-sm in Plex Arabic) were wider than the
+  columns holding them in the Ledger (8rem now), Audit logs' timestamp (147px with its time, 11.5rem), the
+  contracts' Next due (8.75rem) and a product's batches (8.25rem). TC-COL-07 finds the widest rows by search at
+  1280 and 1440, and every table check now measures each date cell against every month's widest date, so a
+  November run catches an August spill. Seen, not fixed: the Ledger is 1064px at 1280 and scrolls in its card.
   Fixed 2026-11-02 (owner: "Fix the product bugs"): Arabic was drawn in Arial on Mac/Windows — next/font's
   `local(Arial)` fallback sat ahead of Plex Arabic; the Latin face now names Plex Arabic as its fallback (Turbopack
   ignores `adjustFontFallback: false` alone), and the Arabic columns it overflowed are wider (Purchases' FX rate
@@ -207,7 +214,7 @@ Ordered by what would hurt first.
   wrap — one line, stepping down in size only as far as the length needs, the line keeping the skeleton's height;
   the contracts table's Total and Paid are 10.5rem (4,000,000.00 EGP spilled 12px out of 8.5rem); the sales list
   fits 1280 (tight padding, Date no longer cut off at the left in Arabic, TC-COL-06.01); Analytics' Top Products
-  fits its half of the page at 1280 and stacks below it (TC-COL-06.02). Fixed 2026-11-02, after CI: on Windows and Linux, whose scrollbars take room, every office card was 20px narrower than on the Mac — `html` reserved a 10px gutter for a bar the one-screen app frame never shows, beside `main`'s own — so Sales (972 in 954px) and Top Products (420 in 416) scrolled at 1280 and Shipments (1116 in 1114) at 1440; `html` keeps no gutter inside the app frame now, and the sales list is 956px (Order # 8rem, Actions 5rem, Customer from 6rem). The dashboard's Owed to lenders tile wrapped a line per two currencies plus two for the no-rate note, so the first row landed 34–50px taller than its skeleton; the currencies are one line cut at the edge, the note a warning sign with the full text on hover and to screen readers (owner chose this compact tile 2026-11-03). Seen, not fixed: a cycle still in setup on Cycles' first page spills "Continue setup Details" 5px out of Actions at 1440, Mac and Linux alike. Fixed 2026-11-02: the Partners tab kept pre-payout figures after Mark paid (the first fix, refetchType 'all', joined the in-flight request instead of replacing it; refresh() now cancels it first). (Fixed 2026-11-01: CI's container name, and the web and
+  fits its half of the page at 1280 and stacks below it (TC-COL-06.02). Fixed 2026-11-02, after CI: on Windows and Linux, whose scrollbars take room, every office card was 20px narrower than on the Mac — `html` reserved a 10px gutter for a bar the one-screen app frame never shows, beside `main`'s own — so Sales (972 in 954px) and Top Products (420 in 416) scrolled at 1280 and Shipments (1116 in 1114) at 1440; `html` keeps no gutter inside the app frame now, and the sales list is 956px (Order # 8rem, Actions 5rem, Customer from 6rem). The dashboard's Owed to lenders tile wrapped a line per two currencies plus two for the no-rate note, so the first row landed 34–50px taller than its skeleton; the currencies are one line cut at the edge, the note a warning sign with the full text on hover and to screen readers (owner chose this compact tile 2026-11-03). (The setup cycle's 5px Actions spill, seen then, is fixed 2026-11-04 above.) Fixed 2026-11-02: the Partners tab kept pre-payout figures after Mark paid (the first fix, refetchType 'all', joined the in-flight request instead of replacing it; refresh() now cancels it first). (Fixed 2026-11-01: CI's container name, and the web and
   storefront lockfiles that stopped `npm ci`.)
 - **Change split** writes each participant's share separately and only the dialog checks they add to 100 (the
   server checks at settlement); one server-side save is queued.

@@ -225,7 +225,9 @@ function CustomersPageContent() {
 
   // ── Columns ───────────────────────────────────────────────────────
   // Name, type, phone, email, balance, actions (components/ui/data-table.tsx).
-  // The phone fits "+971 50 123 4567", the balance "-123,456.00 EGP"; a long
+  // The phone fits "+971 50 123 4567", the balance "-19,847,808.93 EGP" (132px
+  // at font-medium; "19,847,808.93 EGP" spilled 13px out of 9rem, 2026-11-02),
+  // as the Sales list's Total and the contracts' do; a long
   // email is cut with the whole of it on hover; the name takes what is left.
   const columns: Column<Customer>[] = [
     {
@@ -276,7 +278,7 @@ function CustomersPageContent() {
       ),
     },
     {
-      key: 'balance', header: t('balance'), width: '9rem', kind: 'value', skeleton: { kind: 'text', share: 'w-2/3' },
+      key: 'balance', header: t('balance'), width: '10.5rem', kind: 'value', skeleton: { kind: 'text', share: 'w-2/3' },
       headerProps: { 'aria-sort': byBalance ? 'descending' : undefined },
       cell: (customer) => (
         <Money
@@ -373,8 +375,12 @@ function CustomersPageContent() {
       {isLoading && <LoadingStatus />}
 
       {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      {/* The name takes what the fixed 47rem leave: about 13rem at 1280, more
+          above. Its floor is 12rem so the table still fits a 1280 card with a
+          classic scrollbar instead of scrolling for a name that wraps anyway. */}
       <DataTable
         className="hidden md:block"
+        autoMin="12rem"
         columns={columns}
         rows={customers}
         rowKey={(c) => c.id}

@@ -150,7 +150,8 @@ export default function AuditLogsPage() {
   // actor takes what is left.
   const columns: Column<AuditLog>[] = [
     {
-      key: 'timestamp', header: t('timestamp'), width: '10.5rem', kind: 'value', className: 'text-gray-500 text-xs',
+      // "10 أغسطس 2026، 12:58 ص" is 147px at text-xs in Plex Arabic: 10.5rem held 136 (2026-11-04).
+      key: 'timestamp', header: t('timestamp'), width: '11.5rem', kind: 'value', className: 'text-gray-500 text-xs',
       skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' },
       cell: (log) => formatDate(log.occurredAt, { includeTime: true }),
     },
