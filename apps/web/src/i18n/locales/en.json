@@ -464,6 +464,8 @@
     "movementCost": "cost",
     "movementCostHint": "The batch's landed cost per unit — what it cost, not a selling price",
     "movementPriceHint": "Per unit: the price charged on the sale after any line discount, the price refunded on a return, the landed cost on a receipt",
+    "movementsShowAll": "All {count} movements",
+    "movementsShowFewer": "Fewer",
     "onShelf": "On shelf",
     "atShops": "Samples",
     "allStock": "Total",

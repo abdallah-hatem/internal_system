@@ -66,6 +66,21 @@ export function formatDate(iso: string | null | undefined, opts?: FormatDateOpti
 }
 
 /**
+ * Only the time of day, for a date and its time on two lines where one line is
+ * too wide (a batch's movement table, 2026-11-06): "2:30 PM" / "2:30 م". The
+ * same clock as `formatDate(…, { includeTime: true })`.
+ */
+export function formatTime(iso: string | null | undefined, opts?: { locale?: string }): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const { tag, numberingSystem } = intlFor(opts?.locale);
+  const clock = { hour: 'numeric', minute: '2-digit', hour12: true } as const;
+  if (tag !== 'en-US') return new Intl.DateTimeFormat(tag, { numberingSystem, ...clock }).format(d);
+  return d.toLocaleTimeString('en-US', clock);
+}
+
+/**
  * Relative time ("5m ago", "2h ago"…). English keeps its compact form; Arabic
  * uses Intl's own relative wording ("قبل 5 دقائق", "الآن").
  */
@@ -115,6 +130,7 @@ export function useDateFormat() {
     () => ({
       formatDate: (iso: string | null | undefined, opts?: { includeTime?: boolean }) =>
         formatDate(iso, { ...opts, locale }),
+      formatTime: (iso: string | null | undefined) => formatTime(iso, { locale }),
       timeAgo: (iso: string | null | undefined) => timeAgo(iso, { locale }),
     }),
     [locale],

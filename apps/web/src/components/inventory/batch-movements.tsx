@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useCodeLabel } from '@/lib/labels';
@@ -8,6 +9,7 @@ import { useNumberFormat } from '@/lib/numbers';
 import { viewPath } from '@/lib/page-views';
 import { cn } from '@/lib/utils';
 import { Money } from '@/components/ui/money';
+import { LatinText } from '@/components/ui/latin-text';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
@@ -75,33 +77,50 @@ function MovementIcon({ mov }: { mov: BatchMovement }) {
   );
 }
 
-// Sized at text-sm in both languages: "+1,000" beside "Sample back" / "عودة
-// عينة"; "1,234,567.89 EGP" with "cost" under it; a record's label over its
-// number; a date with its time. The customer takes the rest.
+// Sized at text-sm in both languages, in the `dense` padding (16px in from the
+// table's own border, 24px between columns): "Received" with "+100" beside it
+// (a longer label wraps inside its badge, the quantity under it); "1,234,567.89
+// EGP" with "cost" under it; a record's label over its number; a date over its
+// time. The customer takes the rest, wrapping. 35.5rem + AUTO_MIN fits the
+// product page's batch row at 1024 beside the sidebar (about 682px) and the
+// inventory page's card at 768 (UI re-check P5, 2026-11-06): the one-line
+// date (9.75rem) and the flush cells made both scroll sideways.
 const WIDTHS = {
-  movement: '10.5rem',
+  movement: '10rem',
   customer: 'auto',
-  price: '9rem',
+  price: '9.5rem',
   record: '8.5rem',
-  date: '9.75rem',
+  date: '7.5rem',
 } as const;
+const AUTO_MIN = '6rem';
+
+/**
+ * How many movements a batch shows before "All N movements": a batch sold
+ * piece by piece has 20, about four phone screens of cards with the only way
+ * back up at the top (UI re-check P7). The partner accounts' pattern.
+ */
+export const FIRST_MOVEMENTS = 10;
 
 function useMovementParts() {
   const t = useTranslations('inventory');
   const codeLabel = useCodeLabel();
-  const { formatDate } = useDateFormat();
+  const { formatDate, formatTime } = useDateFormat();
   const { formatNumber } = useNumberFormat();
 
   const movement = (mov: BatchMovement) => {
     const qty = Number(mov.qtyDelta);
     return (
-      <span className="flex min-w-0 items-center gap-2">
+      // The whole label, always: a phone has no hover to read a `title` by. A
+      // long one wraps inside its badge and the quantity moves under it, rather
+      // than "Recei…" or, at 320, "Sold" cut to an icon (UI re-check P1).
+      <span data-testid="movement-kind" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span
-          title={codeLabel('movementType', mov.movementType)}
-          className={cn('inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', tone(mov))}
+          className={cn('inline-flex min-w-0 max-w-full items-center gap-1 rounded-xl px-2 py-0.5 text-xs font-medium', tone(mov))}
         >
           <MovementIcon mov={mov} />
-          <span className="truncate">{codeLabel('movementType', mov.movementType)}</span>
+          <span data-testid="movement-label" className="min-w-0 break-words">
+            {codeLabel('movementType', mov.movementType)}
+          </span>
         </span>
         <bdi dir="ltr" className={cn('font-medium tabular-nums', qty >= 0 ? 'text-success' : 'text-destructive')}>
           {qty >= 0 ? '+' : '−'}
@@ -113,15 +132,26 @@ function useMovementParts() {
 
   const customerText = (mov: BatchMovement) => (mov.walkIn ? t('movementWalkIn') : (mov.customerName ?? null));
 
+  // A name wraps, never cut (a phone cannot hover for the rest, P2), and is
+  // its own direction box, so a Latin name on /ar keeps its start and its full
+  // stop, and an Arabic one on /en reads right to left (P3).
   const customer = (mov: BatchMovement) => {
     const name = customerText(mov);
     if (!name) return <span className="text-muted-foreground">—</span>;
     return (
       <span data-testid="movement-customer" className="block min-w-0">
-        <span className="block truncate font-medium text-foreground">{name}</span>
+        {mov.walkIn ? (
+          <span data-testid="movement-customer-name" className="block font-medium text-foreground">
+            {name}
+          </span>
+        ) : (
+          <LatinText wrap className="font-medium text-foreground">
+            <span data-testid="movement-customer-name">{name}</span>
+          </LatinText>
+        )}
         {mov.branchName && (
-          <span data-testid="movement-branch" className="block truncate text-xs text-muted-foreground">
-            {mov.branchName}
+          <span data-testid="movement-branch" className="block text-xs text-muted-foreground">
+            <LatinText wrap>{mov.branchName}</LatinText>
           </span>
         )}
       </span>
@@ -163,10 +193,12 @@ function useMovementParts() {
         <span className="block truncate">{codeLabel('referenceType', mov.referenceType)}</span>
         {mov.reference &&
           (href ? (
+            // A 35px target around a 15px line (P6): the padding is given back
+            // by the negative margin, so the lines around it do not move.
             <Link
               href={href}
               data-testid="movement-reference"
-              className="font-mono font-medium text-primary-600 hover:text-primary-700 hover:underline"
+              className="-my-2.5 inline-block py-2.5 font-mono font-medium text-primary-600 hover:text-primary-700 hover:underline"
             >
               <bdi dir="ltr">{mov.reference.number}</bdi>
             </Link>
@@ -180,8 +212,15 @@ function useMovementParts() {
   };
 
   const date = (mov: BatchMovement) => formatDate(mov.occurredAt, { includeTime: true });
+  /** The table's: the day over the time, about half the width of one line. */
+  const dateLines = (mov: BatchMovement) => (
+    <span data-testid="movement-date" className="block">
+      <span className="block">{formatDate(mov.occurredAt)}</span>
+      <span className="block">{formatTime(mov.occurredAt)}</span>
+    </span>
+  );
 
-  return { t, movement, customer, customerText, price, record, date };
+  return { t, movement, customer, customerText, price, record, date, dateLines };
 }
 
 /** The shared table: one column per thing a movement says. */
@@ -210,13 +249,16 @@ function MovementTable({ movements, loading }: { movements: readonly BatchMoveme
       skeleton: { kind: 'text', share: 'w-2/3' },
     },
     { key: 'record', header: t('movementRecord'), width: WIDTHS.record, kind: 'plain', cell: parts.record, skeleton: { kind: 'text', share: 'w-3/4', size: 'xs' } },
-    { key: 'date', header: t('movementDate'), width: WIDTHS.date, kind: 'value', className: 'text-xs text-muted-foreground', cell: parts.date, skeleton: { kind: 'text', share: 'w-3/4', size: 'xs' } },
+    { key: 'date', header: t('movementDate'), width: WIDTHS.date, kind: 'value', className: 'text-xs text-muted-foreground', cell: parts.dateLines, skeleton: { kind: 'text', share: 'w-3/4', size: 'xs' } },
   ];
   return (
+    // `dense`: the table sits in a card of its own, so its first and last
+    // cells keep 16px from that card's border (compact ran the badges and the
+    // header into it, UI re-check P4).
     <DataTable
       tableTestId="batch-movements"
-      density="compact"
-      autoMin="7rem"
+      density="dense"
+      autoMin={AUTO_MIN}
       columns={columns}
       rows={movements}
       rowKey={(m) => m.id}
@@ -261,13 +303,17 @@ function MovementCards({ movements, loading }: { movements: readonly BatchMoveme
     <ul data-testid="batch-movement-cards" className="space-y-2">
       {movements.map((mov) => (
         <li key={mov.id} data-testid="batch-movement" className="space-y-1 rounded-lg border border-border bg-card px-3 py-2 text-sm">
-          <div className="flex items-center justify-between gap-3">
+          {/* The date drops under the badge when both do not fit (320, a long
+              label), so the label is never squeezed (P1). */}
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             {parts.movement(mov)}
             <span className="whitespace-nowrap text-xs text-muted-foreground">{parts.date(mov)}</span>
           </div>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">{parts.customer(mov)}</div>
-            <div className="shrink-0 text-end">{parts.price(mov)}</div>
+          {/* The name keeps at least 8rem; a wide price goes under it rather
+              than squeezing it to a word a line (P2). */}
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+            <div className="min-w-0 flex-[1_1_8rem]">{parts.customer(mov)}</div>
+            <div className="ms-auto shrink-0 text-end">{parts.price(mov)}</div>
           </div>
           {mov.referenceType && <div>{parts.record(mov)}</div>}
         </li>
@@ -286,13 +332,16 @@ export function BatchMovementList({
   layout?: 'table' | 'cards' | 'responsive';
 }) {
   const t = useTranslations('inventory');
+  const [all, setAll] = useState(false);
 
   if (!loading && movements.length === 0) {
     return <EmptyState size="compact" icon={null} title={t('noMovementsTitle')} />;
   }
 
-  const table = <MovementTable movements={movements} loading={loading} />;
-  const cards = <MovementCards movements={movements} loading={loading} />;
+  const long = !loading && movements.length > FIRST_MOVEMENTS;
+  const shown = long && !all ? movements.slice(0, FIRST_MOVEMENTS) : movements;
+  const table = <MovementTable movements={shown} loading={loading} />;
+  const cards = <MovementCards movements={shown} loading={loading} />;
   return (
     <>
       {loading && <LoadingStatus />}
@@ -303,6 +352,21 @@ export function BatchMovementList({
           <div className="hidden md:block">{table}</div>
           <div className="md:hidden">{cards}</div>
         </>
+      )}
+      {/* Under the list, where a long one ends: "All N" opens the rest, "Fewer"
+          folds it back without scrolling up to the batch's chevron (P7). */}
+      {long && (
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            data-testid="movements-show-all"
+            aria-expanded={all}
+            onClick={() => setAll((v) => !v)}
+            className="min-h-11 px-2 text-sm font-medium text-muted-foreground hover:text-foreground sm:min-h-8"
+          >
+            {all ? t('movementsShowFewer') : t('movementsShowAll', { count: movements.length })}
+          </button>
+        </div>
       )}
     </>
   );

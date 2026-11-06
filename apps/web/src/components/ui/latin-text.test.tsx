@@ -70,4 +70,16 @@ describe('LatinText', () => {
     rtl(<LatinText truncate>قطع غيار الدراجات</LatinText>);
     expect(screen.getByText('قطع غيار الدراجات').getAttribute('dir')).toBe('auto');
   });
+
+  it('wrap: its own direction box that wraps and is never cut, on the row start edge', () => {
+    rtl(<LatinText wrap>Al-Mansoura Gear &amp; Accessories Trading Co.</LatinText>);
+    const el = screen.getByText('Al-Mansoura Gear & Accessories Trading Co.');
+    expect(el.getAttribute('dir')).toBe('auto');
+    expect(el.className).toContain('[unicode-bidi:isolate]');
+    expect(el.className).toMatch(/\bbreak-words\b/);
+    expect(el.className).toMatch(/\bw-fit\b/);
+    expect(el.className).toMatch(/\bmax-w-full\b/);
+    expect(el.className).not.toMatch(/truncate|line-clamp|whitespace-nowrap/);
+    expect(el.hasAttribute('title')).toBe(false);
+  });
 });
