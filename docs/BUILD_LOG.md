@@ -72,6 +72,11 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `feature/cash-profit`, not merged — the profit in the cash** (owner 2026-11-06, option B, §12): a green
+  "+N profit" pill on Cash from sales (`common/profit-on-collected.ts`, `profitOnCollectedEgp` /
+  `profitToCollectEgp`), its second line "Paid in", and Analytics' "Sales cash · All time" card (Collected, Still
+  to collect, each with its pill). Unit + component tests seen to fail first; no e2e. OPEN: cash refunds and the
+  order's value. The dashboard and Analytics visual baselines will need retaking when it merges.
 - **On `feature/dashboard-cash-from-sales`, not merged — Cash from sales, one Stock tile, exchange-rate loss/gain**
   (owner 2026-11-06, §12, §18). Right now: Cash from sales (payments not reversed − `REFUND_PAID`, all time,
   `common/cash-from-sales.ts`) replaces Cash on hand (still in the API); Stock value + Units in stock became one

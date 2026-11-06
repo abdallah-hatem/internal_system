@@ -166,8 +166,19 @@ function fakeDb(world: World) {
     },
     saleOrder: {
       ...empty,
+      // The dashboard's profit-on-collected split reads each order's
+      // payments and lines; this world records neither, so it splits nothing.
       findMany: ({ where }: { where: W }) =>
-        Promise.resolve(world.orders.filter((o) => matchOrder(o, where))),
+        Promise.resolve(
+          world.orders
+            .filter((o) => matchOrder(o, where))
+            .map((o) => ({
+              outstanding: 0,
+              paymentAllocations: [],
+              items: [],
+              ...o,
+            })),
+        ),
       aggregate: ({ where }: { where: W }) => {
         const rows = world.orders.filter((o) => matchOrder(o, where));
         return Promise.resolve({
