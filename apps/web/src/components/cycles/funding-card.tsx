@@ -14,6 +14,7 @@ import { splitAcrossPartners } from '@/lib/funding-split';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import { Money } from '@/components/ui/money';
+import { ExchangeAmount } from '@/components/lenders/exchange-result';
 import { MoneyInput } from '@/components/ui/money-input';
 import { Dialog, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -855,7 +856,9 @@ function ExchangeLine({ friends, names }: { friends: NonNullable<AccountFunding[
     >
       {t.rich(diff < 0 ? 'exchangeGain' : 'exchangeCost', {
         friends: names,
-        amount: () => <Money value={Math.abs(diff)} className="font-medium text-foreground" />,
+        // Signed and coloured as every exchange line is: −red a loss, +green a
+        // gain (owner 2026-11-06, `lenders/exchange-result.tsx`).
+        amount: () => <ExchangeAmount diffEgp={diff} className="font-medium" />,
         parts,
       })}
     </p>

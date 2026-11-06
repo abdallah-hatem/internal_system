@@ -216,8 +216,11 @@ test.describe('Cash on hand', () => {
     expect(num(d.cashOnHand)).toBeCloseTo(net, 2);
     expect(num(d.totalCashIn) - num(d.totalCashOut)).toBeCloseTo(num(d.cashOnHand), 2);
 
+    // The dashboard shows Cash from sales in its place since 2026-11-06 (owner);
+    // the figure stays in the API for the assistant and these checks.
     await login(page);
-    await expect(page.getByText('Cash on hand')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('tile-cashFromSales')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Cash on hand')).toHaveCount(0);
   });
 
   test('TC-CASH-02: capital in and out net to nothing', async ({ request }) => {

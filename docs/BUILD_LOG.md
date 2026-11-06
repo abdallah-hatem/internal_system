@@ -66,6 +66,14 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `feature/dashboard-cash-from-sales`, not merged — Cash from sales, one Stock tile, exchange-rate loss/gain**
+  (owner 2026-11-06, §12, §18). Right now: Cash from sales (payments not reversed − `REFUND_PAID`, all time,
+  `common/cash-from-sales.ts`) replaces Cash on hand (still in the API); Stock value + Units in stock became one
+  Stock tile with the unit count as a pill beside the title; six tiles, two rows of three, phone "See more (2)".
+  The exchange difference reads "Exchange-rate loss" (red, −) / "gain" (green, +) with a hint line, through one
+  component (`components/lenders/exchange-result.tsx`) on Analytics, settlements, the Funding card and a lender's
+  page. Unit + component tests seen to fail first; TC-INV-64b written, not run (no e2e). The dashboard and
+  Analytics visual baselines will need retaking when it merges. Screenshots for the owner taken on an agent DB.
 - **On `dev` 2026-11-06, not shipped — a credit note cannot credit more than is owed** (owner decision
   2026-11-06, §5). ORD-2026-00016 (2,000, paid in full, returned whole on the default credit note) lost the 2,000:
   nothing owed went down and no `REFUND_PAID` was written. Now refused (`RETURN_CREDIT_OVER_OWED`), the default is

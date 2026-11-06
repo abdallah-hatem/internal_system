@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { useCan } from '@/lib/can';
 import { useDateFormat } from '@/lib/dates';
 import { Money } from '@/components/ui/money';
+import { ExchangeAmount, useExchangeWords } from '@/components/lenders/exchange-result';
 import { BackLink } from '@/components/ui/back-link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LatinText } from '@/components/ui/latin-text';
@@ -396,7 +397,10 @@ function FinancingCard({
   onOpen: (d: Dialog) => void;
 }) {
   const t = useTranslations('lenders');
+  const tx = useTranslations('exchangeResult');
   const { formatDate } = useDateFormat();
+  // The financing's exchange result in words: a loss or a gain, and why.
+  const exchange = useExchangeWords(f.exchangeDiffEgp);
   const may = {
     repay: useCan('lender.repay'),
     reverse: useCan('lender.reverseRepayment'),
@@ -427,8 +431,8 @@ function FinancingCard({
       cell: (r) => <Money value={r.cleared} currency={f.currency} />,
     },
     {
-      key: 'exchangeDiff', header: t('exchangeDiff'), width: '8.5rem', kind: 'value', align: 'end', className: struck,
-      cell: (r) => <Money value={r.exchangeDiffEgp} currency="EGP" />,
+      key: 'exchangeDiff', header: tx('label'), width: '8.5rem', kind: 'value', align: 'end', className: struck,
+      cell: (r) => <ExchangeAmount diffEgp={r.exchangeDiffEgp} />,
     },
     {
       key: 'actions', header: null, width: '6rem', align: 'end', className: 'whitespace-nowrap',
@@ -494,15 +498,9 @@ function FinancingCard({
         <Figure label={t('repaid')} value={<Money value={f.repaid} currency={f.currency} />} />
         <Figure label={t('pounds')} value={<Money value={f.paidEgp} currency="EGP" />} />
         <Figure
-          label={t('exchangeDiff')}
-          title={t('exchangeDiffHint')}
-          value={
-            <Money
-              value={f.exchangeDiffEgp}
-              currency="EGP"
-              className={Number(f.exchangeDiffEgp) > 0 ? 'text-destructive' : Number(f.exchangeDiffEgp) < 0 ? 'text-primary-700' : ''}
-            />
-          }
+          label={exchange.label}
+          title={exchange.hint ?? undefined}
+          value={<ExchangeAmount diffEgp={f.exchangeDiffEgp} />}
           testId="financing-exchange-diff"
           wide
         />
@@ -615,7 +613,7 @@ function FinancingCard({
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span>
-                      {t('exchangeDiff')}: <Money value={r.exchangeDiffEgp} currency="EGP" />
+                      {tx('label')}: <ExchangeAmount diffEgp={r.exchangeDiffEgp} />
                     </span>
                     {r.reversedAt ? (
                       <span>{t('reversed')}</span>

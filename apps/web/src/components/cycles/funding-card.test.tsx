@@ -487,25 +487,29 @@ describe('production’s cycle 1: a friend paid, the partners repaid him (owner 
     expect(pills.map((p) => p.getAttribute('data-short'))).toEqual(['false', 'false', 'false']);
   });
 
-  it('states the exchange difference as a cost taken from the profit, each partner’s part, and that capital comes back whole', async () => {
+  it('states the exchange-rate loss as a loss — red, with a minus — taken from the profit, each partner’s part, and that capital comes back whole', async () => {
     asCycleOne();
     wrap('en', { lenders: ['Ahmad Eraiby'] });
     const line = await screen.findByTestId('exchange-difference');
     expect(text(line)).toBe(
-      'Exchange difference on repaying Ahmad Eraiby: 7,788.12 EGP (2,596.04 EGP each) — a cost to the cycle, taken from its profit; each partner still gets his full contribution back as capital.',
+      'Exchange-rate loss on repaying Ahmad Eraiby: −7,788.12 EGP (2,596.04 EGP each) — a cost to the cycle, taken from its profit; each partner still gets his full contribution back as capital.',
     );
     expect(line.getAttribute('data-gain')).toBe('false');
+    const amount = line.querySelector('[data-result]')!;
+    expect(amount.getAttribute('data-result')).toBe('loss');
+    expect(amount.className).toContain('text-destructive');
     // Inside Contributions, after the shares.
     expect(screen.getByTestId('funding-contributions').contains(line)).toBe(true);
   });
 
-  it('the rate fell: a gain, said as one, its figure never shown with a minus', async () => {
+  it('the rate fell: a gain, said as one, green with a plus — never a minus', async () => {
     asCycleOne('-1200.00', ['-400.00', '-400.00', '-400.00']);
     wrap('en', { lenders: ['Ahmad Eraiby'] });
     const line = await screen.findByTestId('exchange-difference');
     expect(line.getAttribute('data-gain')).toBe('true');
+    expect(line.querySelector('[data-result]')!.className).toContain('text-success');
     expect(text(line)).toBe(
-      'Exchange gain on repaying Ahmad Eraiby: 1,200.00 EGP (400.00 EGP each) — the rate fell since he paid, so it adds to the cycle’s profit; each partner still gets his full contribution back as capital.',
+      'Exchange-rate gain on repaying Ahmad Eraiby: +1,200.00 EGP (400.00 EGP each) — the rate fell since he paid, so it adds to the cycle’s profit; each partner still gets his full contribution back as capital.',
     );
   });
 
@@ -513,11 +517,11 @@ describe('production’s cycle 1: a friend paid, the partners repaid him (owner 
     asCycleOne('1000.00', ['300.00', '300.00', '400.00']);
     wrap('en', { lenders: ['Ahmad Eraiby'] });
     const line = await screen.findByTestId('exchange-difference');
-    expect(text(line)).toContain('1,000.00 EGP (Abdallah 300.00 EGP · Shady 300.00 EGP · Fares 400.00 EGP) — a cost');
+    expect(text(line)).toContain('−1,000.00 EGP (Abdallah 300.00 EGP · Shady 300.00 EGP · Fares 400.00 EGP) — a cost');
     cleanup();
     asCycleOne('1000.00', null);
     wrap('en', { lenders: ['Ahmad Eraiby'] });
-    expect(text(await screen.findByTestId('exchange-difference'))).toContain('Ahmad Eraiby: 1,000.00 EGP — a cost');
+    expect(text(await screen.findByTestId('exchange-difference'))).toContain('Ahmad Eraiby: −1,000.00 EGP — a cost');
   });
 
   it('no line before he is repaid, none at an unchanged rate, and none where no friend paid', async () => {
@@ -552,7 +556,7 @@ describe('production’s cycle 1: a friend paid, the partners repaid him (owner 
     expect(card.textContent).not.toMatch(/(fundingCard|accounts|cycles)\.[a-zA-Z]/);
     expect(text(screen.getAllByTestId('paid-how')[0])).toBe('سدّد لـ Ahmad Eraiby');
     const line = screen.getByTestId('exchange-difference');
-    expect(text(line)).toContain('فرق العملة في السداد لـ Ahmad Eraiby');
+    expect(text(line)).toContain('خسارة فرق سعر الصرف في السداد لـ Ahmad Eraiby');
     expect(text(line)).toContain('لكل منهم');
     for (const m of line.querySelectorAll('[data-slot="money"]')) expect(m.getAttribute('dir')).toBe('ltr');
     expect(text(screen.getByTestId('paid-so-far'))).toContain('201,168.99');

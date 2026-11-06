@@ -100,7 +100,8 @@ test.describe('Dashboard tiles open their lists', () => {
     ['collected', '/en/payments'],
     ['expenses', '/en/ledger'],
     ['activeCycles', '/en/cycles'],
-    ['inventoryValue', '/en/inventory'],
+    ['stock', '/en/inventory'],
+    ['cashFromSales', '/en/payments'],
     ['netProfit', '/en/analytics'],
   ] as const) {
     test(`TC-DASH-03 ${key}: the tile opens ${path}`, async ({ page }) => {

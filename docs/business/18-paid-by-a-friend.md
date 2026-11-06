@@ -153,3 +153,15 @@ investment": he was repaid 141,168.92 EGP (141,168.99 less the 0.07 the pay-off 
 | How it reached production | One-off `apps/api/prisma/one-off/2026-10-27-cyc-0001-funding.ts`, through the services: the three old repayments reversed and the old financing removed, each with a reason; the smaller financing and its repayments recorded again; contributions set by hand; the investors added. | done by script |
 | The Funding card on such a cycle | Was OPEN: its equal shares were "of what was repaid" (141,168.92) less **all** investors' money (80,000) = 20,389.64 each, Eraiby's 60,000 taken off twice. **Closed 2026-10-27:** the partners' part is what was repaid or everything contributed, whichever is more, less investors (121,168.99), and with every partner's contribution in and adding up, each share is his own contribution, as agreed — §8 "Investors in the funding, the partners' part, shares as agreed, every percentage". | DECIDED 2026-10-27 |
 
+
+**An exchange-rate loss reads as a loss — DECIDED 2026-11-06 (owner), on `feature/dashboard-cash-from-sales`, not
+merged.** The owner, on Analytics: "Exchange-rate loss on the lender repayments −3,183.74 — this needs to show
+that it's a loss, needs a redesign." The figure was labelled a neutral "Exchange difference" everywhere.
+
+| Question | Answer | Status |
+|---|---|---|
+| The sign | Unchanged, one convention: `exchangeDiffEgp` / `exchangeDifferenceEgp` above zero is a **loss** (more pounds paid than the debt was worth at his rate — the rate rose), below zero a **gain**. | as built |
+| The words | "Exchange-rate loss" / "Exchange-rate gain" ("خسارة فرق سعر الصرف" / "ربح فرق سعر الصرف"), never "Exchange difference". Under the label a muted line: "Paid back the lender at a higher rate than borrowed" / "…at a lower rate than borrowed" ("سُدِّد للمُقرض بسعر صرف أعلى/أقل من سعر الاقتراض"). | DECIDED (wording the agent's GUESS) |
+| The figure | Signed as it moves profit: a loss "−3,183.74 EGP" in the destructive red, a gain "+1,200.00 EGP" in the success green; the existing tokens, one left-to-right run so the sign stays before the digits in Arabic. In an account with a − / + / = column, that column is left empty on this line so no second minus stands in front of a negative figure. | DECIDED |
+| Zero | Hidden where it was hidden (Analytics' "How it adds up", a bar's breakdown, a settlement's cycle lines, the Funding card). | as before |
+| Where | One component, `apps/web/src/components/lenders/exchange-result.tsx` (rule 11): Analytics' How it adds up and a bar's breakdown (the totals line and each repayment), a settlement's "How it was worked out", the cycle Funding card's sentence, and a lender's page (the financing's figure says loss or gain; the repayment column is "Rate gain / loss", each row signed and coloured). | built |

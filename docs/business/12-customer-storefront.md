@@ -174,10 +174,34 @@ the dashboard on 2026-10-18 (owner: "remove fuel from dashboard"); it is recorde
 actions only (§9).
 On a phone every figure tile keeps its icon (superseded 2026-10-23, below: six showed, then "See more").
 
+**Right now simplified: Cash from sales, one Stock tile — DECIDED 2026-11-06 (owner), on
+`feature/dashboard-cash-from-sales`, not merged.** The owner: "simplify the dashboard cards, we don't need cash
+on hand, make it available cash from sales". Cash on hand mixed the partners' funding, lender money, supplier
+payments and sales into one figure he found meaningless. Right now is six tiles, in this order: **Cash from
+sales, To collect, Owed to lenders, Stock, Low stock alerts, Active cycles** (supersedes the 2026-10-23 list
+below).
+- **Cash from sales** = the payments customers made that are not reversed (`payments.status = 'RECORDED'`, the
+  all-time Collected's reading) **minus the cash refunded to them for returns** (`REFUND_PAID` ledger rows),
+  all time, leaving out an entry undone together with its undo (`common/undone-entries.ts`, as cash on hand).
+  A credit-note return takes nothing off (the money stays collected; only the shop's debt went down). Read from
+  the payments, not their `PAYMENT_RECEIVED` ledger rows, because reversing a payment writes no undo row. More
+  refunded than paid reads below zero, never 0. One definition, `apps/api/src/common/cash-from-sales.ts`, sent
+  as `cashFromSalesEgp` by `GET /analytics/dashboard`; the tile's second line: "Paid in, less refunds" ("ما دفعه
+  العملاء ناقص المسترد"), one line, cut at the edge. It links to Payments. Arabic label "النقد من المبيعات".
+  GUESS (agent's wording): the second line and both Arabic strings.
+- **Cash on hand left the dashboard.** `cashOnHand` (and cash in / cash out) stay in the API response: the
+  assistant's `get_dashboard` and the invariant tests read them, and Analytics' Cash paid out is the same reading.
+- **Stock** — owner 2026-11-06: the stock value at landed cost (`common/stock-value.ts`) as the figure, and the
+  number of units in stock as a small muted pill beside the title ("Stock 897"; a screen reader hears "897 units
+  in stock"). The Units in stock tile is gone; the pill is the only place the count shows on the dashboard.
+- **Layout:** wide (the group ≥ 68rem), two rows of three; narrower, three rows of two, no tile spanning. Phone:
+  Cash from sales, To collect, Owed to lenders and Stock show; Low stock alerts and Active cycles wait behind
+  "See more (2)". The skeleton traces the same six, the second lines and Stock's pill.
+
 **The dashboard in two groups — DECIDED 2026-10-23 (owner, picked from a rendered sample), built 2026-10-23.**
 The owner asked "are the data filtered or all time, like net profit?": thirteen equal tiles mixed all-time and
 right-now figures with nothing saying which. Now two headed groups:
-- **Right now** first — Cash on hand, To collect (what customers owe today, the old Receivables), Owed to lenders
+- **Right now** first (superseded 2026-11-06, above) — Cash on hand, To collect (what customers owe today, the old Receivables), Owed to lenders
   (with its per-currency line), Stock value (the product page's word since 2026-10-22, the same
   `common/stock-value.ts`), Items in stock, Low stock alerts, Active cycles. Wide: a row of four, then a row of
   three, each filling the width.

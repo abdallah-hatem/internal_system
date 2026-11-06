@@ -28,10 +28,9 @@ export type TileKey =
   | 'receivables'
   | 'expenses'
   | 'netProfit'
-  | 'cashOnHand'
+  | 'cashFromSales'
   | 'activeCycles'
-  | 'inventoryValue'
-  | 'unitsInStock'
+  | 'stock'
   | 'lowStockAlerts'
   | 'owedToLenders';
 
@@ -52,10 +51,10 @@ export const TILE_TARGETS: Record<TileKey, TileTarget> = {
   receivables: { href: '/customers?sort=balance', roles: SELLING_ROLES },
   expenses: { href: '/ledger', roles: SELLING_ROLES },
   netProfit: { href: '/analytics', roles: SELLING_ROLES },
-  cashOnHand: { href: '/ledger', roles: SELLING_ROLES },
+  // What customers paid: the payments list (owner 2026-11-06).
+  cashFromSales: { href: '/payments', roles: SELLING_ROLES },
   activeCycles: { href: '/cycles' },
-  inventoryValue: { href: '/inventory' },
-  unitsInStock: { href: '/inventory' },
+  stock: { href: '/inventory' },
   lowStockAlerts: { href: '/inventory?stock=low' },
   // GET /lenders — @Roles(CORE_PARTNER, ADMIN_SUPPORT) (§18)
   owedToLenders: { href: '/lenders', roles: SELLING_ROLES },
@@ -67,15 +66,19 @@ export const TILE_TARGETS: Record<TileKey, TileTarget> = {
  * round. Cost of goods sold and cash paid out left it for Analytics' profit
  * and loss.
  *
- * Right now: what the business holds, is owed and owes at this moment. A wide
- * screen lays it out as a row of four, then a row of three.
+ * Right now: what the business holds, is owed and owes at this moment. Six
+ * tiles since 2026-11-06 (owner: "simplify the dashboard cards, we don't need
+ * cash on hand, make it available cash from sales"): Cash on hand — which
+ * mixed the partners' funding, lender money and supplier payments with sales —
+ * gave way to Cash from sales, and Stock value and Units in stock became one
+ * Stock tile. A wide screen lays them out as two rows of three; a phone as
+ * rows of two.
  */
 export const RIGHT_NOW_TILES = [
-  'cashOnHand',
+  'cashFromSales',
   'receivables',
   'owedToLenders',
-  'inventoryValue',
-  'unitsInStock',
+  'stock',
   'lowStockAlerts',
   'activeCycles',
 ] as const satisfies readonly TileKey[];
@@ -96,7 +99,8 @@ export const PNL_THIS_MONTH_HREF = '/analytics?period=month';
 
 /**
  * The figures a phone shows before "See more": the first four of Right now and
- * all of This month. The other three Right now tiles are a tap away; a wider
+ * all of This month. The other two Right now tiles (low stock alerts, active
+ * cycles) are a tap away; a wider
  * screen shows every tile.
  */
 export const PHONE_FIRST_TILES: readonly TileKey[] = [

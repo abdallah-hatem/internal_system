@@ -25,7 +25,7 @@ import { Money } from '../../../components/ui/money';
 import { Link } from '@/i18n/navigation';
 import {
   TrendingUp, Package, AlertTriangle, DollarSign,
-  Activity, Route, Wallet, Clock, Receipt, Landmark, HandCoins, Boxes,
+  Activity, Route, Wallet, Clock, Receipt, Banknote, HandCoins,
   type IconComponent, ChevronDown, ArrowRight } from '@/components/ui/icons';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -43,7 +43,12 @@ interface DashboardData {
   totalRevenue: number;
   totalExpenses: number;
   totalCashIn?: number;
-  cashOnHand?: number;
+  /**
+   * Paid by customers less cash refunded, all time (owner 2026-11-06,
+   * api `common/cash-from-sales.ts`). The API still sends `cashOnHand`, for
+   * the assistant and the invariant tests; the dashboard no longer shows it.
+   */
+  cashFromSalesEgp?: number;
   /** Absent from an API older than 2026-10-23: This month then reads zeros, never all time. */
   month?: MonthFigures;
   netProfit: number;
@@ -78,15 +83,13 @@ interface TopProduct {
 const PHONE_RIGHT_NOW = RIGHT_NOW_TILES.filter((k) => PHONE_FIRST_TILES.includes(k)).length;
 
 /**
- * A Right now tile's span. Four across, the grid has twelve columns: the first four
- * take three each and the last three four each — a row of four, then a row of
- * three, both filling the width (owner 2026-10-23). In two columns seven
- * leave one alone, so the last takes the whole row.
+ * The Right now tiles that carry a second line under the figure — what Cash
+ * from sales is, each friend's currency — and the one with a count beside its
+ * label (Stock's units, owner 2026-11-06). The tiles and their skeleton both
+ * read these, so a skeleton is the shape of the tile it holds the place of.
  */
-function rightNowSpan(i: number): string {
-  const wide = i < 4 ? '@[68rem]:col-span-3' : '@[68rem]:col-span-4';
-  return i === RIGHT_NOW_TILES.length - 1 ? `col-span-2 ${wide}` : wide;
-}
+const SUB_LINE_TILES: readonly TileKey[] = ['cashFromSales', 'owedToLenders'];
+const BADGE_TILES: readonly TileKey[] = ['stock'];
 
 /** Hidden on a phone until "See more", unless it is one of the first figures. */
 function phoneClass(key: TileKey, allTiles: boolean): string {
@@ -95,11 +98,12 @@ function phoneClass(key: TileKey, allTiles: boolean): string {
 
 /**
  * Two columns until the group itself is 68rem wide (a 1440 screen with the
- * sidebar is 71rem), then four across — read off the group's width, not the
- * screen's, because four tiles need room for their figures whatever the
- * sidebar takes (stat-tile.tsx).
+ * sidebar is 71rem), then This month four across and Right now's six as two
+ * rows of three (2026-11-06) — read off the group's width, not the screen's,
+ * because the tiles need room for their figures whatever the sidebar takes
+ * (stat-tile.tsx). Six in two columns is three full rows: no tile alone.
  */
-const RIGHT_NOW_GRID = 'grid grid-cols-2 gap-3 sm:gap-4 @[68rem]:grid-cols-12';
+const RIGHT_NOW_GRID = 'grid grid-cols-2 gap-3 sm:gap-4 @[68rem]:grid-cols-3';
 const THIS_MONTH_GRID = 'grid grid-cols-2 gap-3 sm:gap-4 @[68rem]:grid-cols-4';
 
 /**
@@ -162,11 +166,12 @@ function StatTilesSkeleton() {
   return (
     <div className="space-y-6">
       <TileGroup testId="dashboard-right-now" title={t('rightNow')} gridClass={RIGHT_NOW_GRID} skeleton>
-        {RIGHT_NOW_TILES.map((key, i) => (
+        {RIGHT_NOW_TILES.map((key) => (
           <StatTileSkeleton
             key={key}
-            sub={key === 'owedToLenders'}
-            className={`${rightNowSpan(i)} ${phoneClass(key, false)}`}
+            sub={SUB_LINE_TILES.includes(key)}
+            badge={BADGE_TILES.includes(key)}
+            className={phoneClass(key, false)}
           />
         ))}
       </TileGroup>
@@ -226,7 +231,7 @@ export default function DashboardPage() {
     totalRevenue: 0,
     totalExpenses: 0,
     totalCashIn: 0,
-    cashOnHand: 0,
+    cashFromSalesEgp: 0,
     netProfit: 0,
     activeCycles: 0,
     inventoryValue: 0,
@@ -244,17 +249,31 @@ export default function DashboardPage() {
 
   const owedLines = data.owedToLenders?.lines ?? [];
 
-  const tiles: Record<TileKey, { label: string; value: string; icon: IconComponent; color: string; sub?: React.ReactNode }> = {
+  // Units can be fractional (metres, kilos), as everywhere else stock is counted.
+  const units = formatNumber(Number(data.unitsInStock ?? 0), { maximumFractionDigits: 3 });
+
+  const tiles: Record<
+    TileKey,
+    { label: string; value: string; icon: IconComponent; color: string; sub?: React.ReactNode; badge?: { label: string; srLabel: string } }
+  > = {
     // ── Right now ──
-    // Everything in less everything out. It could not be shown before
-    // contributions were recorded: the ledger held the purchase going out and
-    // nothing for the capital coming in, so the figure was short by exactly
-    // what the partners had put in.
-    cashOnHand: {
-      label: t('cashOnHand'),
-      value: egp(data.cashOnHand ?? 0),
-      icon: Landmark,
-      color: (data.cashOnHand ?? 0) < 0 ? 'bg-red-600' : 'bg-cyan-600',
+    // What customers paid, less the cash handed back for returns, all time —
+    // the server's figure (owner 2026-11-06). It replaced Cash on hand, which
+    // mixed the partners' funding, lender money and supplier payments with
+    // sales. The second line says what it is.
+    cashFromSales: {
+      label: t('cashFromSales'),
+      value: egp(data.cashFromSalesEgp ?? 0),
+      icon: Banknote,
+      color: (data.cashFromSalesEgp ?? 0) < 0 ? 'bg-red-600' : 'bg-cyan-600',
+      // One line, as its skeleton: on a phone the words wrapped to two and the
+      // first row came out taller than the skeleton traced. Cut at the edge,
+      // the whole of it a hover away.
+      sub: (
+        <span data-testid="cash-from-sales-sub" className="block truncate" title={t('cashFromSalesSub')}>
+          {t('cashFromSalesSub')}
+        </span>
+      ),
     },
     // What customers owe today: confirmed sales not fully paid.
     receivables: { label: t('toCollect'), value: egp(data.receivables), icon: Clock, color: 'bg-yellow-500' },
@@ -302,15 +321,20 @@ export default function DashboardPage() {
           </span>
         ),
     },
-    // "Stock value", the product page's word since 2026-10-22, from the same
-    // common/stock-value.ts.
-    inventoryValue: { label: t('inventoryValue'), value: egp(data.inventoryValue), icon: Package, color: 'bg-orange-500' },
-    // Every unit on the shelf, all products together — not how many products exist.
-    unitsInStock: {
-      label: t('unitsInStock'),
-      value: formatNumber(Number(data.unitsInStock ?? 0), { maximumFractionDigits: 3 }),
-      icon: Boxes,
-      color: 'bg-orange-400',
+    // One Stock tile (owner 2026-11-06): its value at landed cost
+    // (common/stock-value.ts, the product page's Stock value) as the figure,
+    // and every unit on the shelf, all products together, as a small count
+    // beside the title. The Units in stock tile is gone; this is the only
+    // place the count shows on the dashboard.
+    stock: {
+      label: t('stock'),
+      value: egp(data.inventoryValue),
+      icon: Package,
+      color: 'bg-orange-500',
+      badge: {
+        label: units,
+        srLabel: t('stockUnits', { units }),
+      },
     },
     lowStockAlerts: { label: t('lowStockAlerts'), value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },
     activeCycles: { label: t('activeCycles'), value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },
@@ -336,6 +360,7 @@ export default function DashboardPage() {
         color={tile.color}
         href={tileHref(key, role)}
         sub={tile.sub}
+        badge={tile.badge}
         className={className}
       />
     );
@@ -378,7 +403,7 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-6">
           <TileGroup testId="dashboard-right-now" title={t('rightNow')} gridClass={RIGHT_NOW_GRID}>
-            {RIGHT_NOW_TILES.map((key, i) => renderTile(key, `${rightNowSpan(i)} ${phoneClass(key, allTiles)}`))}
+            {RIGHT_NOW_TILES.map((key) => renderTile(key, phoneClass(key, allTiles)))}
             {RIGHT_NOW_TILES.length > PHONE_RIGHT_NOW && (
               <button
                 type="button"

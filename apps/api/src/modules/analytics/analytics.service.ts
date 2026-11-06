@@ -19,6 +19,7 @@ import {
   transferNetEgp,
 } from '../../common/ledger-categories';
 import { cashPosition } from '../../common/cash-position';
+import { cashFromSalesEgp } from '../../common/cash-from-sales';
 import {
   standingEntriesWhere,
   undoneEntryIds,
@@ -1219,6 +1220,12 @@ export class AnalyticsService {
         totalCashOut,
         totalCashIn: money(cashIn),
         cashOnHand: money(cashOnHand),
+        /**
+         * Paid by customers, less cash refunded to them, all time — the
+         * dashboard's Cash from sales (owner 2026-11-06,
+         * `common/cash-from-sales.ts`).
+         */
+        cashFromSalesEgp: money(await cashFromSalesEgp(this.prisma)),
         collected,
         netProfit: money(netProfit),
         activeCycles,

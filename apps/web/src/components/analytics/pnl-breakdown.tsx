@@ -11,6 +11,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { useNumberFormat } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import { Money } from '@/components/ui/money';
+import { ExchangeAccountLine, ExchangeAmount } from '@/components/lenders/exchange-result';
 import { Dialog } from '@/components/ui/dialog';
 import { SkeletonRegion, SkeletonText, Skeleton, repeat } from '@/components/ui/skeleton';
 
@@ -174,7 +175,8 @@ function Body({ data, from, to }: { data: PnlBreakdownData; from: string; to: st
     { key: 'expenses', label: t('expenses'), value: totals.expensesEgp, sign: '−' },
     { key: 'recovered', label: t('recovered'), value: totals.recoveredEgp, sign: '+', hideZero: true },
     { key: 'otherIncome', label: t('otherIncome'), value: totals.otherIncomeEgp, sign: '+', hideZero: true },
-    { key: 'exchange', label: t('exchangeDifference'), value: totals.exchangeDifferenceEgp, sign: '−', hideZero: true },
+    // Drawn by ExchangeAccountLine: a loss or a gain, never "difference" (owner 2026-11-06).
+    { key: 'exchange', label: '', value: totals.exchangeDifferenceEgp, sign: '', hideZero: true },
     { key: 'net', label: t('netProfit'), value: totals.netProfitEgp, sign: '=', strong: true },
   ];
   return (
@@ -182,7 +184,9 @@ function Body({ data, from, to }: { data: PnlBreakdownData; from: string; to: st
       <dl data-testid="pnl-breakdown-totals" className="max-w-md text-sm">
         {lines
           .filter((l) => !(l.hideZero && l.value === 0))
-          .map((l) => (
+          .map((l) => l.key === 'exchange' ? (
+            <ExchangeAccountLine key={l.key} diffEgp={l.value} />
+          ) : (
             <div
               key={l.key}
               data-line={l.key}
@@ -455,7 +459,7 @@ function ExchangeLine({ row }: { row: ExchangeRow }) {
           <span>{formatDate(row.day)}</span>
         </p>
       </div>
-      <Money value={row.amountEgp} className={cn('whitespace-nowrap tabular-nums', row.amountEgp > 0 ? 'text-destructive' : 'text-success')} />
+      <ExchangeAmount diffEgp={row.amountEgp} className="whitespace-nowrap" />
     </li>
   );
 }
