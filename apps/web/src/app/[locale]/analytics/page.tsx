@@ -248,29 +248,29 @@ export default function AnalyticsPage() {
                     columns={topProductColumns}
                   />
                   {loadingProducts ? (
-                    <SkeletonGroup as="ul" className="divide-y divide-gray-100 md:hidden">
+                    <SkeletonGroup as="ul" className="divide-y divide-border md:hidden">
                       {repeat(ANALYTICS_TOP, (i) => <TopProductPhoneRowSkeleton key={i} />)}
                     </SkeletonGroup>
                   ) : (
-                    <ul data-testid="top-products-cards" className="divide-y divide-gray-100 md:hidden">
+                    <ul data-testid="top-products-cards" className="divide-y divide-border md:hidden">
                       {productList.map((p) => (
                         <li key={p.productId} data-testid="top-product-card" className="py-2.5">
-                          <p className="text-sm font-medium text-gray-900 line-clamp-2 break-words" title={localName(p, locale)}>
+                          <p className="text-sm font-medium text-foreground line-clamp-2 break-words" title={localName(p, locale)}>
                             {localName(p, locale)}
                           </p>
-                          <p className="truncate font-mono text-xs text-gray-500" title={p.sku}><bdi dir="ltr">{p.sku}</bdi></p>
+                          <p className="truncate font-mono text-xs text-muted-foreground" title={p.sku}><bdi dir="ltr">{p.sku}</bdi></p>
                           {/* Labels over values; a narrow phone wraps a figure to the next line, never past the edge. */}
                           <dl className="mt-1.5 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs">
                             <div>
-                              <dt className="text-gray-500">{t('quantitySold')}</dt>
-                              <dd className="whitespace-nowrap tabular-nums text-gray-900">{formatNumber(p.totalQuantitySold)}</dd>
+                              <dt className="text-muted-foreground">{t('quantitySold')}</dt>
+                              <dd className="whitespace-nowrap tabular-nums text-foreground">{formatNumber(p.totalQuantitySold)}</dd>
                             </div>
                             <div>
-                              <dt className="text-gray-500">{t('revenue')}</dt>
-                              <dd data-testid="top-product-card-revenue" className="whitespace-nowrap tabular-nums text-gray-900"><Money value={p.revenueEgp} /></dd>
+                              <dt className="text-muted-foreground">{t('revenue')}</dt>
+                              <dd data-testid="top-product-card-revenue" className="whitespace-nowrap tabular-nums text-foreground"><Money value={p.revenueEgp} /></dd>
                             </div>
                             <div className="text-end">
-                              <dt className="text-gray-500">{t('margin')}</dt>
+                              <dt className="text-muted-foreground">{t('margin')}</dt>
                               <dd className="whitespace-nowrap tabular-nums">{margin(p)}</dd>
                             </div>
                           </dl>
