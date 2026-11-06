@@ -133,7 +133,9 @@ describe('the batches: a table on desktop, cards on a phone', () => {
     renderPage();
     const table = await screen.findByTestId('batches-table');
     expect(table.getAttribute('data-slot')).toBe('data-table');
-    expect(table.closest('.hidden.md\\:block')).toBeTruthy();
+    // The table from lg, not md: 768 gets the cards (UI re-check P5).
+    expect(table.closest('.hidden.lg\\:block')).toBeTruthy();
+    expect(table.closest('.md\\:block')).toBeNull();
     const headers = within(table).getAllByRole('columnheader').map((h) => h.textContent);
     expect(headers).toEqual(
       expect.arrayContaining([
@@ -155,7 +157,9 @@ describe('the batches: a table on desktop, cards on a phone', () => {
     renderPage();
     const cards = await screen.findAllByTestId('batch-card');
     expect(cards).toHaveLength(3);
-    expect(cards[0].closest('ul')!.className).toContain('md:hidden');
+    // Cards up to lg: at md (768) the table scrolled sideways (UI re-check P5).
+    expect(cards[0].closest('ul')!.className).toContain('lg:hidden');
+    expect(cards[0].closest('ul')!.className).not.toMatch(/(^| )md:hidden/);
     const lines = Array.from(cards[0].querySelectorAll('dl > div')) as HTMLElement[];
     expect(lines.map((l) => l.querySelector('dt')!.textContent)).toEqual([
       en.products.cycle, en.products.receivedQty, en.products.remainingQty, en.products.landedCost,
@@ -303,5 +307,36 @@ describe('in Arabic', () => {
     const link = within(row).getAllByTestId('movement-reference')[1];
     expect(link.textContent).toBe('ORD-2026-0007');
     expect(link.querySelector('bdi')!.getAttribute('dir')).toBe('ltr');
+  });
+});
+
+describe('UI re-check 2026-11-06', () => {
+  it('P8: the Arabic name on /en is its own right-to-left block, as wide as its text, aligned as Arabic', async () => {
+    renderPage();
+    const value = await screen.findByText(product.nameAr);
+    expect(value.tagName).toBe('BDI');
+    expect(value.getAttribute('dir')).toBe('rtl');
+    // A block, so a wrapped name aligns its lines by its own direction (right);
+    // w-fit, so one line still sits on the cell's start edge like its neighbours.
+    for (const c of ['block', 'w-fit', 'max-w-full', 'text-start']) expect(value.className.split(' ')).toContain(c);
+  });
+
+  it('P9: the chevron sits at the start of its column, beside the figures', async () => {
+    renderPage();
+    const table = await screen.findByTestId('batches-table');
+    const cell = within(table).getAllByTestId('batch-toggle')[0].closest('td')!;
+    expect(cell.className).toContain('text-start');
+    expect(cell.className).not.toContain('text-end');
+  });
+
+  it('P4: the movement table under an opened batch is padded in from its own border', async () => {
+    renderPage();
+    const table = await screen.findByTestId('batches-table');
+    fireEvent.click(within(table).getAllByTestId('batch-toggle')[0]);
+    const row = await within(table).findByTestId('batch-movements-row');
+    await within(row).findAllByTestId('batch-movement');
+    const header = within(row).getAllByRole('columnheader')[0];
+    expect(header.className).toContain('first:ps-4');
+    expect(header.className).toContain('last:pe-4');
   });
 });

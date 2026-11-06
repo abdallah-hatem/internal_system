@@ -29,6 +29,12 @@ import { cn } from '@/lib/utils';
  * The full value is the element's `title` when truncated, so a cut-off name can
  * still be read on hover.
  *
+ * - `wrap`: the same direction box, but the value wraps onto as many lines as
+ *   it needs and is never cut — for a phone, where a `title` cannot be read
+ *   (a batch's customer, UI re-check P2/P3, 2026-11-06). Each line aligns as
+ *   the text reads (an Arabic name's second line on its right, on /en too);
+ *   a one-line value still sits on its container's start edge (`w-fit`).
+ *
  * `dir="ltr"` forces left to right for a value with no letters in it — a phone
  * number such as "+201000000777". With nothing strong to read, `auto` cannot
  * tell which way it goes, and the "+" ended up after the digits (re-audit N4).
@@ -36,18 +42,33 @@ import { cn } from '@/lib/utils';
 export function LatinText({
   children,
   truncate = false,
+  wrap = false,
   className,
   title,
   dir = 'auto',
 }: {
   children: ReactNode;
   truncate?: boolean;
+  /** Wraps, never cut. Not with `truncate`. */
+  wrap?: boolean;
   /** `auto` (default) reads the direction from the text; `ltr` for phone numbers and other digit runs. */
   dir?: 'auto' | 'ltr';
   className?: string;
   /** Hover text for a truncated value. Defaults to the text when it is a string. */
   title?: string;
 }) {
+  if (wrap) {
+    return (
+      <span
+        data-slot="latin-text"
+        data-wrap=""
+        dir={dir}
+        className={cn('block w-fit min-w-0 max-w-full break-words [unicode-bidi:isolate]', className)}
+      >
+        {children}
+      </span>
+    );
+  }
   if (!truncate) {
     return (
       <bdi data-slot="latin-text" dir={dir} className={className}>

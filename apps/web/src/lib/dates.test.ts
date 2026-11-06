@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { businessToday, formatDate, timeAgo } from './dates';
+import { businessToday, formatDate, formatTime, timeAgo } from './dates';
 
 describe('formatDate', () => {
   it('English output is unchanged', () => {
@@ -31,6 +31,23 @@ describe('formatDate', () => {
       expect(formatDate(undefined, { locale })).toBe('—');
       expect(formatDate('not a date', { locale })).toBe('—');
     }
+  });
+});
+
+describe('formatTime', () => {
+  it('is the time formatDate gives, on its own, in either language', () => {
+    const iso = '2026-08-19T14:30:00.000Z';
+    expect(formatTime(iso, { locale: 'en' })).toBe('2:30 PM');
+    expect(formatDate(iso, { includeTime: true, locale: 'en' })).toBe(`Aug 19, 2026, ${formatTime(iso, { locale: 'en' })}`);
+    const ar = formatTime(iso, { locale: 'ar' });
+    expect(ar).toContain('2:30');
+    expect(ar).not.toMatch(/PM|AM|2026|أغسطس/);
+    expect(formatDate(iso, { includeTime: true, locale: 'ar' })).toContain(ar);
+  });
+
+  it('missing or invalid input gives a dash', () => {
+    expect(formatTime(null)).toBe('—');
+    expect(formatTime('not a date', { locale: 'ar' })).toBe('—');
   });
 });
 
