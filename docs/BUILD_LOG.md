@@ -72,6 +72,9 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `dev` 2026-11-06, not shipped — the Products tab lists the oldest product first** (owner): `sort=oldest` on
+  `/products`, sent by the Products tab only; pickers keep newest first. Tests in `products-stock.spec.ts` and
+  `products-summary-cards.test.tsx`, seen to fail first.
 - **Live 2026-11-06 — a movement's customer and price** (owner 2026-11-06, §3).
   The movements endpoint returns `customerName`/`walkIn`/`branchName`/`unitPrice`/`priceKind`/`currency` from its
   existing batched reads; the movements list is the shared table on desktop (Customer, Price) and a card on a phone.

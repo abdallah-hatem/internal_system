@@ -214,6 +214,14 @@ const withoutPaging = (params: Params) =>
   Object.fromEntries(Object.entries(params).filter(([name]) => !['page', 'pageSize', 'sort'].includes(name)));
 
 describe('the Products tab’s cards follow its filters', () => {
+  it('the table asks the server for the oldest product first (owner 2026-11-06)', async () => {
+    open();
+    await cardsSay('14', '89');
+    expect(listCalls().at(-1)!.params.sort).toBe('oldest');
+    // The cards are a count, not an order: they never send it.
+    expect(summaryCalls().at(-1)!.params.sort).toBeUndefined();
+  });
+
   it('opens on Active: 14 products and 89 units — every match, not the 10 rows of the first page (55 + …)', async () => {
     open();
     // 12 + 2 active; units 78 + 11. The first page alone holds 10 rows / 55 units.

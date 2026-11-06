@@ -314,6 +314,11 @@ dashboard"); on a phone the badge sits above the label, as on the dashboard.
 - **The ledger's By column:** who recorded each row — the partner's name, else the login's email; "—" for a row from
   before anyone was recorded. In the CSV export too.
 
+**The Products tab lists the oldest product first — DECIDED 2026-11-06 (owner: "products table should be served
+reversed, where y30 is the first product").** The table asks the server for `sort=oldest` (created first on top, so
+PRD-000001, the Y30, leads); the order runs on the server like every list. Other screens that read `/products`
+(the sale and cycle pickers, the assistant) keep the default, newest first.
+
 **The Products tab's cards follow its filters — owner 2026-10-28 ("in products tab above the table we need cards
 that responds to filter, so when filter by category, it shows number of products in that category, and total number of
 units as well"); built 2026-10-28 on `feature/product-cards-filters`, merged into `dev` (not yet in production); the choices below GUESSED.**
