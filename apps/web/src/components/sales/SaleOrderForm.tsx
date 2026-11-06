@@ -951,6 +951,9 @@ export function SaleOrderForm({
                       }
                       placeholder={tph('chooseProduct')}
                       searchPlaceholder={tph('searchProducts')}
+                      // A name and "category · N in stock" under it: wider
+                      // than the field on a phone (UI audit M2).
+                      listMinWidth="18rem"
                       options={products
                         // Switched off, it is sold from the shelf until the
                         // shelf is empty, then it leaves (§3, owner 2026-10-14).
