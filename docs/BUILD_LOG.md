@@ -72,6 +72,10 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `feature/movement-customer-price`, not merged — a movement's customer and price** (owner 2026-11-06, §3).
+  The movements endpoint returns `customerName`/`walkIn`/`branchName`/`unitPrice`/`priceKind`/`currency` from its
+  existing batched reads; the movements list is the shared table on desktop (Customer, Price) and a card on a phone.
+  Investors get no customer or selling price (GUESS). Tests: `movement-customer-price.spec.ts`, `batch-movements.test.tsx`.
 - **On `feature/dashboard-cash-from-sales`, not merged — Cash from sales, one Stock tile, exchange-rate loss/gain**
   (owner 2026-11-06, §12, §18). Right now: Cash from sales (payments not reversed − `REFUND_PAID`, all time,
   `common/cash-from-sales.ts`) replaces Cash on hand (still in the API); Stock value + Units in stock became one
