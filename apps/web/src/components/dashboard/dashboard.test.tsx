@@ -79,6 +79,12 @@ function renderPage(locale: 'en' | 'ar' = 'en') {
 }
 
 const tile = (key: string) => screen.findByTestId(`tile-${key}`);
+/**
+ * The link a tile opens. A tile is its own <a>, except one whose pill carries
+ * an (i): a button cannot sit inside a link, so there the link is laid over the
+ * tile (stretched, 2026-11-06).
+ */
+const linkOf = (el: HTMLElement) => (el.tagName === 'A' ? el : within(el).getByTestId('stat-tile-link'));
 
 // ── Tiles ────────────────────────────────────────────────────────────
 describe('dashboard tiles lead to their lists', () => {
@@ -95,7 +101,7 @@ describe('dashboard tiles lead to their lists', () => {
     ['owedToLenders', '/lenders'],
   ])('%s → %s', async (key, href) => {
     renderPage();
-    const el = await tile(key);
+    const el = linkOf(await tile(key));
     expect(el.tagName).toBe('A');
     expect(el.getAttribute('href')).toBe(href);
   });
@@ -547,7 +553,7 @@ describe('Cash from sales replaces Cash on hand; one Stock tile', () => {
     expect(within(el).getByTestId('cash-from-sales-sub').getAttribute('title')).toBe('Paid in');
     // Not cash on hand under a new name.
     expect(el.textContent).not.toContain('100.00 EGP');
-    expect(within(screen.getByTestId('dashboard-right-now')).getAllByRole('link')[0]).toBe(el);
+    expect(within(screen.getByTestId('dashboard-right-now')).getAllByRole('link')[0]).toBe(linkOf(el));
   });
 
   it('Cash on hand is gone from the dashboard, in both languages, though the API still sends it', async () => {
@@ -728,6 +734,38 @@ describe('Cash from sales carries its profit', () => {
     const stock = await tile('stock');
     expect(within(stock).getByTestId('stat-badge').className).not.toContain('max-sm:hidden');
     expect(within(stock).queryByTestId('stat-badge-phone')).toBeNull();
+  });
+
+  it('an (i) after the pill, in both places, says what the profit is — and is no part of the tile’s link (2026-11-06)', async () => {
+    renderPage();
+    const el = await tile('cashFromSales');
+    const beside = within(within(el).getByTestId('stat-label')).getByTestId('stat-badge-info');
+    const phone = within(within(el).getByTestId('stat-icon-row')).getByTestId('stat-badge-info-phone');
+    for (const button of [beside, phone]) {
+      expect(button.closest('a')).toBeNull();
+      expect(button.getAttribute('aria-label')).toBe('What is this figure?');
+    }
+    const link = linkOf(el);
+    expect(link.getAttribute('href')).toBe('/payments');
+    const followed = vi.fn();
+    link.addEventListener('click', followed);
+    fireEvent.click(phone);
+    const panel = await screen.findByTestId('stat-badge-info-phone-panel');
+    expect(panel.textContent).toContain('Profit in the cash collected');
+    expect(panel.textContent).toContain('Net profit in Analytics takes them off.');
+    expect(followed).not.toHaveBeenCalled();
+    // Stock's count pill has none; nor has a tile without a pill.
+    expect(within(await tile('stock')).queryByRole('button')).toBeNull();
+    expect(within(await tile('revenue')).queryByRole('button')).toBeNull();
+  });
+
+  it('…and in Arabic', async () => {
+    renderPage('ar');
+    const el = await tile('cashFromSales');
+    const beside = within(within(el).getByTestId('stat-label')).getByTestId('stat-badge-info');
+    expect(beside.getAttribute('aria-label')).toBe('ما هذا الرقم؟');
+    fireEvent.click(beside);
+    expect((await screen.findByTestId('stat-badge-info-panel')).textContent).toContain('الربح في النقد المحصّل');
   });
 
   it('a large profit keeps its grouping and drops the piastres', async () => {

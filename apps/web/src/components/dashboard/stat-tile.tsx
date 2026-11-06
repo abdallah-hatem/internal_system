@@ -3,6 +3,9 @@ import { Link } from '@/i18n/navigation';
 import { Money } from '@/components/ui/money';
 import { formatMoney, parseDisplayedMoney, useNumberFormat } from '@/lib/numbers';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
+import { Info } from '@/components/ui/icons';
+import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/components/ui/popover';
+import { useId } from 'react';
 
 /**
  * A small pill beside a tile's label. `label` is what is shown; `srLabel` what
@@ -14,6 +17,12 @@ export interface StatTileBadge {
   label: React.ReactNode;
   srLabel: string;
   tone?: 'muted' | 'success' | 'danger';
+  /**
+   * What the figure is, behind a small (i) right after the pill (owner
+   * 2026-11-06, the profit pills). Opens on a tap, not a hover, so a phone
+   * can read it too.
+   */
+  info?: { buttonLabel: string; title: string; body: string };
 }
 
 export interface StatTileProps {
@@ -97,7 +106,24 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
   // where the row has room and the tile keeps its height; from sm up, beside
   // the label as a count does.
   const worded = badge !== undefined && typeof badge.label !== 'string';
+  const ids = useId();
+  const labelId = `${ids}-label`;
+  const srId = `${ids}-sr`;
+  const figureId = `${ids}-figure`;
+  const subId = `${ids}-sub`;
+  // The pill and its (i), as one unit: the (i) only ever appears with a pill,
+  // and hides with it at the breakpoint where the pill sits elsewhere.
   const pill = (testIdSuffix: string, extra: string) =>
+    badge &&
+    (badge.info ? (
+      <span data-testid={`stat-badge-group${testIdSuffix}`} className={`inline-flex shrink-0 items-center gap-1 ${extra}`}>
+        {pillOnly(testIdSuffix, extra)}
+        <BadgeInfo info={badge.info} testId={`stat-badge-info${testIdSuffix}`} />
+      </span>
+    ) : (
+      pillOnly(testIdSuffix, extra)
+    ));
+  const pillOnly = (testIdSuffix: string, extra: string) =>
     badge && (
       <span
         data-testid={`stat-badge${testIdSuffix}`}
@@ -126,12 +152,12 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
       <div className={`@container w-full min-w-0 flex-1 ${FIGURE_SIZE}`}>
         {badge ? (
           <p data-testid="stat-label" className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground sm:text-sm">
-            <span className="min-w-0 truncate">{label}</span>
+            <span id={labelId} className="min-w-0 truncate">{label}</span>
             {pill('', worded ? 'max-sm:hidden' : '')}
-            <span className="sr-only">{badge.srLabel}</span>
+            <span id={srId} className="sr-only">{badge.srLabel}</span>
           </p>
         ) : (
-          <p data-testid="stat-label" className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
+          <p data-testid="stat-label" id={labelId} className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
         )}
         {/* Always one line (2026-11-02): an eight-digit figure, "19,847,808.93
             EGP", wrapped onto a second line at 1440 and at 390, and the tile
@@ -141,6 +167,7 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
             skeleton's height either way. */}
         <p
           data-testid="stat-figure"
+          id={figureId}
           className="mt-1 whitespace-nowrap font-bold tabular-nums text-card-foreground"
           style={{
             fontSize: `min(var(--figure), calc(100cqi / ${(Math.max(chars, 1) * EM_PER_CHAR).toFixed(2)}))`,
@@ -149,7 +176,7 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
         >
           {figure}
         </p>
-        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+        {sub && <div id={subId} className="mt-1 text-xs text-muted-foreground">{sub}</div>}
       </div>
       {worded ? (
         <div data-testid="stat-icon-row" className="flex w-full items-center justify-between gap-2 sm:w-auto">
@@ -172,14 +199,66 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
     );
   }
 
+  const linkClass = 'cursor-pointer touch-manipulation transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.99]';
+
+  if (!badge?.info) {
+    return (
+      <Link href={href} data-testid={testId} className={`${frame} ${linkClass}`}>
+        {body}
+      </Link>
+    );
+  }
+
+  // A tile whose pill has an (i) still opens its list, but cannot be one <a>:
+  // the (i) is a button, and a button inside a link is invalid and navigates
+  // when tapped (2026-11-06). The link is laid over the tile instead (a
+  // stretched link): first in the DOM, so Tab reaches the tile before its (i);
+  // positioned, so it paints above the text and takes every click; named by
+  // the label, figure and second line, as the whole tile was. The (i) sits
+  // above it again (`BadgeInfo`, z-10). The frame carries the link's hover,
+  // press and focus ring, as the link did when it was the frame.
+  const labelledBy = [labelId, badge ? srId : null, figureId, sub ? subId : null].filter(Boolean).join(' ');
   return (
-    <Link
-      href={href}
+    <div
       data-testid={testId}
-      className={`${frame} cursor-pointer touch-manipulation transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.99]`}
+      className={`${frame} relative transition-shadow hover:shadow-md has-[>a:active]:scale-[0.99] has-[>a:focus-visible]:ring-2 has-[>a:focus-visible]:ring-primary`}
     >
+      <Link
+        href={href}
+        data-testid="stat-tile-link"
+        aria-labelledby={labelledBy}
+        className="absolute inset-0 cursor-pointer touch-manipulation rounded-xl focus-visible:outline-none"
+      />
       {body}
-    </Link>
+    </div>
+  );
+}
+
+/**
+ * The (i) after a pill. A real button (not a hover tooltip), so a tap on a
+ * phone opens it; Radix closes it on Escape and on a click outside. 14px, with
+ * a hit area grown past its box so the label row keeps its 16px pill height.
+ */
+function BadgeInfo({ info, testId }: { info: NonNullable<StatTileBadge['info']>; testId: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-testid={testId}
+          aria-label={info.buttonLabel}
+          className="relative z-10 inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors after:absolute after:-inset-2.5 after:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <Info className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent data-testid={`${testId}-panel`} collisionPadding={12} className="w-72 max-w-[calc(100vw-1.5rem)]">
+        <PopoverHeader>
+          <PopoverTitle>{info.title}</PopoverTitle>
+          <PopoverDescription className="text-xs leading-5">{info.body}</PopoverDescription>
+        </PopoverHeader>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -211,6 +290,8 @@ export function StatTileSkeleton({
                 data-testid="skeleton-badge"
                 className={`h-4 shrink-0 rounded-full ${badge === 'wide' ? 'w-20 max-sm:hidden' : 'w-7'}`}
               />
+              {/* A worded pill is a profit pill, which carries its (i). */}
+              {badge === 'wide' && <Skeleton data-testid="skeleton-badge-info" className="size-4 shrink-0 rounded-full max-sm:hidden" />}
             </div>
           ) : (
             <SkeletonText size="xs" lineClassName="sm:h-5" className="w-20 sm:h-3 sm:w-24" />
@@ -222,7 +303,10 @@ export function StatTileSkeleton({
           // On a phone the worded pill sits on the icon's row (StatTile).
           <div className="flex w-full items-center justify-between gap-2 sm:w-auto">
             <Skeleton className={`size-7 flex-shrink-0 rounded-lg sm:size-12 ${FOUR_ACROSS_BADGE_SKELETON}`} />
-            <Skeleton data-testid="skeleton-badge-phone" className="h-4 w-20 shrink-0 rounded-full sm:hidden" />
+            <span className="inline-flex shrink-0 items-center gap-1 sm:hidden">
+              <Skeleton data-testid="skeleton-badge-phone" className="h-4 w-20 shrink-0 rounded-full sm:hidden" />
+              <Skeleton data-testid="skeleton-badge-info-phone" className="size-4 shrink-0 rounded-full" />
+            </span>
           </div>
         ) : (
           <Skeleton className={`size-7 flex-shrink-0 rounded-lg sm:size-12 ${FOUR_ACROSS_BADGE_SKELETON}`} />
