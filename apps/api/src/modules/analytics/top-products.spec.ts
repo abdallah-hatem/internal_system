@@ -157,8 +157,14 @@ describe('GET /analytics/top-products?by=', () => {
 // /ar. The app picks the name (BUSINESS_LOGIC §3), so the API must send both.
 describe('top products carry both names', () => {
   it('the Arabic name comes back beside the English one; none is null, not missing', async () => {
-    const named = { ...product('SoundRide B35', [[3, 900]]), nameAr: 'سماعة ساوند رايد B35' };
-    const { data } = await service([named, product('Y20 FM', [[1, 100]])]).getTopProducts(5);
+    const named = {
+      ...product('SoundRide B35', [[3, 900]]),
+      nameAr: 'سماعة ساوند رايد B35',
+    };
+    const { data } = await service([
+      named,
+      product('Y20 FM', [[1, 100]]),
+    ]).getTopProducts(5);
     expect(data.map((p) => [p.name, p.nameAr])).toEqual([
       ['SoundRide B35', 'سماعة ساوند رايد B35'],
       ['Y20 FM', null],
