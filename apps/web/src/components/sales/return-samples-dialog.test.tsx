@@ -272,3 +272,44 @@ describe('Returned — some samples, not all', () => {
     expect(within(rowOf(dialog, 'p-2')).getByTestId('samples-return-invalid').textContent).toBe('من 0 إلى 2');
   });
 });
+
+describe('the order number in the Returned and Write off titles stays whole (UI audit M13)', () => {
+  beforeEach(() => {
+    data.orders = [SAMPLES_ORDER];
+    data.detail = { 'o-s': SAMPLES_ORDER };
+    post.mockReset();
+    post.mockImplementation(() => new Promise(() => {}));
+  });
+
+  /** The title's order number: one LTR run that cannot break at its hyphens. */
+  function expectWholeNumber(title: HTMLElement) {
+    const ref = [...title.querySelectorAll('bdi')].find((b) => b.textContent === 'ORD-2026-00042');
+    expect(ref, title.innerHTML).toBeTruthy();
+    expect(ref!.getAttribute('dir')).toBe('ltr');
+    expect(ref!.className).toContain('whitespace-nowrap');
+  }
+  const titleOf = (prefix: string) =>
+    screen.getAllByRole('heading', { level: 2 }).find((h) => h.textContent?.startsWith(prefix))!;
+
+  for (const locale of ['en', 'ar'] as const) {
+    const m = locale === 'ar' ? ar : en;
+    it(`Returned, in ${locale}`, async () => {
+      renderPage(locale);
+      await openReturned();
+      const title = titleOf(m.sales.samples.returnTitle.split('{')[0]);
+      expect(title.textContent).toContain('ORD-2026-00042');
+      expectWholeNumber(title);
+    });
+
+    it(`Write off, in ${locale}`, async () => {
+      renderPage(locale);
+      const table = await screen.findByTestId('sales-table');
+      fireEvent.click((await within(table).findAllByText('ORD-2026-00042'))[0]);
+      fireEvent.click(await screen.findByTestId('samples-write-off'));
+      await screen.findByTestId('samples-write-off-confirm');
+      const title = titleOf(m.sales.samples.writeOffTitle.split('{')[0]);
+      expect(title.textContent).toContain('ORD-2026-00042');
+      expectWholeNumber(title);
+    });
+  }
+});

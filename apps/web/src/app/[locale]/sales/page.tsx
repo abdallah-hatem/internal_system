@@ -60,6 +60,7 @@ import { LineHeldNote, LineTotalNow, LineUnitPrice, OrderTotal } from '@/compone
 import { TabBar } from '@/components/ui/tab-bar';
 import { isSamplesStatus, samplesUnits } from '@/lib/samples';
 import { useCan } from '@/lib/can';
+import { isolateCodes } from '@/components/layout/isolate-codes';
 import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
 import { SalesSummary } from '@/components/summary/tab-summaries';
 // ─── Types ────────────────────────────────────────────────────────────
@@ -1363,7 +1364,8 @@ function SalesPageContent() {
 
       {writingOffSamples && (
         <Dialog
-          title={tsm('writeOffTitle', { orderNo: writingOffSamples.orderNo })}
+          // The order number whole and in order, in Arabic too (UI audit M13).
+          title={isolateCodes(tsm('writeOffTitle', { orderNo: writingOffSamples.orderNo }))}
           onClose={() => setWritingOffSamples(null)}
           size="sm"
           busy={samplesMutation.isPending}
