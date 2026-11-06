@@ -96,7 +96,10 @@ function useMovementParts() {
     const qty = Number(mov.qtyDelta);
     return (
       <span className="flex min-w-0 items-center gap-2">
-        <span className={cn('inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', tone(mov))}>
+        <span
+          title={codeLabel('movementType', mov.movementType)}
+          className={cn('inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', tone(mov))}
+        >
           <MovementIcon mov={mov} />
           <span className="truncate">{codeLabel('movementType', mov.movementType)}</span>
         </span>
