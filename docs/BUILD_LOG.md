@@ -14,6 +14,12 @@ paid in one step, and **samples by branch** (BUSINESS_LOGIC §4 "Samples by bran
 then "tidy and push dev and merge"): New Order shows the order's branch's samples first, the rest under a collapsed
 "At other branches", tags a sample taken from another branch, regroups when the branch changes; Add all = the order's
 branch only (GUESS); one short heading per samples order instead of a sentence repeating its rows. No migration.
+- **2026-11-06, later — the Sameh sale removed (owner: "that was just a test, remove any sale related thing from
+  sameh today"):** `prisma/one-off/2026-11-06-remove-sameh-test-sale.ts` deleted ORD-2026-00016, its line, payment
+  and allocation, RET-2026-00007 and its line, their 3 ledger rows, 2 stock movements (net 0, stock unchanged),
+  6 notifications and 6 audit rows, with one DELETE audit row recording it (backup `prod-20261106-042010.sql`,
+  rehearsed on prodcopy, check-data all zero). Collected 128,400 → 126,400; cash on hand stays 162,803.65; revenue
+  220,725 unchanged. The entry below is history.
 - **2026-11-06, production data fix:** RET-2026-00007 (Sameh, ORD-2026-00016, one Y30, 2,000 paid in cash) was
   saved as a credit note on a paid order, so the 2,000 vanished and cash on hand stayed 2,000 high; Fares had handed
   the cash back (owner). `prisma/one-off/2026-11-06-ret-00007-cash-refund.ts` made it a cash refund with its
