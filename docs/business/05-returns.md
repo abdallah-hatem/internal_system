@@ -23,6 +23,37 @@ write-off rather than returning to inventory.
 balance and no cash needs to move. A cash refund is available and reaches the
 ledger as an outflow.
 
+**A credit note can only lower what the order still owes — DECIDED 2026-11-06
+(owner).** Found in production the same day: ORD-2026-00016, a shop order for
+2,000, was confirmed, paid in full in cash, then returned whole. The return form
+defaulted to a credit note, and a credit note only lowered the order's
+outstanding, floored at zero. The order owed nothing, so nothing went down: the
+shop's balance stayed 0, no credit was kept anywhere, and no `REFUND_PAID` row was
+written — cash on hand stayed 2,000 too high while the partner had handed the
+cash back. The 2,000 vanished.
+
+- A return on a credit note whose refund is more than the order's outstanding is
+  **refused** (`RETURN_CREDIT_OVER_OWED`, naming the order, the refund and what is
+  still owed). The partner then chooses a cash refund. The method is never
+  switched quietly.
+- Partly paid is the same rule: 500 owed and a return worth 800 on a credit note is
+  refused. A credit that equals what is owed is allowed and leaves the order paid.
+- **No method named**: a walk-in is cash (as before); a shop is a credit note when
+  the refund fits within what is owed, and **cash** when it does not, so the API
+  never defaults into the refusal.
+- A second return is checked against what the first left: the outstanding is read
+  again inside the return's transaction, under the `RET-` lock, so two returns at
+  once cannot both fit against the same figure.
+- The office's return dialog works out the refund of the lines picked (each unit at
+  the price it is held at, as the API does) and, once it is more than is owed,
+  picks Cash and disables the credit note with the reason under it.
+- `returns.service.spec.ts` (API) and `return-refund-method.test.tsx` (web) hold
+  the cases; TC-INV-96 in `34-business-invariants` is the invariant (written, not
+  run: no e2e). ORD-2026-00016 itself is not corrected by this change.
+- **OPEN (idea, not built):** split such a return — credit up to what is owed, cash
+  for the rest — instead of refusing. Refusing was chosen: one return, one method,
+  and the partner says which money moved.
+
 You cannot return more than remains returnable, counting earlier returns. A
 reason is required.
 

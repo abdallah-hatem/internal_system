@@ -23,19 +23,50 @@ import { heldUnitPrice } from '../../common/held-price';
 
 import { badRequest, notFound } from '../../common/api-error';
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
-const money = (v: Prisma.Decimal) => v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+const money = (v: Prisma.Decimal) =>
+  v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+
+/**
+ * A credit note bigger than what the order still owes: the surplus would be
+ * money nobody holds (§5, owner 2026-11-06). The partner refunds in cash.
+ */
+function creditOverOwed(
+  orderNo: string,
+  refund: Prisma.Decimal,
+  outstanding: Prisma.Decimal,
+) {
+  return badRequest(
+    'RETURN_CREDIT_OVER_OWED',
+    `${orderNo} still owes ${outstanding.toFixed(2)}, so a credit note cannot take ` +
+      `${refund.toFixed(2)} off it. Refund it in cash.`,
+    {
+      order: orderNo,
+      refund: refund.toFixed(2),
+      outstanding: outstanding.toFixed(2),
+    },
+  );
+}
 
 /** A sale must have happened before any of it can come back. */
 const RETURNABLE_ORDER_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'];
 
 const RETURN_INCLUDE = {
   saleOrder: {
-    select: { id: true, orderNo: true, currency: true, customer: { select: { displayName: true } } },
+    select: {
+      id: true,
+      orderNo: true,
+      currency: true,
+      customer: { select: { displayName: true } },
+    },
   },
   items: {
     include: {
-      saleItem: { select: { id: true, product: { select: { name: true, sku: true } } } },
-      inventoryBatch: { select: { id: true, cycleId: true, landedUnitCostEgp: true } },
+      saleItem: {
+        select: { id: true, product: { select: { name: true, sku: true } } },
+      },
+      inventoryBatch: {
+        select: { id: true, cycleId: true, landedUnitCostEgp: true },
+      },
     },
   },
 } satisfies Prisma.SaleReturnInclude;
@@ -66,7 +97,10 @@ export class ReturnsService {
     const data = hasMore ? items.slice(0, limit) : items;
     return {
       data,
-      meta: { nextCursor: hasMore ? data[data.length - 1]?.id ?? null : null, limit },
+      meta: {
+        nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null,
+        limit,
+      },
     };
   }
 
@@ -146,7 +180,10 @@ export class ReturnsService {
       }
 
       const sold = D(saleItem.quantity);
-      const alreadyReturned = saleItem.returnItems.reduce((s, r) => s.add(D(r.qty)), D(0));
+      const alreadyReturned = saleItem.returnItems.reduce(
+        (s, r) => s.add(D(r.qty)),
+        D(0),
+      );
       const wanted = D(line.qty);
       const returnable = sold.sub(alreadyReturned);
 
@@ -172,8 +209,8 @@ export class ReturnsService {
       const unitPrice = heldUnitPrice(saleItem);
 
       let outstanding = wanted;
-      const allocations = [...saleItem.allocations].sort(
-        (a, b) => (a.createdAt < b.createdAt ? 1 : -1),
+      const allocations = [...saleItem.allocations].sort((a, b) =>
+        a.createdAt < b.createdAt ? 1 : -1,
       );
 
       for (const alloc of allocations) {
@@ -232,9 +269,21 @@ export class ReturnsService {
         { order: order.orderNo },
       );
     }
+    // A credit note can only lower what is still owed (§5, owner 2026-11-06).
+    // ORD-2026-00016 was paid in full, returned whole on the default credit
+    // note, and the 2,000 vanished: the balance was already 0, so nothing was
+    // lowered, no credit is kept anywhere, and no cash left the books while the
+    // partner had handed it back. So a credit larger than the outstanding is
+    // refused, and when no method is named the default is the one that fits.
+    const creditFits = refundEgp.lte(D(order.outstanding));
     const refundMethod =
       dto.refundMethod ??
-      (order.customer.isWalkIn ? RefundMethod.CASH : RefundMethod.CREDIT_NOTE);
+      (order.customer.isWalkIn || !creditFits
+        ? RefundMethod.CASH
+        : RefundMethod.CREDIT_NOTE);
+    if (refundMethod === RefundMethod.CREDIT_NOTE && !creditFits) {
+      throw creditOverOwed(order.orderNo, refundEgp, D(order.outstanding));
+    }
 
     const created = await this.prisma.$transaction(async (tx) => {
       // Two returns at once read the same highest RET- and took the same
@@ -301,10 +350,27 @@ export class ReturnsService {
 
       // The customer owes less. A credit note reduces the outstanding balance;
       // cash actually leaves and is recorded as an outflow instead.
-      const outstanding = D(order.outstanding);
+      //
+      // Read again under the RET lock: a second return started alongside this
+      // one read the same outstanding before either credit landed, and would
+      // otherwise both fit and both be taken off it.
+      const outstanding = D(
+        (
+          await tx.saleOrder.findUniqueOrThrow({
+            where: { id: order.id },
+            select: { outstanding: true },
+          })
+        ).outstanding,
+      );
+      if (
+        refundMethod === RefundMethod.CREDIT_NOTE &&
+        refundEgp.gt(outstanding)
+      ) {
+        throw creditOverOwed(order.orderNo, refundEgp, outstanding);
+      }
       const newOutstanding =
         refundMethod === RefundMethod.CREDIT_NOTE
-          ? Prisma.Decimal.max(outstanding.sub(refundEgp), D(0))
+          ? outstanding.sub(refundEgp)
           : outstanding;
 
       const fullyReturned = await this.isFullyReturned(tx, order.id);
@@ -415,10 +481,7 @@ export class ReturnsService {
     });
 
     return items.every((item) => {
-      const returned = item.returnItems.reduce(
-        (s, r) => s.add(D(r.qty)),
-        D(0),
-      );
+      const returned = item.returnItems.reduce((s, r) => s.add(D(r.qty)), D(0));
       return returned.gte(D(item.quantity));
     });
   }

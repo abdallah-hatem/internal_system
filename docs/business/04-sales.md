@@ -650,9 +650,9 @@ screen's own choices, each a GUESS until the owner says otherwise:
   customer reads (`valueNow` beside `total`). The Sales list has no sort or filter by total.
 - GUESS: "was" is the price per unit as sold after the line's discount (what History calls "sold at"), not the
   price before the discount; the Discount column still shows the discount given at the sale.
-- GUESS: a credit note larger than what the order still owed is clamped at zero by the return (§5), so on such an
-  order the value now can be below what was paid; the identity above then reads as a surplus nobody holds. Not
-  changed here.
+- SUPERSEDED 2026-11-06: a credit note larger than what the order still owed used to be clamped at zero by the
+  return, leaving a surplus nobody holds. Such a credit is now refused (§5, `RETURN_CREDIT_OVER_OWED`), so the
+  identity above holds for every new return.
 
 Koshary's 100 off is not applied yet: once the Adjust price button is in production, or through the API when the owner
 says so.
