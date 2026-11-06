@@ -372,6 +372,20 @@ describe('production’s cycle 2 (2026-10-26)', () => {
     expect(pills.map((p) => p.getAttribute('data-short'))).toEqual(['false', 'true', 'true']);
   });
 
+  // UI audit M11 (2026-11-06): at 320 the pill took half the row and, never
+  // wrapping, ran back over "Contributed". On a phone it has the row's whole
+  // width on a line of its own; from md it is the Status column again.
+  it('on a phone the status pill has a line of its own, never half the row beside the name', async () => {
+    wrap();
+    const contributions = await screen.findByTestId('funding-contributions');
+    for (const row of within(contributions).getAllByTestId('share-row')) {
+      const cell = within(row).getByTestId('share-status-cell');
+      const cls = cell.className.split(' ');
+      expect(cls).toEqual(expect.arrayContaining(['col-span-2', 'md:col-span-1', 'justify-self-start']));
+      expect(cls).not.toContain('justify-self-end');
+    }
+  });
+
   it('into capital: his contribution; part drawn from his account and part still an advance reads as both, counted once', async () => {
     state.funding.putIn.byPartner[0] = putInRow('a', 'Abdallah', {
       total: '50775.00',
