@@ -332,7 +332,7 @@ describe('the (i) beside a profit pill', () => {
     fireEvent.click(infos(collected).beside!);
     const panel = await screen.findByTestId('stat-badge-info-panel');
     expect(panel.textContent).toContain('الربح اللي اتحصّل');
-    expect(panel.textContent).toContain('المصاريف مش متخصومة هنا');
+    expect(panel.textContent).toContain('المصاريف مش مخصومة هنا');
     cleanup();
     renderPage('ar');
     fireEvent.click(infos(await screen.findByTestId('sales-cash-to-collect')).beside!);
