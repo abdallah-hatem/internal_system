@@ -123,7 +123,17 @@ function renderPage() {
 
 const productSection = () => screen.getByRole('heading', { name: en.analytics.topProducts }).closest('section')!;
 const cycleSection = () => screen.getByRole('heading', { name: en.analytics.cycleProfitability }).closest('section')!;
-const shownProducts = () => within(productSection()).queryAllByText(/^Product \d+$/).map((e) => e.textContent);
+// The desktop table; a phone has its own list of the same rows (UI audit M1),
+// checked to agree with the table wherever both show.
+const productTable = () => within(productSection()).queryByTestId('top-products-table');
+const productCards = () => within(productSection()).queryByTestId('top-products-cards');
+const namesIn = (el: HTMLElement | null) =>
+  el ? within(el).queryAllByText(/^Product \d+$/).map((e) => e.textContent) : [];
+const shownProducts = () => {
+  const table = namesIn(productTable());
+  expect(namesIn(productCards())).toEqual(table);
+  return table;
+};
 const shownCycles = () => within(cycleSection()).queryAllByText(/^CYC-/).map((e) => e.textContent);
 
 // Eight products whose order differs by units and by revenue, plus three that sold nothing.
@@ -220,7 +230,61 @@ describe('Analytics — loading shows five rows in each list', () => {
     hold = new Promise<void>((r) => (release = r));
     renderPage();
     expect(within(productSection()).getAllByTestId('skeleton-row')).toHaveLength(5);
+    expect(within(productSection()).getAllByTestId('skeleton-card')).toHaveLength(5);
     expect(within(cycleSection()).getAllByTestId('skeleton-row')).toHaveLength(5);
     release();
+  });
+});
+
+/**
+ * UI audit M1 (2026-11-06): at 375 the card has 293px and the table needs
+ * 26.25rem, so Revenue sat past the card's edge in a sideways scroll with no
+ * cue ("145,21(" at the edge). A phone gets a row per product instead — the
+ * name on top, the three figures under it — and the table waits for md.
+ * jsdom has no layout, so this pins the structure that makes it fit.
+ */
+describe('Analytics — Top products on a phone', () => {
+  const BIG = [product(1, 337, 145_210), product(2, 9, 23_685_158.93)];
+
+  it('the table is for md and up; a phone gets the stacked list instead', async () => {
+    products = BIG;
+    cycles = [];
+    renderPage();
+    await waitFor(() => expect(productCards()).not.toBeNull());
+    const tableBox = productTable()!.closest('div.hidden')!;
+    expect(tableBox.className.split(' ')).toEqual(expect.arrayContaining(['hidden', 'md:block']));
+    expect(productCards()!.className.split(' ')).toContain('md:hidden');
+    // The list is not a table: nothing in it can scroll sideways.
+    expect(productCards()!.querySelector('table, .overflow-x-auto')).toBeNull();
+  });
+
+  it('every row shows its revenue whole, with the quantity and margin, each under its label', async () => {
+    products = BIG;
+    cycles = [];
+    renderPage();
+    await waitFor(() => expect(within(productCards()!).getAllByTestId('top-product-card')).toHaveLength(2));
+    const [first, second] = within(productCards()!).getAllByTestId('top-product-card');
+    expect(within(first).getByText('Product 1')).toBeTruthy();
+    expect(within(first).getByText('SKU-1')).toBeTruthy();
+    const revenue = within(first).getByTestId('top-product-card-revenue');
+    expect(revenue.textContent).toBe('145,210.00 EGP');
+    // Never wraps mid-figure; a narrow phone moves the whole figure down instead.
+    expect(revenue.className).toContain('whitespace-nowrap');
+    expect(revenue.closest('dl')!.className).toContain('flex-wrap');
+    expect(within(second).getByTestId('top-product-card-revenue').textContent).toBe('23,685,158.93 EGP');
+    const labels = within(first).getAllByRole('term').map((e) => e.textContent);
+    expect(labels).toEqual([en.analytics.quantitySold, en.analytics.revenue, en.analytics.margin]);
+    const values = within(first).getAllByRole('definition').map((e) => e.textContent);
+    expect(values).toEqual(['337', '145,210.00 EGP', '100.0%']);
+  });
+
+  it('switching to revenue reorders the phone list too, not only the table', async () => {
+    products = [...EIGHT];
+    cycles = [];
+    renderPage();
+    await waitFor(() => expect(shownProducts().length).toBeGreaterThan(0));
+    fireEvent.click(within(productSection()).getByRole('radio', { name: en.dashboard.byRevenue }));
+    await waitFor(() => expect(namesIn(productCards())[0]).toBe('Product 3'));
+    expect(namesIn(productCards())).toEqual(['Product 3', 'Product 5', 'Product 8', 'Product 1', 'Product 4']);
   });
 });

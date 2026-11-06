@@ -442,6 +442,40 @@ describe('clicking a bar opens what made it', () => {
   });
 });
 
+/**
+ * UI audit M12 (2026-11-06): at 375 an order's three figures sat in three
+ * columns that ran past the row's padding — "Gross profit 1,017.15 EGP"
+ * against the card's border, the labels not over their values. A phone now
+ * has a line per figure, its label at the start and the figure at the end;
+ * sm and up keep the three columns. jsdom has no layout, so this pins that.
+ */
+describe('an order’s figures fit a phone', () => {
+  it('one line per figure on a phone, label then figure; three columns from sm', async () => {
+    renderIn();
+    const popup = await openBar('2026-10-08');
+    const orders = await within(popup).findByTestId('pnl-breakdown-orders');
+    const row = orders.querySelector('li[data-order="o-cheap"]') as HTMLElement;
+    // The row keeps its inner padding on both sides.
+    expect(row.className.split(' ')).toEqual(expect.arrayContaining(['px-3']));
+    const figures = within(row).getByTestId('pnl-bd-figures');
+    const cls = figures.className.split(' ');
+    expect(cls).toEqual(expect.arrayContaining(['grid-cols-1', 'w-full', 'sm:grid-cols-3', 'sm:w-auto']));
+    expect(cls).not.toContain('grid-cols-3');
+    // Each label is paired with its own figure, in the order they read.
+    const pairs = [...figures.children].map((f) => {
+      expect(f.className.split(' ')).toEqual(expect.arrayContaining(['flex', 'justify-between', 'sm:block']));
+      return [f.querySelector('dt')!.textContent, f.querySelector('dd')!.textContent];
+    });
+    expect(pairs).toEqual([
+      [en.analytics.pnl.breakdown.revenue, expect.stringContaining('EGP')],
+      [en.analytics.pnl.breakdown.cogs, expect.stringContaining('EGP')],
+      [en.analytics.pnl.breakdown.gross, '-30.00 EGP'],
+    ]);
+    // A figure is never broken across lines.
+    for (const dd of figures.querySelectorAll('dd')) expect(dd.className).toContain('whitespace-nowrap');
+  });
+});
+
 /** A phone: the days are folded into weeks; a week's day, or the whole week, opens its breakdown. */
 describe('on a phone', () => {
   const realMatchMedia = window.matchMedia;

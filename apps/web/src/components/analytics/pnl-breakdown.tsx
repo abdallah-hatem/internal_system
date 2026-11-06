@@ -311,13 +311,19 @@ function SectionTotal({ section, totals }: { section: Section; totals: unknown }
 }
 
 /** A figure with its name above it, for the row's right-hand side. */
+/**
+ * One of an order's three figures. A phone has a line each — the label at the
+ * start, the figure at the end — and sm and up a column each, the label over
+ * its figure (UI audit M12, 2026-11-06: three columns side by side ran past
+ * the row's padding at 375, "Gross profit" against the card's border).
+ */
 function Figure({ label, value, strong, testId }: { label: string; value: number; strong?: boolean; testId?: string }) {
   return (
-    <div className="min-w-0 text-end">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p data-testid={testId} className={cn('whitespace-nowrap tabular-nums', strong ? cn('font-semibold', tone(value)) : 'text-foreground')}>
+    <div className="flex min-w-0 items-baseline justify-between gap-3 sm:block sm:text-end">
+      <dt className="text-[11px] text-muted-foreground">{label}</dt>
+      <dd data-testid={testId} className={cn('whitespace-nowrap tabular-nums', strong ? cn('font-semibold', tone(value)) : 'text-foreground')}>
         <Money value={value} />
-      </p>
+      </dd>
     </div>
   );
 }
@@ -355,11 +361,11 @@ function OrderLine({ row }: { row: OrderRow }) {
             ))}
           </ul>
         </div>
-        <div className="grid grid-cols-3 gap-x-4">
+        <dl data-testid="pnl-bd-figures" className="grid w-full grid-cols-1 gap-y-0.5 sm:w-auto sm:grid-cols-3 sm:gap-x-4">
           <Figure label={t('breakdown.revenue')} value={row.revenueEgp} testId="pnl-bd-revenue" />
           <Figure label={t('breakdown.cogs')} value={row.cogsEgp} testId="pnl-bd-cogs" />
           <Figure label={t('breakdown.gross')} value={row.grossProfitEgp} strong testId="pnl-bd-gross" />
-        </div>
+        </dl>
       </div>
     </li>
   );

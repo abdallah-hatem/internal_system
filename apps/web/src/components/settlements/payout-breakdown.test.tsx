@@ -5,6 +5,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import ar from '@/i18n/locales/ar.json';
 import en from '@/i18n/locales/en.json';
+import { formatDate } from '@/lib/dates';
 import { PayoutBreakdownView, type PayoutBreakdown } from './payout-breakdown';
 
 /**
@@ -80,8 +81,10 @@ const amounts = (root: HTMLElement) =>
 const total = (root: HTMLElement) =>
   Number(root.querySelector<HTMLElement>('[data-total]')!.dataset.amount);
 const labels = (root: HTMLElement) =>
-  // Dates in a label are wrapped in LRI…PDI so Arabic keeps them whole; strip them to compare.
-  [...root.querySelectorAll<HTMLElement>('[data-line] [data-label]')].map((l) => l.textContent?.replace(/[\u2066\u2069]/g, '') ?? null);
+  // Dates in a label are isolated (FSI..PDI) with non-breaking spaces so they stay whole; undo both to compare.
+  [...root.querySelectorAll<HTMLElement>('[data-line] [data-label]')].map(
+    (l) => l.textContent?.replace(/[⁨⁩]/g, '').replace(/ /g, ' ') ?? null,
+  );
 const cents = (n: number) => Math.round(n * 100);
 
 describe('the cycle’s lines', () => {
@@ -166,8 +169,8 @@ describe('each participant’s lines', () => {
       en.settlementsPage.investorFeeReceived,
       en.settlementsPage.capitalBack,
       en.settlementsPage.runningCostsPeriod
-        .replace('{from}', '2026-07-01')
-        .replace('{to}', '2026-09-30'),
+        .replace('{from}', 'Jul 1, 2026')
+        .replace('{to}', 'Sep 30, 2026'),
     ]);
     expect(cents(amounts(a).reduce((s, x) => s + x, 0))).toBe(cents(total(a)));
     expect(total(a)).toBe(44189);
@@ -199,17 +202,45 @@ describe('the running-costs line', () => {
       participants: [{ ...BREAKDOWN.participants[0], runningCostsFrom: '2026-10-12', runningCostsTo: '2026-10-12' }],
     });
     expect(labels(screen.getByTestId('breakdown-p-a'))[3]).toBe(
-      en.settlementsPage.runningCostsDay.replace('{day}', '2026-10-12'),
+      en.settlementsPage.runningCostsDay.replace('{day}', 'Oct 12, 2026'),
     );
   });
 });
 
 describe('both languages, logical sides only', () => {
-  it('Arabic: a date in a line is isolated left-to-right, so "(2026-07-01 – 2026-09-30)" is not split', () => {
+  // UI audit M7 (2026-11-06): the range was ISO, unlike every other date in
+  // the app, broke apart in Arabic and wrapped mid-date in English. Each date
+  // is now the app's own format, isolated, with no space a line can break at.
+  const runningLabel = () =>
+    screen.getByTestId('breakdown-p-a').querySelectorAll('[data-line] [data-label]')[3].textContent!;
+  const whole = (d: string) => `⁨${d.replace(/\s/g, ' ')}⁩`;
+
+  it('Arabic: each date in the app\'s Arabic format, isolated whole, never ISO', () => {
     renderIn('ar');
-    const label = screen.getByTestId('breakdown-p-a').querySelectorAll('[data-line] [data-label]')[3].textContent!;
-    expect(label).toContain('\u20662026-07-01\u2069');
-    expect(label).toContain('\u20662026-09-30\u2069');
+    const label = runningLabel();
+    const from = formatDate('2026-07-01', { locale: 'ar' });
+    const to = formatDate('2026-09-30', { locale: 'ar' });
+    expect(from).toMatch(/[؀-ۿ]/);
+    expect(label).toBe(ar.settlementsPage.runningCostsPeriod.replace('{from}', whole(from)).replace('{to}', whole(to)));
+    expect(label).not.toMatch(/2026-0\d-\d\d/);
+  });
+
+  it('English: no space inside a date a line could wrap at; the range may wrap between them', () => {
+    renderIn('en');
+    const label = runningLabel();
+    expect(label).toContain('⁨Jul 1, 2026⁩');
+    expect(label).toContain('⁨Sep 30, 2026⁩');
+    for (const date of label.match(/⁨[^⁩]*⁩/g)!) expect(date).not.toMatch(/ /);
+  });
+
+  it('a one-day range is one whole date too', () => {
+    renderIn('ar', {
+      ...BREAKDOWN,
+      participants: [{ ...BREAKDOWN.participants[0], runningCostsFrom: '2026-10-12', runningCostsTo: '2026-10-12' }],
+    });
+    expect(runningLabel()).toBe(
+      ar.settlementsPage.runningCostsDay.replace('{day}', whole(formatDate('2026-10-12', { locale: 'ar' }))),
+    );
   });
 
   it('Arabic: every line in Arabic, amounts kept left-to-right', () => {

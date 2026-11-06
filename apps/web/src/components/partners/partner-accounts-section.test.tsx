@@ -116,6 +116,18 @@ function wrap(locale: 'en' | 'ar' = 'en') {
 }
 
 describe('running accounts on the Partners page', () => {
+  // UI audit M10 (2026-11-06): on /ar the email took the page's direction, so
+  // a narrow card cut its start and every card read "…@motoparts.com".
+  it('in Arabic the email runs left to right, so a cut one keeps its name, and the whole of it is on hover', async () => {
+    wrap('ar');
+    const card = await screen.findByTestId('partner-account');
+    const email = within(card).getByText('shady@motoparts.com');
+    expect(email.getAttribute('dir')).toBe('ltr');
+    expect(email.className).toContain('truncate');
+    expect(email.className).toContain('[unicode-bidi:isolate]');
+    expect(email.getAttribute('title')).toBe('shady@motoparts.com');
+  });
+
   it('shows each balance and every entry as what it did to it', async () => {
     wrap();
     const card = await screen.findByTestId('partner-account');

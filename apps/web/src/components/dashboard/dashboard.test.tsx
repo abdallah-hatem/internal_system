@@ -728,4 +728,36 @@ describe('top products: units or revenue, with bars', () => {
     expect(screen.getByRole('radio', { name: 'الكمية' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: 'الإيراد' })).toBeTruthy();
   });
+
+  // UI audit M3 (2026-11-06): the card showed "SoundRide B35 Bluetooth Headset"
+  // on /ar although the product has an Arabic name; every other list localises.
+  describe('product names follow the reader’s language', () => {
+    const NAMED = [
+      { productId: 'p1', name: 'SoundRide B35 Bluetooth Headset', nameAr: 'سماعة خوذة ساوند رايد B35', sku: 'PRD-000006', totalQuantitySold: 9, revenueEgp: 900 },
+      // Blank and missing Arabic names fall back to the English, never a blank row.
+      { productId: 'p2', name: 'Y20 FM', nameAr: '   ', sku: 'PRD-000004', totalQuantitySold: 5, revenueEgp: 500 },
+      { productId: 'p3', name: 'Y12 PRO', nameAr: null, sku: 'PRD-000005', totalQuantitySold: 1, revenueEgp: 100 },
+    ];
+    beforeEach(() => {
+      get.mockImplementation((url: string) => {
+        if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: KPIS } });
+        if (url.startsWith('/analytics/top-products')) return Promise.resolve({ data: { data: NAMED } });
+        if (url.startsWith('/customers/to-collect')) {
+          return Promise.resolve({ data: { data: { totalOwed: '0.00', totalOverdue: '0.00', customers: 0, rows: [] } } });
+        }
+        return Promise.resolve({ data: { data: [] } });
+      });
+    });
+    const names = async () => (await rows()).map((r) => r.querySelector('[data-slot="latin-text"]')!.textContent);
+
+    it('Arabic: the Arabic name where one was entered, the English otherwise', async () => {
+      renderPage('ar');
+      expect(await names()).toEqual(['سماعة خوذة ساوند رايد B35', 'Y20 FM', 'Y12 PRO']);
+    });
+
+    it('English: always the English name, even when an Arabic one exists', async () => {
+      renderPage('en');
+      expect(await names()).toEqual(['SoundRide B35 Bluetooth Headset', 'Y20 FM', 'Y12 PRO']);
+    });
+  });
 });

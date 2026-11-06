@@ -9,6 +9,7 @@ import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';
 import { useDateFormat } from '@/lib/dates';
 import { Money } from '@/components/ui/money';
+import { LatinText } from '@/components/ui/latin-text';
 import { ArrowDownRight, Plus, RotateCcw } from '@/components/ui/icons';
 import { SkeletonGroup, SkeletonText, Skeleton, repeat } from '@/components/ui/skeleton';
 import {
@@ -143,7 +144,10 @@ function AccountCard({
           </div>
           <div className="min-w-0">
             <p className="truncate font-medium text-foreground">{a.name}</p>
-            <p className="truncate text-xs text-muted-foreground">{a.email}</p>
+            {/* Left to right even on /ar, so a cut email loses its end and keeps
+                the name that tells the cards apart (UI audit M10, 2026-11-06:
+                "…@motoparts.com" on every card). */}
+            <LatinText truncate dir="ltr" className="text-xs text-muted-foreground">{a.email}</LatinText>
           </div>
         </div>
         <div className="text-end">
