@@ -328,17 +328,17 @@ describe('the (i) beside a profit pill', () => {
   it('reads in Arabic', async () => {
     renderPage('ar');
     const collected = await screen.findByTestId('sales-cash-collected');
-    expect(infos(collected).beside!.getAttribute('aria-label')).toBe('ماذا يعني هذا؟');
+    expect(infos(collected).beside!.getAttribute('aria-label')).toBe('يعني إيه ده؟');
     fireEvent.click(infos(collected).beside!);
     const panel = await screen.findByTestId('stat-badge-info-panel');
-    expect(panel.textContent).toContain('الربح المحصّل');
-    expect(panel.textContent).toContain('المصروفات غير مخصومة هنا');
+    expect(panel.textContent).toContain('الربح اللي اتحصّل');
+    expect(panel.textContent).toContain('المصاريف مش متخصومة هنا');
     cleanup();
     renderPage('ar');
     fireEvent.click(infos(await screen.findByTestId('sales-cash-to-collect')).beside!);
     const toCome = await screen.findByTestId('stat-badge-info-panel');
-    expect(toCome.textContent).toContain('ربح لم يُحصّل بعد');
-    expect(toCome.textContent).toContain('يصلك عندما يدفعون');
+    expect(toCome.textContent).toContain('ربح لسه جاي');
+    expect(toCome.textContent).toContain('هيوصلك لما يدفعوا');
   });
 
   it('the skeleton traces the (i) beside each wide pill, in both places', async () => {

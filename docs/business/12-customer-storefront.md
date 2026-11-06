@@ -208,12 +208,12 @@ option B: "finish and ship"), on `feature/cash-profit`, not merged.**
   A 14px (i) right after each profit pill (both placements; none without a pill, none on Stock's count) opens a
   popover on tap or click (Escape or a click outside closes it). Short words (owner 2026-11-06, "simplify words
   more in en and ar"): "Profit collected — What customers paid, minus what the goods cost you (price + shipping).
-  Expenses are not taken off here." / "الربح المحصّل — ما دفعه العملاء ناقص تكلفة البضاعة (السعر + الشحن). المصروفات
+  Expenses are not taken off here." / "الربح اللي اتحصّل — ما دفعه العملاء ناقص تكلفة البضاعة (السعر + الشحن). المصروفات
   غير مخصومة هنا." and "Profit still to come — The profit in what customers still owe. You get it when they pay." /
-  "ربح لم يُحصّل بعد — الربح الموجود فيما يدين به العملاء. يصلك عندما يدفعون." A loss says "Loss collected" / "Loss
+  "ربح لسه جاي — ده الربح اللي في الفلوس اللي لسه على العملاء. هيوصلك لما يدفعوا." A loss says "Loss collected" / "Loss
   still to come". Tapping the (i) does not open the tile's list: on those tiles the link is laid over the tile
   (a stretched link) instead of wrapping it, so the button is not inside the `<a>`. On `feature/profit-pill-info`,
-  not merged. GUESS (agent's wording): the Arabic text and the button's name "What does this mean?" / "ماذا يعني هذا؟".
+  not merged. GUESS (agent's wording): the Arabic text and the button's name "What does this mean?" / "يعني إيه ده؟".
 
 **Right now simplified: Cash from sales, one Stock tile — DECIDED 2026-11-06 (owner), on
 `feature/dashboard-cash-from-sales`, not merged.** The owner: "simplify the dashboard cards, we don't need cash

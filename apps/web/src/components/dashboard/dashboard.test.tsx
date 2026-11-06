@@ -763,9 +763,9 @@ describe('Cash from sales carries its profit', () => {
     renderPage('ar');
     const el = await tile('cashFromSales');
     const beside = within(within(el).getByTestId('stat-label')).getByTestId('stat-badge-info');
-    expect(beside.getAttribute('aria-label')).toBe('ماذا يعني هذا؟');
+    expect(beside.getAttribute('aria-label')).toBe('يعني إيه ده؟');
     fireEvent.click(beside);
-    expect((await screen.findByTestId('stat-badge-info-panel')).textContent).toContain('الربح المحصّل');
+    expect((await screen.findByTestId('stat-badge-info-panel')).textContent).toContain('الربح اللي اتحصّل');
   });
 
   it('a large profit keeps its grouping and drops the piastres', async () => {
