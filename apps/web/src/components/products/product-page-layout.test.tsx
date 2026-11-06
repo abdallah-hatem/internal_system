@@ -133,9 +133,10 @@ describe('the batches: a table on desktop, cards on a phone', () => {
     renderPage();
     const table = await screen.findByTestId('batches-table');
     expect(table.getAttribute('data-slot')).toBe('data-table');
-    // The table from lg, not md: 768 gets the cards (UI re-check P5).
-    expect(table.closest('.hidden.lg\\:block')).toBeTruthy();
-    expect(table.closest('.md\\:block')).toBeNull();
+    // The table from xl: 768 (UI re-check P5) and 1024 beside the sidebar
+    // (re-check 2, N1: 740px needed, 708 there) get the cards.
+    expect(table.closest('.hidden.xl\\:block')).toBeTruthy();
+    expect(table.closest('.md\\:block, .lg\\:block')).toBeNull();
     const headers = within(table).getAllByRole('columnheader').map((h) => h.textContent);
     expect(headers).toEqual(
       expect.arrayContaining([
@@ -157,9 +158,9 @@ describe('the batches: a table on desktop, cards on a phone', () => {
     renderPage();
     const cards = await screen.findAllByTestId('batch-card');
     expect(cards).toHaveLength(3);
-    // Cards up to lg: at md (768) the table scrolled sideways (UI re-check P5).
-    expect(cards[0].closest('ul')!.className).toContain('lg:hidden');
-    expect(cards[0].closest('ul')!.className).not.toMatch(/(^| )md:hidden/);
+    // Cards up to xl: at 768 and at 1024 beside the sidebar the table scrolled sideways.
+    expect(cards[0].closest('ul')!.className).toContain('xl:hidden');
+    expect(cards[0].closest('ul')!.className).not.toMatch(/(^| )(md|lg):hidden/);
     const lines = Array.from(cards[0].querySelectorAll('dl > div')) as HTMLElement[];
     expect(lines.map((l) => l.querySelector('dt')!.textContent)).toEqual([
       en.products.cycle, en.products.receivedQty, en.products.remainingQty, en.products.landedCost,

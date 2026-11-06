@@ -1185,7 +1185,9 @@ function SalesPageContent() {
                 <DataTable
                   frame="none"
                   density="compact"
-                  autoMin="9rem"
+                  // The product's minimum: with the line total's 9rem it fits
+                  // the ~256px a 320px phone leaves in the popup (UI re-check 2, N2).
+                  autoMin="6rem"
                   columns={itemColumns}
                   rows={detail.items ?? []}
                   rowKey={(item) => item.id}
