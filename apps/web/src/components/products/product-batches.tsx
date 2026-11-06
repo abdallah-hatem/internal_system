@@ -103,7 +103,10 @@ export function ProductBatches({ batches }: { batches: readonly ProductBatch[] }
     enabled: !!expanded,
   });
   const movements: BatchMovement[] = Array.isArray(data) ? data : [];
-  const movementList = <BatchMovementList movements={movements} loading={isLoading} />;
+  // The table in the desktop row, the cards in the phone card: each list once.
+  const movementList = (layout: 'table' | 'cards') => (
+    <BatchMovementList movements={movements} loading={isLoading} layout={layout} />
+  );
 
   const arrived = (b: ProductBatch) => (b.arrivedOn ? formatDate(b.arrivedOn) : tInv('notArrivedYet'));
   const cycleCode = (b: ProductBatch) => <bdi dir="ltr" className="font-mono">{b.cycle?.code ?? '—'}</bdi>;
@@ -169,7 +172,7 @@ export function ProductBatches({ batches }: { batches: readonly ProductBatch[] }
               expanded === b.id ? (
                 <tr data-testid="batch-movements-row">
                   <td colSpan={columns.length} className="bg-muted/50 px-4 pb-4 pt-1">
-                    {movementList}
+                    {movementList('table')}
                   </td>
                 </tr>
               ) : null
@@ -201,7 +204,7 @@ export function ProductBatches({ batches }: { batches: readonly ProductBatch[] }
                   </button>
                   {open && (
                     <div data-testid="batch-card-movements" className="border-t border-border bg-muted/50 p-3">
-                      {movementList}
+                      {movementList('cards')}
                     </div>
                   )}
                 </li>

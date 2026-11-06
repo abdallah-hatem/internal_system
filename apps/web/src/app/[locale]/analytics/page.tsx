@@ -6,6 +6,7 @@ import { Segmented } from '@/components/ui/segmented';
 import { localName } from '@/lib/localized-name';
 import { Suspense } from 'react';
 import { ProfitAndLossSection, ProfitAndLossSkeleton } from '@/components/analytics/profit-and-loss-section';
+import { SalesCashSection } from '@/components/analytics/sales-cash-section';
 import { Money } from '../../../components/ui/money';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
@@ -196,6 +197,10 @@ export default function AnalyticsPage() {
       >
         <ProfitAndLossSection />
       </Suspense>
+
+      {/* Sales cash, all time: what customers paid and what they still owe,
+          each with the profit in it (owner 2026-11-06). Not on the period. */}
+      <SalesCashSection />
 
         <>
           {/* Revenue by month lived here; its figures are the profit and loss

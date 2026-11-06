@@ -174,6 +174,37 @@ the dashboard on 2026-10-18 (owner: "remove fuel from dashboard"); it is recorde
 actions only (§9).
 On a phone every figure tile keeps its icon (superseded 2026-10-23, below: six showed, then "See more").
 
+**The profit in the cash: a pill on Cash from sales, and Sales cash on Analytics — DECIDED 2026-11-06 (owner,
+option B: "finish and ship"), on `feature/cash-profit`, not merged.**
+- **The figure** — one definition, `apps/api/src/common/profit-on-collected.ts`, sent by `GET
+  /analytics/dashboard` as `profitOnCollectedEgp` and `profitToCollectEgp`. For every realised sale order
+  (`REALISED_SALE_STATUSES`: Confirmed, Partially paid, Paid — drafts, cancelled, returned and samples orders are
+  not sales) with a total above 0: **paid** = its payment allocations whose payment is not reversed; **value** =
+  paid + outstanding; **cost** = its lines' COGS (`sale_item_allocations.cogs_egp`) − the cost its returns gave
+  back (`sale_return_items.cogs_reversed_egp`, zero for damaged goods, whose cost stays); **profit** = value −
+  cost, a loss kept negative, never clamped; **profit collected** = profit × paid / value (0 when value is 0).
+  `profitOnCollectedEgp` = Σ profit collected; `profitToCollectEgp` = Σ profit − Σ profit collected. Production
+  read 2026-11-06: total profit 45,871.74, collected 25,501.79, to come 20,369.95 (paid 126,400, owed 94,325).
+- **GUESS (accepted by the owner in chat 2026-11-06: "for a part-paid order, its profit counts the share
+  paid")**: a part-paid order's profit is split in proportion to what has been paid; every pound collected
+  carries the same share of profit.
+- **DECIDED 2026-11-06 — a cash refund comes off what was paid.** The payment's allocation stays and outstanding
+  does not move on a cash refund, so the split reads the order's CASH returns (`refundEgp`) and takes them off paid:
+  paid = recorded allocations − cash refunded; value = paid + outstanding. Without it the refunded money counted
+  as profit collected while the goods' cost came back. A credit note was already read correctly (outstanding falls).
+- **The pill** — beside Cash from sales' title: "+25,502 profit" ("+25,502 ربح"), green (`bg-success/10
+  text-success`); the profit rounded to whole pounds, half a pound away from zero, grouped, Latin digits. Hidden
+  when it rounds to 0. A loss shows red, "-1,235 loss" ("خسارة"). The figure on the tile is still Cash from
+  sales. A screen reader hears "25,502 EGP of profit in this cash". The skeleton traces a wider pill there.
+- **Second line** — owner: "just paid in please, no less refund": "Paid in" ("ما دفعه العملاء"). The figure did
+  not change; it is still payments less cash refunds (supersedes the line's wording above).
+- **Analytics: Sales cash, All time** — owner: "where to see the current cash from sales, and what left to
+  collect, why is it not shown in analytics?". Under Profit and loss, not tied to its period: "Sales cash · All
+  time" ("نقد المبيعات · منذ البداية"), two of the dashboard's tiles — **Collected** ("المُحصَّل", Cash from sales,
+  with its profit pill, to Payments) and **Still to collect** ("المتبقي للتحصيل", To collect, with "+20,370
+  profit to come" / "ربح قادم", to Customers by balance). The same `/analytics/dashboard` response the dashboard
+  reads. GUESS (agent's wording): every string above but "Paid in", and "-N loss to come" for a loss still owed.
+
 **Right now simplified: Cash from sales, one Stock tile — DECIDED 2026-11-06 (owner), on
 `feature/dashboard-cash-from-sales`, not merged.** The owner: "simplify the dashboard cards, we don't need cash
 on hand, make it available cash from sales". Cash on hand mixed the partners' funding, lender money, supplier
@@ -282,6 +313,11 @@ dashboard"); on a phone the badge sits above the label, as on the dashboard.
 - All three endpoints: core partners and support, as the rest of Analytics.
 - **The ledger's By column:** who recorded each row — the partner's name, else the login's email; "—" for a row from
   before anyone was recorded. In the CSV export too.
+
+**The Products tab lists the oldest product first — DECIDED 2026-11-06 (owner: "products table should be served
+reversed, where y30 is the first product").** The table asks the server for `sort=oldest` (created first on top, so
+PRD-000001, the Y30, leads); the order runs on the server like every list. Other screens that read `/products`
+(the sale and cycle pickers, the assistant) keep the default, newest first.
 
 **The Products tab's cards follow its filters — owner 2026-10-28 ("in products tab above the table we need cards
 that responds to filter, so when filter by category, it shows number of products in that category, and total number of

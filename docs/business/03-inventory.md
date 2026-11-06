@@ -314,3 +314,25 @@ taking the whole row, three then two from 768px, one row of five from 1280px.
 
 ---
 
+
+### A movement's customer and price  — 2026-11-06 (owner), details GUESSED, on `feature/movement-customer-price`, not merged
+
+Owner: "in a product details page, in movement I want to see the customer name and the price". Opening a batch on the
+product page (and on Inventory) lists its movements; each row now says who it went to or came back from, and the price
+per unit. `GET /inventory/batches/:id/movements` resolves both (`customerName`, `walkIn`, `branchName`, `unitPrice`,
+`priceKind` `'sale' | 'refund' | 'cost' | null`, `currency`) in the same three batched reads it already made for the
+record numbers — one per kind of record, never one per row; the screen looks nothing up.
+
+| Rule | What the code does | Status |
+|---|---|---|
+| Customer | SALE and a cancel's RELEASE: the order's customer. RETURN (and a damaged return's WRITE_OFF): the customer of the order it was made on. SAMPLE_OUT / SAMPLE_BACK: the shop holding the samples. The branch, if the order has one, small under the name. The shared walk-in record says "Walk-in", never its stored name. Receipts, transfers, adjustments: "—". | **DECIDED** (owner asked); RELEASE and WRITE_OFF carrying the customer is a **GUESS** |
+| Sale price | The line's total ÷ its quantity — after a line discount, the same per-unit rule a return refunds at (`heldUnitPrice`, `common/held-price.ts`) — in the order's currency. As sold: a price lowered later is its own dated record and does not rewrite the sale row. The order-level discount is not spread over the lines. | **GUESS** (as sold, not as later adjusted; order discount left out) |
+| Two lines, two prices | Two lines of the same product on one order at different prices: no price ("—"), never an average nobody charged. Only the lines that drew from this batch count, and only this batch's product — another product on the same order never lends its price. | **GUESS** |
+| Refund price | `sale_return_items.unit_price` of the return's lines that went back to this batch, in the order's currency. | **DECIDED** |
+| Receipt | The batch's landed unit cost in EGP, with a muted "cost" after it, so it is never read as a selling price. Today's landed cost: a leg recosted later shows the new figure. | **DECIDED** (owner's brief) |
+| Samples, others | No charge, so "—". Never an invented price. | **DECIDED** |
+| A record that is gone | A movement whose order or return no longer exists, or whose reference type names another kind of record, shows nothing — never a 500, never another record's customer. | **DECIDED** |
+| Who sees it | Customers and selling/refund prices only for CORE_PARTNER and ADMIN_SUPPORT, who read Sales. A temporary investor's read of their cycle's batch keeps the record numbers and the landed cost (already on the batch), with customer and price null. | **GUESS** |
+
+Desktop: the movements are the shared table (Movement, Customer, Price, Record, Date); a phone: a card per movement,
+the customer and price on its second line.

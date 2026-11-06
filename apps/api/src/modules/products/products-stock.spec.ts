@@ -73,3 +73,23 @@ describe('stock on the products list', () => {
     expect(data.every((p: any) => p.onHand === undefined)).toBe(true);
   });
 });
+
+describe('the order of the products list (owner 2026-11-06)', () => {
+  it('sort=oldest puts the first product added on top', async () => {
+    const { svc, findMany } = service();
+    await svc.findAll({ sort: 'oldest' } as any);
+    expect(findMany.mock.calls[0][0].orderBy).toEqual([
+      { createdAt: 'asc' },
+      { id: 'asc' },
+    ]);
+  });
+
+  it('with no sort it stays newest first, for the pickers that read it', async () => {
+    const { svc, findMany } = service();
+    await svc.findAll({});
+    expect(findMany.mock.calls[0][0].orderBy).toEqual([
+      { createdAt: 'desc' },
+      { id: 'desc' },
+    ]);
+  });
+});

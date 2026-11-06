@@ -36,7 +36,7 @@ const KPIS = {
   totalRevenue: 1000, totalExpenses: 50, totalCogs: 400, totalCashOut: 600, totalCashIn: 700,
   // Cash on hand is still in the response (the assistant reads it) and unlike
   // Cash from sales, so a tile showing the wrong one shows the wrong number.
-  cashOnHand: 100, cashFromSalesEgp: 126400, netProfit: 550, activeCycles: 2, inventoryValue: 3000, receivables: 300,
+  cashOnHand: 100, cashFromSalesEgp: 126400, profitOnCollectedEgp: 25501.79, profitToCollectEgp: 20369.95, netProfit: 550, activeCycles: 2, inventoryValue: 3000, receivables: 300,
   collected: 700, lowStockAlerts: 3, totalCustomers: 4, totalProducts: 5, unitsInStock: 42,
   // This calendar month — deliberately unlike the all-time figures above, so
   // a tile reading the wrong one shows the wrong number.
@@ -510,7 +510,15 @@ describe('two groups: Right now, then This month', () => {
     const lines = rn.map((el) => el.querySelector('.flex-1')!.children.length);
     expect(lines).toEqual([3, 2, 3, 2, 2, 2]);
     // The count pill beside Stock's label, and nowhere else.
-    expect(rn.map((el) => !!el.querySelector('[data-testid="skeleton-badge"]'))).toEqual([false, false, false, true, false, false]);
+    expect(rn.map((el) => !!el.querySelector('[data-testid="skeleton-badge"]'))).toEqual([true, false, false, true, false, false]);
+    // Cash from sales' is a worded pill ("+25,502 profit"), wider than Stock's count.
+    expect(rn[0].querySelector('[data-testid="skeleton-badge"]')!.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(['w-20', 'max-sm:hidden']),
+    );
+    // …and on a phone on the icon's row, as the tile puts it.
+    expect(rn[0].querySelector('[data-testid="skeleton-badge-phone"]')!.className.split(/\s+/)).toContain('sm:hidden');
+    expect(rn[3].querySelector('[data-testid="skeleton-badge-phone"]')).toBeNull();
+    expect(rn[3].querySelector('[data-testid="skeleton-badge"]')!.className.split(/\s+/)).toContain('w-7');
   });
 
   it('…and the tiles carry that second line and badge exactly where the skeleton does', async () => {
@@ -521,7 +529,7 @@ describe('two groups: Right now, then This month', () => {
     );
     expect(subs).toEqual([3, 2, 3, 2, 2, 2]);
     const badges = await Promise.all(RIGHT_NOW_TILES.map(async (key) => !!within(await tile(key)).queryByTestId('stat-badge')));
-    expect(badges).toEqual([false, false, false, true, false, false]);
+    expect(badges).toEqual([true, false, false, true, false, false]);
   });
 });
 
@@ -533,10 +541,10 @@ describe('Cash from sales replaces Cash on hand; one Stock tile', () => {
     const el = await tile('cashFromSales');
     expect(el.textContent).toContain('Cash from sales');
     expect(el.textContent).toContain('126,400.00');
-    expect(el.textContent).toContain('Paid in, less refunds');
+    expect(within(el).getByTestId('cash-from-sales-sub').textContent).toBe('Paid in');
     // One line, as the skeleton traces it: cut, never wrapped (it wrapped at 390).
     expect(within(el).getByTestId('cash-from-sales-sub').className.split(/\s+/)).toContain('truncate');
-    expect(within(el).getByTestId('cash-from-sales-sub').getAttribute('title')).toBe('Paid in, less refunds');
+    expect(within(el).getByTestId('cash-from-sales-sub').getAttribute('title')).toBe('Paid in');
     // Not cash on hand under a new name.
     expect(el.textContent).not.toContain('100.00 EGP');
     expect(within(screen.getByTestId('dashboard-right-now')).getAllByRole('link')[0]).toBe(el);
@@ -609,8 +617,12 @@ describe('Cash from sales replaces Cash on hand; one Stock tile', () => {
     expect(RIGHT_NOW_TILES as readonly string[]).not.toContain('unitsInStock');
     expect(RIGHT_NOW_TILES as readonly string[]).not.toContain('inventoryValue');
     expect(document.body.textContent).not.toMatch(/Units in stock|Items in stock|Stock value/);
-    // The count appears once on the whole dashboard: the badge.
-    expect(screen.getAllByTestId('stat-badge')).toHaveLength(1);
+    // The count appears once on the whole dashboard: Stock's badge. The only
+    // other pill is Cash from sales' profit.
+    expect(screen.getAllByTestId('stat-badge').map((b) => b.closest('[data-testid^="tile-"]')!.getAttribute('data-testid'))).toEqual([
+      'tile-cashFromSales',
+      'tile-stock',
+    ]);
   });
 
   it('Stock keeps fractional units (metres, kilos) and reads 0 when empty', async () => {
@@ -631,6 +643,97 @@ describe('Cash from sales replaces Cash on hand; one Stock tile', () => {
     });
     renderPage();
     expect(within(await tile('stock')).getByTestId('stat-badge').textContent).toBe('0');
+  });
+});
+
+// Owner 2026-11-06, option B: "+25,502 profit" beside Cash from sales, and
+// the second line "just paid in please, no less refund".
+describe('Cash from sales carries its profit', () => {
+  const withKpis = (extra: Record<string, unknown>) =>
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: { ...KPIS, ...extra } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+  const pill = async () => within(await tile('cashFromSales')).queryByTestId('stat-badge');
+
+  it('a green pill beside the title: the server’s profit to the whole pound, grouped', async () => {
+    renderPage();
+    const label = within(await tile('cashFromSales')).getByTestId('stat-label');
+    const badge = within(label).getByTestId('stat-badge');
+    expect(badge.textContent).toBe('+25,502 profit');
+    expect(label.textContent).toMatch(/^Cash from sales\+25,502 profit/);
+    expect(badge.getAttribute('data-tone')).toBe('success');
+    expect(badge.className.split(/\s+/)).toEqual(expect.arrayContaining(['rounded-full', 'bg-success/10', 'text-success']));
+    expect(badge.className).not.toContain('bg-muted');
+    // The figure itself is still the cash, not the profit.
+    expect(within(await tile('cashFromSales')).getByTestId('stat-figure').textContent).toContain('126,400.00');
+    expect(within(label).getByText('25,502 EGP of profit in this cash').className).toContain('sr-only');
+  });
+
+  it('reads in Arabic, the figure isolated left to right inside it', async () => {
+    renderPage('ar');
+    const el = await tile('cashFromSales');
+    const badge = within(el).getByTestId('stat-badge');
+    expect(badge.textContent).toBe('+25,502 ربح');
+    expect(badge.querySelector('bdi')!.getAttribute('dir')).toBe('ltr');
+    expect(badge.querySelector('bdi')!.textContent).toBe('+25,502');
+    expect(within(el).getByTestId('cash-from-sales-sub').textContent).toBe(ar.dashboard.cashFromSalesSub);
+    expect(ar.dashboard.cashFromSalesSub).toBe('ما دفعه العملاء');
+  });
+
+  it('no pill when the profit is zero, or rounds to zero, or the API does not send it', async () => {
+    withKpis({ profitOnCollectedEgp: 0 });
+    renderPage();
+    expect(await pill()).toBeNull();
+    cleanup();
+    withKpis({ profitOnCollectedEgp: 0.4 });
+    renderPage();
+    expect(await pill()).toBeNull();
+    cleanup();
+    const old: Record<string, unknown> = { ...KPIS };
+    delete old.profitOnCollectedEgp;
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: { data: url.startsWith('/analytics/dashboard') ? old : [] } }),
+    );
+    renderPage();
+    expect(await pill()).toBeNull();
+  });
+
+  it('a loss shows red, "-N loss", never as zero or as a profit', async () => {
+    withKpis({ profitOnCollectedEgp: -1234.5 });
+    renderPage();
+    const badge = (await pill())!;
+    expect(badge.textContent).toBe('-1,235 loss');
+    expect(badge.getAttribute('data-tone')).toBe('danger');
+    expect(badge.className.split(/\s+/)).toEqual(expect.arrayContaining(['bg-destructive/10', 'text-destructive']));
+    expect(badge.className).not.toContain('text-success');
+    cleanup();
+    withKpis({ profitOnCollectedEgp: -1234.5 });
+    renderPage('ar');
+    expect((await pill())!.textContent).toBe('-1,235 خسارة');
+  });
+
+  it('on a phone the pill moves to the icon’s row, so the title is not cut (“Cash f…” at 390)', async () => {
+    renderPage();
+    const el = await tile('cashFromSales');
+    const beside = within(within(el).getByTestId('stat-label')).getByTestId('stat-badge');
+    expect(beside.className.split(/\s+/)).toContain('max-sm:hidden');
+    const row = within(el).getByTestId('stat-icon-row');
+    const phone = within(row).getByTestId('stat-badge-phone');
+    expect(phone.className.split(/\s+/)).toContain('sm:hidden');
+    expect(phone.textContent).toBe('+25,502 profit');
+    expect(phone.getAttribute('aria-hidden')).toBe('true');
+    expect(row.firstElementChild!.getAttribute('data-testid')).toBe('tile-icon');
+    // Stock's count stays beside its title everywhere.
+    const stock = await tile('stock');
+    expect(within(stock).getByTestId('stat-badge').className).not.toContain('max-sm:hidden');
+    expect(within(stock).queryByTestId('stat-badge-phone')).toBeNull();
+  });
+
+  it('a large profit keeps its grouping and drops the piastres', async () => {
+    withKpis({ profitOnCollectedEgp: 1234567.5 });
+    renderPage();
+    expect((await pill())!.textContent).toBe('+1,234,568 profit');
   });
 });
 

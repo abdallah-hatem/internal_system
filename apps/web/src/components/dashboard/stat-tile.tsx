@@ -4,6 +4,18 @@ import { Money } from '@/components/ui/money';
 import { formatMoney, parseDisplayedMoney, useNumberFormat } from '@/lib/numbers';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 
+/**
+ * A small pill beside a tile's label. `label` is what is shown; `srLabel` what
+ * a screen reader hears instead ("22 units in stock"). `tone` colours it:
+ * muted for a count (Stock's units), success for a profit and danger for a
+ * loss (the cash tiles' profit pill, owner 2026-11-06).
+ */
+export interface StatTileBadge {
+  label: React.ReactNode;
+  srLabel: string;
+  tone?: 'muted' | 'success' | 'danger';
+}
+
 export interface StatTileProps {
   label: string;
   /**
@@ -22,11 +34,10 @@ export interface StatTileProps {
   /** A second line under the figure — what it is made of. */
   sub?: React.ReactNode;
   /**
-   * A small count beside the label — the Stock tile's units (owner
-   * 2026-11-06). `label` is what is shown in the pill; `srLabel` what a screen
-   * reader hears instead ("22 units in stock").
+   * A small pill beside the label — the Stock tile's units, the cash tiles'
+   * profit (owner 2026-11-06).
    */
-  badge?: { label: string; srLabel: string };
+  badge?: StatTileBadge;
   /** Extra classes for the frame — a grid span, say. */
   className?: string;
 }
@@ -70,11 +81,43 @@ const EM_PER_CHAR = 0.6;
  * label line keeps the height its skeleton traces, on a phone (text-xs) and
  * from sm (text-sm, 20px) alike.
  */
-const LABEL_BADGE = 'inline-flex shrink-0 items-center rounded-full bg-muted px-1.5 text-[11px] font-medium leading-4 tabular-nums text-muted-foreground';
+const LABEL_BADGE = 'inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-1.5 text-[11px] font-medium leading-4 tabular-nums';
+const BADGE_TONE: Record<NonNullable<StatTileBadge['tone']>, string> = {
+  muted: 'bg-muted text-muted-foreground',
+  success: 'bg-success/10 text-success',
+  danger: 'bg-destructive/10 text-destructive',
+};
 
 export function StatTile({ label, value, icon: Icon, color, href, testId, sub, badge, className = '' }: StatTileProps) {
   const figure = <TileFigure value={value} />;
   const chars = useFigureText(value).length;
+  // A worded pill ("+25,502 profit") does not fit beside a label in a phone's
+  // half-width tile: "Cash from sales" was cut to "Cash f…" at 390
+  // (2026-11-06). There it sits on the icon's row instead, at the other end,
+  // where the row has room and the tile keeps its height; from sm up, beside
+  // the label as a count does.
+  const worded = badge !== undefined && typeof badge.label !== 'string';
+  const pill = (testIdSuffix: string, extra: string) =>
+    badge && (
+      <span
+        data-testid={`stat-badge${testIdSuffix}`}
+        data-tone={badge.tone ?? 'muted'}
+        aria-hidden="true"
+        // A bare count reads left to right; a worded pill ("+25,502
+        // profit", "+25,502 ربح") follows the page and isolates its own figure.
+        dir={worded ? undefined : 'ltr'}
+        className={`${LABEL_BADGE} ${BADGE_TONE[badge.tone ?? 'muted']} ${extra}`}
+      >
+        {/* One inline run: as flex items the figure and the word lost the
+            space between them ("+308,513profit"). */}
+        <span>{badge.label}</span>
+      </span>
+    );
+  const icon = (
+    <div data-testid="tile-icon" className={`${color} flex-shrink-0 rounded-lg p-1.5 sm:p-3 ${FOUR_ACROSS_BADGE}`} aria-hidden="true">
+      <Icon className={`size-4 text-primary-foreground sm:size-6 ${FOUR_ACROSS_ICON}`} />
+    </div>
+  );
   const body = (
     // Phone: the icon sits above the label, smaller; from sm up, beside the
     // figure as before. The phone used to drop it, and the dashboard read as a
@@ -84,9 +127,7 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
         {badge ? (
           <p data-testid="stat-label" className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground sm:text-sm">
             <span className="min-w-0 truncate">{label}</span>
-            <span data-testid="stat-badge" aria-hidden="true" dir="ltr" className={LABEL_BADGE}>
-              {badge.label}
-            </span>
+            {pill('', worded ? 'max-sm:hidden' : '')}
             <span className="sr-only">{badge.srLabel}</span>
           </p>
         ) : (
@@ -110,9 +151,14 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
         </p>
         {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
       </div>
-      <div data-testid="tile-icon" className={`${color} flex-shrink-0 rounded-lg p-1.5 sm:p-3 ${FOUR_ACROSS_BADGE}`} aria-hidden="true">
-        <Icon className={`size-4 text-primary-foreground sm:size-6 ${FOUR_ACROSS_ICON}`} />
-      </div>
+      {worded ? (
+        <div data-testid="stat-icon-row" className="flex w-full items-center justify-between gap-2 sm:w-auto">
+          {icon}
+          {pill('-phone', 'sm:hidden')}
+        </div>
+      ) : (
+        icon
+      )}
     </div>
   );
 
@@ -150,7 +196,8 @@ export function StatTileSkeleton({
   className = '',
 }: {
   sub?: boolean;
-  badge?: boolean;
+  /** `'wide'` for a worded pill ("+25,502 profit"), `true` for a count. */
+  badge?: boolean | 'wide';
   className?: string;
 }) {
   return (
@@ -160,7 +207,10 @@ export function StatTileSkeleton({
           {badge ? (
             <div className="flex items-center gap-1.5">
               <SkeletonText size="xs" lineClassName="sm:h-5" className="w-14 sm:h-3 sm:w-16" />
-              <Skeleton data-testid="skeleton-badge" className="h-4 w-7 shrink-0 rounded-full" />
+              <Skeleton
+                data-testid="skeleton-badge"
+                className={`h-4 shrink-0 rounded-full ${badge === 'wide' ? 'w-20 max-sm:hidden' : 'w-7'}`}
+              />
             </div>
           ) : (
             <SkeletonText size="xs" lineClassName="sm:h-5" className="w-20 sm:h-3 sm:w-24" />
@@ -168,7 +218,15 @@ export function StatTileSkeleton({
           <SkeletonText size="base" lineClassName={`mt-1 sm:h-8 ${FOUR_ACROSS_FIGURE_LINE}`} className="w-24 sm:h-5 sm:w-36" />
           {sub && <SkeletonText size="xs" lineClassName="mt-1" className="w-28" />}
         </div>
-        <Skeleton className={`size-7 flex-shrink-0 rounded-lg sm:size-12 ${FOUR_ACROSS_BADGE_SKELETON}`} />
+        {badge === 'wide' ? (
+          // On a phone the worded pill sits on the icon's row (StatTile).
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto">
+            <Skeleton className={`size-7 flex-shrink-0 rounded-lg sm:size-12 ${FOUR_ACROSS_BADGE_SKELETON}`} />
+            <Skeleton data-testid="skeleton-badge-phone" className="h-4 w-20 shrink-0 rounded-full sm:hidden" />
+          </div>
+        ) : (
+          <Skeleton className={`size-7 flex-shrink-0 rounded-lg sm:size-12 ${FOUR_ACROSS_BADGE_SKELETON}`} />
+        )}
       </div>
     </div>
   );

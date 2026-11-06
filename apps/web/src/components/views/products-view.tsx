@@ -182,6 +182,8 @@ export default function ProductsPage() {
       status: { param: 'status', toApi: (v) => (v === 'ALL' ? '' : v) },
     },
     defaults: { status: 'ACTIVE' },
+    // Oldest first, so the first product added leads (owner 2026-11-06).
+    fixed: { sort: 'oldest' },
   });
   const { rows: products, isLoading, reloading } = list;
   const categoryFilter = list.get('category');

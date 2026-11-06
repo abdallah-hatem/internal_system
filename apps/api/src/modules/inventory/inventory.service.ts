@@ -25,6 +25,7 @@ import {
 } from '../../common/list-query';
 import { stockValueEgp } from '../../common/stock-value';
 import { unitsAtShopsByProduct } from '../../common/samples-out';
+import { heldUnitPrice } from '../../common/held-price';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { assertUuid, isUuid } from '../../common/uuid';
@@ -34,6 +35,7 @@ import {
   assertInScope,
   cycleIdWhere,
   cyclesVisibleTo,
+  seesEveryCycle,
   type ScopeViewer,
 } from '../../common/investor-scope';
 
@@ -724,25 +726,45 @@ export class InventoryService {
       orderBy: { occurredAt: 'desc' },
     });
 
-    const refs = await this.movementReferences(movements);
+    const refs = await this.movementReferences(movements, batch);
+    // Customers and selling prices are the sales screens' (partners and the
+    // office). A temporary investor reads their cycle's stock, never who
+    // bought it or for how much — the sales endpoints refuse them too; the
+    // batch's landed cost they already see on the batch itself.
+    const seesSales = seesEveryCycle(viewer);
     return {
-      data: movements.map((m) => ({
-        ...m,
-        reference: (m.referenceId && refs.get(m.referenceId)) || null,
-      })),
+      data: movements.map((m) => {
+        // By kind and id: a return's id given as a sale order's must not find
+        // the return, even when another row names that return properly.
+        const kind = referenceKind(m.referenceType);
+        const ref =
+          (kind && m.referenceId && refs.get(`${kind}:${m.referenceId}`)) ||
+          null;
+        return {
+          ...m,
+          reference: ref?.reference ?? null,
+          ...movementParty(m, seesSales ? ref : null, batch),
+        };
+      }),
     };
   }
 
   /**
    * The record each movement came from, by the number a person knows it by —
-   * ORD-…, RET-…, PO-… — with the ids a screen needs to open it (2026-10-22).
+   * ORD-…, RET-…, PO-… — with the ids a screen needs to open it (2026-10-22);
+   * since 2026-11-06 also the customer it went to or came back from, and the
+   * price this batch's product went at on it.
    * `referenceId` alone is a database id, which the product page used to print.
    *
    * One query per kind of record present (at most three), never one per row.
+   * The lines come with the order or return, narrowed to this batch's product
+   * (and, for a return, to this batch), so another product's line on the same
+   * order never lends its price.
    */
   private async movementReferences(
     movements: { referenceType: string | null; referenceId: string | null }[],
-  ): Promise<Map<string, MovementReference>> {
+    batch: { id: string; productId: string },
+  ): Promise<Map<string, ResolvedReference>> {
     const idsOf = (types: readonly string[]) => [
       ...new Set(
         movements
@@ -753,18 +775,47 @@ export class InventoryService {
     const orderIds = idsOf(SALE_ORDER_REFERENCES);
     const returnIds = idsOf(['SALE_RETURN']);
     const poItemIds = idsOf(['PURCHASE_ORDER_ITEM']);
+    const party = {
+      currency: true,
+      customer: { select: { displayName: true, isWalkIn: true } },
+      branch: { select: { name: true } },
+    } as const;
 
     const [orders, returns, poItems] = await Promise.all([
       orderIds.length
         ? this.prisma.saleOrder.findMany({
             where: { id: { in: orderIds } },
-            select: { id: true, orderNo: true },
+            select: {
+              id: true,
+              orderNo: true,
+              ...party,
+              items: {
+                where: { productId: batch.productId },
+                select: {
+                  quantity: true,
+                  lineTotal: true,
+                  allocations: {
+                    where: { inventoryBatchId: batch.id },
+                    select: { id: true },
+                  },
+                },
+              },
+            },
           })
         : [],
       returnIds.length
         ? this.prisma.saleReturn.findMany({
             where: { id: { in: returnIds } },
-            select: { id: true, reference: true, saleOrderId: true },
+            select: {
+              id: true,
+              reference: true,
+              saleOrderId: true,
+              saleOrder: { select: party },
+              items: {
+                where: { inventoryBatchId: batch.id },
+                select: { unitPrice: true },
+              },
+            },
           })
         : [],
       poItemIds.length
@@ -778,18 +829,141 @@ export class InventoryService {
         : [],
     ]);
 
-    const refs = new Map<string, MovementReference>();
-    for (const o of orders)
-      refs.set(o.id, { number: o.orderNo, saleOrderId: o.id });
+    const refs = new Map<string, ResolvedReference>();
+    for (const o of orders) {
+      // The lines that drew from this batch; the product's other lines only
+      // when none did (a samples order's lines hold no allocation here).
+      const items = o.items ?? [];
+      const drew = items.filter((i) => (i.allocations ?? []).length > 0);
+      refs.set(`saleOrder:${o.id}`, {
+        kind: 'saleOrder',
+        reference: { number: o.orderNo, saleOrderId: o.id },
+        party: partyOf(o),
+        // As sold: the line's total over its quantity, so a line discount is
+        // in it — the return's own rule (common/held-price.ts). A price lowered
+        // later is its own dated record and does not rewrite the sale.
+        unitPrice: onePrice(
+          (drew.length ? drew : items).map((i) =>
+            heldUnitPrice({
+              quantity: i.quantity,
+              lineTotal: i.lineTotal,
+              returnItems: [],
+            }),
+          ),
+        ),
+      });
+    }
     for (const r of returns)
-      refs.set(r.id, { number: r.reference, saleOrderId: r.saleOrderId });
+      refs.set(`saleReturn:${r.id}`, {
+        kind: 'saleReturn',
+        reference: { number: r.reference, saleOrderId: r.saleOrderId },
+        party: r.saleOrder ? partyOf(r.saleOrder) : null,
+        unitPrice: onePrice((r.items ?? []).map((i) => i.unitPrice)),
+      });
     for (const i of poItems)
-      refs.set(i.id, {
-        number: i.purchaseOrder.reference,
-        purchaseOrderId: i.purchaseOrder.id,
+      refs.set(`purchaseOrderItem:${i.id}`, {
+        kind: 'purchaseOrderItem',
+        reference: {
+          number: i.purchaseOrder.reference,
+          purchaseOrderId: i.purchaseOrder.id,
+        },
+        party: null,
+        unitPrice: null,
       });
     return refs;
   }
+}
+
+/** What a movement's `referenceId` resolved to, before it is said per row. */
+interface ResolvedReference {
+  kind: 'saleOrder' | 'saleReturn' | 'purchaseOrderItem';
+  reference: MovementReference;
+  party: {
+    customerName: string | null;
+    walkIn: boolean;
+    branchName: string | null;
+    currency: string;
+  } | null;
+  unitPrice: Prisma.Decimal | null;
+}
+
+function partyOf(o: {
+  currency: string;
+  customer: { displayName: string; isWalkIn: boolean } | null;
+  branch: { name: string } | null;
+}): NonNullable<ResolvedReference['party']> {
+  const walkIn = o.customer?.isWalkIn ?? false;
+  return {
+    // The shared walk-in record is said as "Walk-in" by the screen, never by
+    // the name it happens to be stored under.
+    customerName: walkIn ? null : (o.customer?.displayName ?? null),
+    walkIn,
+    branchName: o.branch?.name ?? null,
+    currency: o.currency,
+  };
+}
+
+/**
+ * The one price the lines agree on, or none: two lines of the same product at
+ * different prices have no single price to show, and an average would be a
+ * price nobody charged.
+ */
+function onePrice(prices: Prisma.Decimal.Value[]): Prisma.Decimal | null {
+  const distinct = [
+    ...new Set(prices.map((p) => new Prisma.Decimal(p).toFixed(2))),
+  ];
+  return distinct.length === 1 ? new Prisma.Decimal(distinct[0]) : null;
+}
+
+/** What a price on a movement row is: charged, refunded, or what it cost. */
+export type MovementPriceKind = 'sale' | 'refund' | 'cost' | null;
+
+/** Who a movement went to, and at what price (BUSINESS_LOGIC §3, 2026-11-06). */
+export interface MovementParty {
+  customerName: string | null;
+  walkIn: boolean;
+  branchName: string | null;
+  /** Per unit, two decimals, in `currency`. Null when there is no price to show. */
+  unitPrice: string | null;
+  priceKind: MovementPriceKind;
+  currency: string | null;
+}
+
+/**
+ * The customer and price a movement row shows. A price only where one was
+ * really charged or spent on these units: SALE at the line's charged price,
+ * RETURN at what was refunded, RECEIVE at the batch's landed cost (said as
+ * cost). Samples went at no price; every other movement has none.
+ */
+function movementParty(
+  m: { movementType: string },
+  ref: ResolvedReference | null,
+  batch: { landedUnitCostEgp: Prisma.Decimal.Value | null },
+): MovementParty {
+  const party = ref?.party ?? null;
+  const out: MovementParty = {
+    customerName: party?.customerName ?? null,
+    walkIn: party?.walkIn ?? false,
+    branchName: party?.branchName ?? null,
+    unitPrice: null,
+    priceKind: null,
+    currency: null,
+  };
+  const priced = (
+    price: Prisma.Decimal | null,
+    priceKind: MovementPriceKind,
+    currency: string | null | undefined,
+  ): MovementParty =>
+    price && currency
+      ? { ...out, unitPrice: price.toFixed(2), priceKind, currency }
+      : out;
+  if (m.movementType === 'SALE' && ref?.kind === 'saleOrder')
+    return priced(ref.unitPrice, 'sale', party?.currency);
+  if (m.movementType === 'RETURN' && ref?.kind === 'saleReturn')
+    return priced(ref.unitPrice, 'refund', party?.currency);
+  if (m.movementType === 'RECEIVE' && batch.landedUnitCostEgp != null)
+    return priced(new Prisma.Decimal(batch.landedUnitCostEgp), 'cost', 'EGP');
+  return out;
 }
 
 /** Movement reference types whose id is a sale order's own. */
@@ -798,6 +972,19 @@ const SALE_ORDER_REFERENCES = [
   'SALE_ORDER_CANCEL',
   'SAMPLES_ORDER',
 ] as const;
+
+/** Which kind of record a movement's reference type names, if any. */
+function referenceKind(
+  referenceType: string | null,
+): ResolvedReference['kind'] | null {
+  if (
+    (SALE_ORDER_REFERENCES as readonly string[]).includes(referenceType ?? '')
+  )
+    return 'saleOrder';
+  if (referenceType === 'SALE_RETURN') return 'saleReturn';
+  if (referenceType === 'PURCHASE_ORDER_ITEM') return 'purchaseOrderItem';
+  return null;
+}
 
 /** What a movement's `referenceId` names, as a person reads it. */
 export interface MovementReference {
