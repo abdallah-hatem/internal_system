@@ -17,7 +17,7 @@ function product(name: string, lines: [number, number][], returned = 0) {
   return {
     id: name,
     name,
-    nameAr: null,
+    nameAr: null as string | null,
     sku: `SKU-${name}`,
     saleItems: lines.map(([qty, total], i) => ({
       quantity: D(qty),
@@ -150,5 +150,18 @@ describe('GET /analytics/top-products?by=', () => {
     await controller.getTopProducts('-3');
     await controller.getTopProducts('100000');
     expect(calls.map((c) => c[0])).toEqual([10, 10, 100]);
+  });
+});
+
+// UI audit M3 (2026-11-06): the dashboard's card showed the English name on
+// /ar. The app picks the name (BUSINESS_LOGIC §3), so the API must send both.
+describe('top products carry both names', () => {
+  it('the Arabic name comes back beside the English one; none is null, not missing', async () => {
+    const named = { ...product('SoundRide B35', [[3, 900]]), nameAr: 'سماعة ساوند رايد B35' };
+    const { data } = await service([named, product('Y20 FM', [[1, 100]])]).getTopProducts(5);
+    expect(data.map((p) => [p.name, p.nameAr])).toEqual([
+      ['SoundRide B35', 'سماعة ساوند رايد B35'],
+      ['Y20 FM', null],
+    ]);
   });
 });
