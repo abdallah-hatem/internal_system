@@ -46,6 +46,11 @@ export interface ProfitOrder {
     allocations: readonly { cogsEgp: Prisma.Decimal.Value }[];
     returnItems: readonly { cogsReversedEgp: Prisma.Decimal.Value }[];
   }[];
+  /** Cash handed back leaves the payment and outstanding as they were, so it is read here. */
+  returns?: readonly {
+    refundMethod: string;
+    refundEgp: Prisma.Decimal.Value;
+  }[];
 }
 
 export interface ProfitOnCollected {
@@ -62,9 +67,15 @@ export function splitProfit(orders: readonly ProfitOrder[]): ProfitOnCollected {
   let collected = D(0);
   for (const o of orders) {
     if (!REALISED.includes(o.status) || !D(o.total).gt(0)) continue;
+    // Cash refunded went back out of what was paid: without it a refunded
+    // sale's money still counted as collected profit (2026-11-06).
+    const cashRefunded = (o.returns ?? [])
+      .filter((r) => r.refundMethod === 'CASH')
+      .reduce((s, r) => s.add(D(r.refundEgp)), D(0));
     const paid = o.paymentAllocations
       .filter((a) => a.payment.status === 'RECORDED')
-      .reduce((s, a) => s.add(D(a.amount)), D(0));
+      .reduce((s, a) => s.add(D(a.amount)), D(0))
+      .sub(cashRefunded);
     const value = paid.add(D(o.outstanding));
     const cost = o.items.reduce(
       (s, i) =>
@@ -99,6 +110,7 @@ export const PROFIT_ORDER_SELECT = {
       returnItems: { select: { cogsReversedEgp: true } },
     },
   },
+  returns: { select: { refundMethod: true, refundEgp: true } },
 } satisfies Prisma.SaleOrderSelect;
 
 export async function profitOnCollected(db: {

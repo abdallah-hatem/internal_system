@@ -21,6 +21,7 @@ type Opts = {
   reversed?: number[];
   cogs: number[];
   reversedCogs?: number[];
+  cashRefund?: number;
 };
 
 const order = (o: Opts): ProfitOrder => ({
@@ -45,6 +46,9 @@ const order = (o: Opts): ProfitOrder => ({
       })),
     },
   ],
+  returns: o.cashRefund
+    ? [{ refundMethod: 'CASH', refundEgp: o.cashRefund }]
+    : [],
 });
 
 const split = (orders: ProfitOrder[]) => {
@@ -111,11 +115,10 @@ describe('profit on collected (owner 2026-11-06)', () => {
     ).toEqual({ total: '300.00', collected: '120.00', toCome: '180.00' });
   });
 
-  it('OPEN: a cash refund leaves value = paid + outstanding where it was (the refund is not read)', () => {
+  it('a cash refund comes off what was paid: the refunded money is not profit collected', () => {
     // Paid 1,000 in full; 250 (cost 150) came back for 250 cash. The
-    // allocation stays and outstanding stays 0, so value reads 1,000 and the
-    // refunded 250 still counts as profit. Pinned so a change is deliberate;
-    // the question is open in docs/business (2026-11-06).
+    // allocation stays and outstanding stays 0, so the refund must be read:
+    // kept 750, cost 450, profit 300, all collected (2026-11-06).
     expect(
       split([
         order({
@@ -124,9 +127,10 @@ describe('profit on collected (owner 2026-11-06)', () => {
           paid: [1000],
           cogs: [600],
           reversedCogs: [150],
+          cashRefund: 250,
         }),
       ]),
-    ).toEqual({ total: '550.00', collected: '550.00', toCome: '0.00' });
+    ).toEqual({ total: '300.00', collected: '300.00', toCome: '0.00' });
   });
 
   it('a damaged return reverses no cost: the order is worth less and the cost stays', () => {

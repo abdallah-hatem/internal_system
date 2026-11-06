@@ -188,10 +188,10 @@ option B: "finish and ship"), on `feature/cash-profit`, not merged.**
 - **GUESS (accepted by the owner in chat 2026-11-06: "for a part-paid order, its profit counts the share
   paid")**: a part-paid order's profit is split in proportion to what has been paid; every pound collected
   carries the same share of profit.
-- **OPEN**: a **cash refund** does not lower value = paid + outstanding (the allocation stays, outstanding does
-  not move), so the refunded amount still counts as profit collected while the goods' cost was given back. A
-  credit note is read correctly (outstanding falls). Pinned by a test so that changing it is deliberate; whether
-  value should take off `REFUND_PAID` on the order is the owner's call.
+- **DECIDED 2026-11-06 — a cash refund comes off what was paid.** The payment's allocation stays and outstanding
+  does not move on a cash refund, so the split reads the order's CASH returns (`refundEgp`) and takes them off paid:
+  paid = recorded allocations − cash refunded; value = paid + outstanding. Without it the refunded money counted
+  as profit collected while the goods' cost came back. A credit note was already read correctly (outstanding falls).
 - **The pill** — beside Cash from sales' title: "+25,502 profit" ("+25,502 ربح"), green (`bg-success/10
   text-success`); the profit rounded to whole pounds, half a pound away from zero, grouped, Latin digits. Hidden
   when it rounds to 0. A loss shows red, "-1,235 loss" ("خسارة"). The figure on the tile is still Cash from
