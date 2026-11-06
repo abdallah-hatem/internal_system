@@ -9,7 +9,7 @@ import type { StatTileBadge } from './stat-tile';
  * (`profitOnCollectedEgp` / `profitToCollectEgp`, api
  * `common/profit-on-collected.ts`), rounded to whole pounds here for the pill
  * only. Nothing when it rounds to zero; a loss shows red, "-N loss", never as
- * zero.
+ * zero. Each pill carries the text of its (i) popover (`info`).
  *
  * One builder for the dashboard and Analytics' Sales cash, so the two pills
  * cannot read differently (rule 11).
@@ -39,6 +39,18 @@ export function useProfitPill() {
       }),
       srLabel: t(`${key}Sr`, { amount: formatNumber(Math.abs(whole), { maximumFractionDigits: 0 }) }),
       tone: loss ? 'danger' : 'success',
+      // The (i) beside the pill says what the figure is (owner 2026-11-06:
+      // "leave as is" but explain it). A loss is the same sum with the other
+      // sign, so only the title changes.
+      info: {
+        buttonLabel: t('profitInfoButton'),
+        title: t(
+          kind === 'collected'
+            ? loss ? 'profitInfoLossCollectedTitle' : 'profitInfoCollectedTitle'
+            : loss ? 'profitInfoLossToComeTitle' : 'profitInfoToComeTitle',
+        ),
+        body: t(kind === 'collected' ? 'profitInfoCollectedBody' : 'profitInfoToComeBody'),
+      },
     };
   };
 }
