@@ -11,7 +11,8 @@ import { EmptyState } from '../../../components/ui/empty-state';
 import { QuickActions } from '../../../components/dashboard/quick-actions';
 import { useTopProductsBy } from '../../../components/dashboard/top-products-by';
 import { Segmented } from '@/components/ui/segmented';
-import { StatTile, StatTileSkeleton } from '../../../components/dashboard/stat-tile';
+import { StatTile, StatTileSkeleton, type StatTileBadge } from '../../../components/dashboard/stat-tile';
+import { useProfitPill } from '../../../components/dashboard/profit-pill';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '../../../components/ui/skeleton';
 import {
   dashboardView,
@@ -49,6 +50,12 @@ interface DashboardData {
    * the assistant and the invariant tests; the dashboard no longer shows it.
    */
   cashFromSalesEgp?: number;
+  /**
+   * The profit inside that cash, and the rest still to come with what is owed
+   * (owner 2026-11-06, api `common/profit-on-collected.ts`).
+   */
+  profitOnCollectedEgp?: number;
+  profitToCollectEgp?: number;
   /** Absent from an API older than 2026-10-23: This month then reads zeros, never all time. */
   month?: MonthFigures;
   netProfit: number;
@@ -89,7 +96,8 @@ const PHONE_RIGHT_NOW = RIGHT_NOW_TILES.filter((k) => PHONE_FIRST_TILES.includes
  * read these, so a skeleton is the shape of the tile it holds the place of.
  */
 const SUB_LINE_TILES: readonly TileKey[] = ['cashFromSales', 'owedToLenders'];
-const BADGE_TILES: readonly TileKey[] = ['stock'];
+/** A count pill (Stock's units) or a worded one (Cash from sales' profit, owner 2026-11-06). */
+const BADGE_TILES: Partial<Record<TileKey, true | 'wide'>> = { stock: true, cashFromSales: 'wide' };
 
 /** Hidden on a phone until "See more", unless it is one of the first figures. */
 function phoneClass(key: TileKey, allTiles: boolean): string {
@@ -170,7 +178,7 @@ function StatTilesSkeleton() {
           <StatTileSkeleton
             key={key}
             sub={SUB_LINE_TILES.includes(key)}
-            badge={BADGE_TILES.includes(key)}
+            badge={BADGE_TILES[key] ?? false}
             className={phoneClass(key, false)}
           />
         ))}
@@ -251,16 +259,18 @@ export default function DashboardPage() {
 
   // Units can be fractional (metres, kilos), as everywhere else stock is counted.
   const units = formatNumber(Number(data.unitsInStock ?? 0), { maximumFractionDigits: 3 });
+  const profitPill = useProfitPill();
 
   const tiles: Record<
     TileKey,
-    { label: string; value: string; icon: IconComponent; color: string; sub?: React.ReactNode; badge?: { label: string; srLabel: string } }
+    { label: string; value: string; icon: IconComponent; color: string; sub?: React.ReactNode; badge?: StatTileBadge }
   > = {
     // ── Right now ──
     // What customers paid, less the cash handed back for returns, all time —
     // the server's figure (owner 2026-11-06). It replaced Cash on hand, which
     // mixed the partners' funding, lender money and supplier payments with
-    // sales. The second line says what it is.
+    // sales. The second line says what it is; the pill beside the title, the
+    // profit inside it (owner 2026-11-06, option B).
     cashFromSales: {
       label: t('cashFromSales'),
       value: egp(data.cashFromSalesEgp ?? 0),
@@ -274,6 +284,7 @@ export default function DashboardPage() {
           {t('cashFromSalesSub')}
         </span>
       ),
+      badge: profitPill(data.profitOnCollectedEgp, 'collected'),
     },
     // What customers owe today: confirmed sales not fully paid.
     receivables: { label: t('toCollect'), value: egp(data.receivables), icon: Clock, color: 'bg-yellow-500' },

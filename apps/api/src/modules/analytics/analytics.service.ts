@@ -20,6 +20,7 @@ import {
 } from '../../common/ledger-categories';
 import { cashPosition } from '../../common/cash-position';
 import { cashFromSalesEgp } from '../../common/cash-from-sales';
+import { profitOnCollected } from '../../common/profit-on-collected';
 import {
   standingEntriesWhere,
   undoneEntryIds,
@@ -1203,6 +1204,7 @@ export class AnalyticsService {
      * last time.
      */
     const { cashIn, cashOnHand } = cash;
+    const profit = await profitOnCollected(this.prisma);
 
     return {
       data: {
@@ -1226,6 +1228,13 @@ export class AnalyticsService {
          * `common/cash-from-sales.ts`).
          */
         cashFromSalesEgp: money(await cashFromSalesEgp(this.prisma)),
+        /**
+         * The profit inside Cash from sales, and the rest of it still to
+         * come with the receivables: each realised sale's profit split by the
+         * share paid (owner 2026-11-06, `common/profit-on-collected.ts`).
+         */
+        profitOnCollectedEgp: money(profit.profitOnCollectedEgp),
+        profitToCollectEgp: money(profit.profitToCollectEgp),
         collected,
         netProfit: money(netProfit),
         activeCycles,
