@@ -35,13 +35,14 @@ test.describe('Phone navigation', () => {
     await bar(page).getByRole('link', { name: 'Sales' }).click();
     await expect(page).toHaveURL(/\/en\/sales$/);
     await expect(bar(page).getByRole('link', { name: 'Sales' })).toHaveAttribute('aria-current', 'page');
-    await expect(bar(page).getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current', 'page');
+    await expect(bar(page).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current', 'page');
   });
 
+  // Short labels: the full names were cut to "Dashb…", "Custo…" at 320px (UI audit 2026-11, M14).
   test('the bar holds exactly Dashboard, Sales, Customers, Inventory, Cycles and More', async ({ page }) => {
     await page.setViewportSize(PHONE);
     await login(page);
-    await expect(bar(page).getByRole('link')).toHaveText(['Dashboard', 'Sales', 'Customers', 'Inventory', 'Cycles']);
+    await expect(bar(page).getByRole('link')).toHaveText(['Home', 'Sales', 'Clients', 'Stock', 'Cycles']);
     await expect(bar(page).getByRole('button', { name: 'More' })).toBeVisible();
   });
 

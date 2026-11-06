@@ -1520,7 +1520,7 @@
     "continue": "متابعة",
     "savedOrdersHint": "محفوظ بالفعل على هذه الدورة. تابع إلى خطوة الشحن.",
     "orderLine": "{qty} ×",
-    "currentRate": "السعر الحالي: 1 {currency} = {rate} جنيه",
+    "currentRate": "السعر الحالي: <ltr>1 {currency} = {rate}</ltr> جنيه",
     "noRateRecorded": "لا يوجد سعر مسجّل لـ {currency} — أدخل السعر المستخدم",
     "departedOn": "تاريخ المغادرة",
     "arrivedOn": "تاريخ الوصول",

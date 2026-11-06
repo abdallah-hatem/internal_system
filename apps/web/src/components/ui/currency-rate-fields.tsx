@@ -107,7 +107,7 @@ export function CurrencyRateFields({
             />
             <p className="mt-1 text-xs text-gray-400">
               {known != null
-                ? tw('currentRate', { currency, rate: known })
+                ? <CurrentRateHint currency={currency} rate={known} />
                 : tw('noRateRecorded', { currency })}
             </p>
           </>
@@ -115,4 +115,21 @@ export function CurrencyRateFields({
       </div>
     </div>
   );
+}
+
+/**
+ * "Current rate: 1 CNY = 7.06 EGP" under a rate field.
+ *
+ * "1 CNY = 7.06" is one left-to-right run. Loose in the Arabic sentence the
+ * bidi algorithm reordered it to "CNY = 7.06 1", which reads as a different
+ * rate (UI audit 2026-11, M6) — so the message marks the run and it is drawn
+ * isolated, left to right, in both languages.
+ */
+export function CurrentRateHint({ currency, rate }: { currency: string; rate: string | number }) {
+  const tw = useTranslations('wizard');
+  return tw.rich('currentRate', {
+    currency,
+    rate: String(rate),
+    ltr: (run) => <bdi dir="ltr">{run}</bdi>,
+  });
 }

@@ -6,6 +6,7 @@ import { useNumberFormat } from '@/lib/numbers';
 import { Select } from '../ui/select';
 import { MoneyInput } from '../ui/money-input';
 import { useCurrencyRates } from '../../lib/currency-rates';
+import { CurrentRateHint } from '../ui/currency-rate-fields';
 import { useCodeLabel } from '../../lib/labels';
 
 export type CostBasis = 'PER_PIECE' | 'PER_WEIGHT' | 'FLAT';
@@ -256,7 +257,7 @@ export function ShippingCostFields({
             />
             <p className="mt-1 text-xs text-gray-400">
               {rates[currency] != null
-                ? tw('currentRate', { currency, rate: rates[currency] })
+                ? <CurrentRateHint currency={currency} rate={rates[currency]} />
                 : tw('noRateRecorded', { currency })}
             </p>
           </div>

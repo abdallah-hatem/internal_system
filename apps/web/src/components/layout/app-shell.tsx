@@ -188,9 +188,11 @@ export function AppShell({
           touches the top edge: iPhone Safari tints the status bar from a fixed
           element there and kept it dark after the drawer closed (owner,
           2026-10-14). The safe-area inset is 0 inside Safari's own window, so
-          starting below the notch changed nothing. */}
+          starting below the notch changed nothing.
+          z-45: over the chat button (z-40), which stayed bright and tappable
+          above the dimmed page; under the drawer (z-50) (UI audit 2026-11, M9). */}
       {sidebarOpen && (
-        <div data-print-hide className="fixed inset-x-0 bottom-0 top-16 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div data-print-hide data-testid="drawer-scrim" className="fixed inset-x-0 bottom-0 top-16 bg-black/50 z-[45] lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar — never on paper (globals.css, print). */}

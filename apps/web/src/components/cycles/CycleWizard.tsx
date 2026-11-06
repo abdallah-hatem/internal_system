@@ -7,6 +7,7 @@ import { Select } from '../ui/select';
 import { ChoiceCards } from '../ui/choice-cards';
 import { DatePicker } from '../ui/date-picker';
 import { useCurrencyRates } from '../../lib/currency-rates';
+import { CurrentRateHint } from '../ui/currency-rate-fields';
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -1149,10 +1150,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 />
                 <p className="mt-1 text-xs text-gray-400">
                   {effectivePoCurrency && rates[effectivePoCurrency] != null
-                    ? t('currentRate', {
-                        currency: effectivePoCurrency,
-                        rate: String(rates[effectivePoCurrency]),
-                      })
+                    ? <CurrentRateHint currency={effectivePoCurrency} rate={rates[effectivePoCurrency]} />
                     : effectivePoCurrency
                       ? t('noRateRecorded', { currency: effectivePoCurrency })
                       : t('pickCurrencyFirst')}

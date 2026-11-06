@@ -43,3 +43,24 @@ describe('the Running accounts sentence names expenses he paid, as the card does
     expect(locale('ar.json').hint).toContain('المصروفات التي دفعها');
   });
 });
+
+/**
+ * With the More menu open, the chat button stayed bright and tappable above
+ * the dimmed page: the scrim and the button were both z-40 and the button
+ * paints later (UI audit 2026-11, M9). The scrim sits above the button, the
+ * drawer above the scrim.
+ */
+describe('the More menu covers the chat button', () => {
+  const shell = src('layout/app-shell.tsx');
+  const scrim = /className="([^"]*bg-black\/50[^"]*)"/.exec(shell)![1];
+  const drawer = /<aside[^>]*className=\{`([^`]+)`/.exec(shell)![1];
+  const z = (all: string) => Number(/(?:^|\s)z-\[?(\d+)\]?(?:\s|$)/.exec(all)?.[1] ?? NaN);
+
+  it('the scrim is over the button', () => {
+    expect(z(scrim)).toBeGreaterThan(z(button));
+  });
+
+  it('and the drawer is over the scrim', () => {
+    expect(z(drawer)).toBeGreaterThan(z(scrim));
+  });
+});
