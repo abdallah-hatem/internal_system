@@ -72,6 +72,29 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `dev` 2026-11-06, not shipped — the phone UI audit fixed** (owner: "make ui audit on mobile", then "fix highs
+  and mediums … merge to dev and push", then the product details page and its movement table). No API change, no
+  migration. An audit at 320/375/430 en+ar found 2 high, 15 medium, 16 low; all highs and mediums are fixed and were
+  re-checked on screen twice:
+  - **Sales:** an order's Allocations no longer draw the batch line over the cost (on a phone the cost has its own
+    line); the invoice shows the line total on a phone (stacked under the item; print and PDF unchanged); the New Order
+    product picker's list is at least 18rem; the samples dialogs keep the order number whole; the contract/invoice
+    header stacks on a phone; the order popup's Items table fits 320.
+  - **Analytics, dashboard:** Top Products stacks on a phone; the Arabic dashboard shows Arabic product names; the
+    P&L month breakdown's order rows fit 375; the profit pills wrap inside their tiles.
+  - **Partners, cycles:** Running accounts keep the start of an email in Arabic; the Funding badge no longer covers
+    "Contributed" at 320; settlement date ranges use the app's date format and never break inside a date.
+  - **Arabic text:** user-entered text fields get `dir="auto"` once filled, Latin names/notes are isolated, the rate
+    hint reads "1 CNY = 7.06"; Categories rows let the name use the width.
+  - **Shell:** popovers keep an 8px gutter and clear the phone bar; the More menu's scrim covers the chat button; the
+    English phone-bar labels are **Home / Clients / Stock** (wording for the owner to confirm).
+  - **Product details:** movement badges show their whole label; customer names wrap and keep their direction; the
+    desktop movement table has inner padding; batches are cards up to xl (no sideways scroll at 768 or 1024 beside the
+    sidebar); lists over 10 movements show 10 + "All N movements"; the ORD/PO link is a 35px target. The inventory
+    page's table starts at xl too, for the same reason.
+  Lows not done (audit report kept in the session scratchpad): Latin values left-aligned in Arabic selects, other
+  lists' cut search placeholders, small text-link tap targets, and a few wording/RTL nits. Tests: every fix has one,
+  seen to fail with it undone; web vitest 1,827, unit 192, tsc clean; e2e not run (owner).
 - **On `dev` 2026-11-06, not shipped — the Products tab lists the oldest product first** (owner): `sort=oldest` on
   `/products`, sent by the Products tab only; pickers keep newest first. Tests in `products-stock.spec.ts` and
   `products-summary-cards.test.tsx`, seen to fail first.
