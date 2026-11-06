@@ -46,6 +46,9 @@ type Db = Prisma.TransactionClient;
 /** The Products list's orders; the first is the default. Each ends on `id`. */
 const PRODUCT_SORTS = {
   newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+  // The Products tab asks for this: the first product added (PRD-000001) on
+  // top (owner 2026-11-06). Pickers keep `newest`, the default.
+  oldest: [{ createdAt: 'asc' }, { id: 'asc' }],
 } satisfies Record<string, Prisma.ProductOrderByWithRelationInput[]>;
 
 /** A category as the Categories list shows it: where it sits in the tree. */
