@@ -249,14 +249,22 @@ for (const viewport of [
       gate.release();
       const main = page.getByRole('main');
       await expect(page.getByTestId('skeleton')).toHaveCount(0);
+      // The list opens oldest first (owner 2026-11-06), so the part made above is
+      // not on page one: what must stay is whatever row is on screen now.
+      // A product's name links to its page, in the table and in a phone's cards alike.
+      const rowName = main.locator('a[href*="/products/"]').filter({ visible: true }).first();
+      await expect(rowName).toBeVisible();
+      const firstRow = (await rowName.innerText()).trim();
 
       // Typing in the search while anything it asks for is held.
       gate.hold();
       await main.getByPlaceholder(m.products.search).pressSequentially('Skeleton', { delay: 30 });
       await page.waitForTimeout(800);
       await expect(page.getByTestId('skeleton')).toHaveCount(0);
-      await expect(main.getByText(`Skeleton ${stamp} Part`).filter({ visible: true }).first()).toBeVisible();
+      await expect(main.getByText(firstRow, { exact: true }).filter({ visible: true }).first()).toBeVisible();
       gate.release();
+      // Let through, the search lands and finds the part.
+      await expect(main.getByText(`Skeleton ${stamp} Part`).filter({ visible: true }).first()).toBeVisible();
 
       // Away and back: the cached list is shown at once while it refreshes.
       await go(page, m.nav.inventory);

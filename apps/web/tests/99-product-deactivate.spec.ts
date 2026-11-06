@@ -395,8 +395,8 @@ test.describe('Switching a product off and on — the office app', () => {
     await expect(rowNames(page)).toHaveText([off.name]);
 
     await filter.getByRole('button', { name: m.products.filterAll, exact: true }).click();
-    // Newest first, as the list always orders.
-    await expect(rowNames(page)).toHaveText([on.name, off.name]);
+    // Oldest first, as the list orders since 2026-11-06 (owner): Off was made first.
+    await expect(rowNames(page)).toHaveText([off.name, on.name]);
   });
 
   test('TC-DEACT-13: a switched-off product is not offered on a new purchase order; Reactivate from the row\'s actions asks, puts it back under Active and back in that picker', async ({ page, request }) => {

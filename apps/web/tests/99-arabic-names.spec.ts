@@ -161,7 +161,11 @@ test.describe('Arabic names — the office app', () => {
     await openProducts(page);
     await searchProducts(page, label);
 
+    // The list opens oldest first (owner 2026-11-06): until the search lands the
+    // first row is some other product. Wait until the row is this one.
     const editRow = async () => {
+      await expect(rowNames(page)).toHaveCount(1);
+      await expect(rowNames(page)).toContainText([label]);
       await page.getByRole('main').getByTestId('edit-action').filter({ visible: true }).first().click();
       const form = page.getByRole('dialog').filter({ has: page.locator('input[name="nameAr"]') });
       await expect(form).toBeVisible();

@@ -15,8 +15,8 @@
  *  - typing in the search after the cards are up keeps them — dimmed — and
  *    never brings the skeleton back.
  *
- *  The catalogue is sorted by name, so the two products made here start with
- *  "0001" and "0002" and are the first row. "Aaaa" was not enough: in a full
+ *  The catalogue is sorted by name, so the four products made here start with
+ *  "0001"…"0004" and are the whole first row. "Aaaa" was not enough: in a full
  *  run other specs leave parts named from a timestamp ("1793… Part", spec 69),
  *  and digits sort before letters, so a one-line name took the first card's
  *  place and measured 20px short (2026-10-28 full run). Their names are a real
@@ -31,7 +31,19 @@ const LOADING = 'جارٍ التحميل…';
 const stamp = () =>
   Array.from({ length: 6 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
 const run = stamp();
-const NAMES = [`0001 ${run} rear pad CB150R`, `0002 ${run} front pad CB150R`];
+// Four: a whole first row in the widest grid (lg:grid-cols-4). Grid cards in a
+// row stretch to the tallest, so with only two of ours the row's other two
+// places went to whatever sorts next. In a full run that is spec 99-categories-
+// collapse's "0720… a Child A part 1", whose name wraps to two lines at 1440px
+// and stretched the first card 15.25px past the one-line skeleton (CI
+// 2026-11-05/06; the retry passed because the first attempt's two parts filled
+// the row). The card was right; the test was measuring its neighbours.
+const NAMES = [
+  `0001 ${run} rear pad CB150R`,
+  `0002 ${run} front pad CB150R`,
+  `0003 ${run} rear pad CB125F`,
+  `0004 ${run} front pad CB125F`,
+];
 let firstSku = '';
 
 test.beforeAll(async ({ request }) => {
@@ -162,7 +174,7 @@ for (const viewport of [null, { width: 1440, height: 900 }]) {
       await expect(page.getByTestId('skeleton')).toHaveCount(0);
       await expect(page.locator(`[data-sku="${firstSku}"]`)).toBeVisible();
       gate.release();
-      await expect(page.locator('[data-sku]')).toHaveCount(2);
+      await expect(page.locator('[data-sku]')).toHaveCount(NAMES.length);
     });
   });
 }
