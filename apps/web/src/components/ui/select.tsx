@@ -72,6 +72,7 @@ export function Select({
   clearable = false,
   className,
   id,
+  listMinWidth,
 }: {
   name?: string;
   options: SelectOption[];
@@ -89,6 +90,12 @@ export function Select({
   clearable?: boolean;
   className?: string;
   id?: string;
+  /**
+   * The narrowest the list may be, wider than a narrow trigger when its rows
+   * need the room (the sale line's product picker, UI audit M2). Never wider
+   * than the screen less an 8px gutter each side.
+   */
+  listMinWidth?: string;
 }) {
   const controlled = value !== undefined;
   const [internal, setInternal] = useState(defaultValue ?? '');
@@ -209,7 +216,17 @@ export function Select({
         <PopoverContent
           align="start"
           sideOffset={4}
-          style={width ? { width } : undefined}
+          style={
+            width
+              ? {
+                  width,
+                  ...(listMinWidth && {
+                    minWidth: `min(${listMinWidth}, calc(100vw - 1rem))`,
+                    maxWidth: 'calc(100vw - 1rem)',
+                  }),
+                }
+              : undefined
+          }
           className="p-0"
           onOpenAutoFocus={(e) => {
             // With a search box on a computer, Radix puts the cursor in it.

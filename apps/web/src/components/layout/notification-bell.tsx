@@ -83,7 +83,8 @@ export function NotificationBell() {
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="end" sideOffset={8} className="w-80 p-0">
+      {/* Never wider than the screen less the popover's gutter each side (UI audit M8). */}
+      <PopoverContent align="end" sideOffset={8} className="w-80 max-w-[calc(100vw-1rem)] p-0">
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2.5">
           <span className="text-sm font-semibold text-gray-900">{t('title')}</span>
           {unread.length > 0 && (

@@ -191,6 +191,30 @@ describe("the product picker names each product's category (owner 2026-10-27)", 
     expect(bare.textContent).not.toContain('BP-1');
   });
 
+  it('the list may be wider than a narrow field, never wider than the screen; other pickers keep their width (UI audit M2)', () => {
+    // A phone's line field is ~218px; jsdom measures nothing, so say so.
+    const spy = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(218);
+    try {
+      renderForm(undefined, SHOP.id, 'en', [HEADSET, BARE]);
+      fireEvent.click(productPicker());
+      const panel = document.querySelector<HTMLElement>('[data-slot="popover-content"]')!;
+      expect(panel.style.width).toBe('218px');
+      expect(panel.style.minWidth).toBe('min(18rem, calc(100vw - 1rem))');
+      expect(panel.style.maxWidth).toBe('calc(100vw - 1rem)');
+      fireEvent.keyDown(panel, { key: 'Escape' });
+      cleanup();
+
+      // The customer picker is not asked to grow: its list stays the field's width.
+      renderForm(undefined, SHOP.id, 'en', [HEADSET, BARE]);
+      fireEvent.click(screen.getAllByRole('combobox')[0]);
+      const customers = document.querySelector<HTMLElement>('[data-slot="popover-content"]')!;
+      expect(customers.style.width).toBe('218px');
+      expect(customers.style.minWidth).toBe('');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('the search still finds a product by its SKU, though the SKU is not shown', () => {
     renderForm(undefined, SHOP.id, 'en', [HEADSET, BARE, ...FILLER]);
     fireEvent.click(productPicker());

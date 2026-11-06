@@ -465,7 +465,7 @@ export function DatePicker({
           </button>
         </PopoverTrigger>
 
-        <PopoverContent align="start" sideOffset={4} className="w-[19rem] p-3">
+        <PopoverContent align="start" sideOffset={4} className="w-[19rem] max-w-[calc(100vw-1rem)] p-3">
           <Calendar
             selected={selected}
             min={parseISODate(min)}

@@ -7,6 +7,11 @@ import { BrandMark } from '@/components/layout/brand-mark';
  * the contract and the invoice (owner, 2026-10-21: "use the same top bar at
  * the invoice like the contract"), so the two papers a shop is handed match.
  * `children` are the details: `<div><dt/><dd/></div>` rows.
+ *
+ * On a phone the details sit under the title: side by side, a 375px screen
+ * squeezed the title to one word a line and pushed the number to the paper's
+ * edge (UI audit M15). From `sm`, on paper and in the PDF sheet, they are
+ * side by side as before.
  */
 export function DocumentHeader({
   title,
@@ -20,7 +25,10 @@ export function DocumentHeader({
   children: ReactNode;
 }) {
   return (
-    <header className="flex items-start justify-between gap-4 border-b-2 border-foreground pb-3" data-print-keep>
+    <header
+      className="flex flex-col gap-3 border-b-2 border-foreground pb-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 print:flex-row print:items-start print:justify-between print:gap-4 sheet:flex-row sheet:items-start sheet:justify-between sheet:gap-4"
+      data-print-keep
+    >
       <div className="flex items-center gap-3">
         <BrandMark size={44} />
         <div>
