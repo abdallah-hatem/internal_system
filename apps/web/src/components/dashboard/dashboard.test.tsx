@@ -743,7 +743,7 @@ describe('Cash from sales carries its profit', () => {
     const phone = within(within(el).getByTestId('stat-icon-row')).getByTestId('stat-badge-info-phone');
     for (const button of [beside, phone]) {
       expect(button.closest('a')).toBeNull();
-      expect(button.getAttribute('aria-label')).toBe('What is this figure?');
+      expect(button.getAttribute('aria-label')).toBe('What does this mean?');
     }
     const link = linkOf(el);
     expect(link.getAttribute('href')).toBe('/payments');
@@ -751,8 +751,8 @@ describe('Cash from sales carries its profit', () => {
     link.addEventListener('click', followed);
     fireEvent.click(phone);
     const panel = await screen.findByTestId('stat-badge-info-phone-panel');
-    expect(panel.textContent).toContain('Profit in the cash collected');
-    expect(panel.textContent).toContain('Net profit in Analytics takes them off.');
+    expect(panel.textContent).toContain('Profit collected');
+    expect(panel.textContent).toContain('Expenses are not taken off here.');
     expect(followed).not.toHaveBeenCalled();
     // Stock's count pill has none; nor has a tile without a pill.
     expect(within(await tile('stock')).queryByRole('button')).toBeNull();
@@ -763,9 +763,9 @@ describe('Cash from sales carries its profit', () => {
     renderPage('ar');
     const el = await tile('cashFromSales');
     const beside = within(within(el).getByTestId('stat-label')).getByTestId('stat-badge-info');
-    expect(beside.getAttribute('aria-label')).toBe('ما هذا الرقم؟');
+    expect(beside.getAttribute('aria-label')).toBe('ماذا يعني هذا؟');
     fireEvent.click(beside);
-    expect((await screen.findByTestId('stat-badge-info-panel')).textContent).toContain('الربح في النقد المحصّل');
+    expect((await screen.findByTestId('stat-badge-info-panel')).textContent).toContain('الربح المحصّل');
   });
 
   it('a large profit keeps its grouping and drops the piastres', async () => {

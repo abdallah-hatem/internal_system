@@ -238,7 +238,7 @@ describe('the (i) beside a profit pill', () => {
       expect(phone!.parentElement!.className.split(/\s+/)).toContain('sm:hidden');
       expect(beside!.tagName).toBe('BUTTON');
       expect(beside!.getAttribute('type')).toBe('button');
-      expect(beside!.getAttribute('aria-label')).toBe('What is this figure?');
+      expect(beside!.getAttribute('aria-label')).toBe('What does this mean?');
     }
   });
 
@@ -281,9 +281,9 @@ describe('the (i) beside a profit pill', () => {
     const before = window.location.href;
     fireEvent.click(infos(tile).beside!);
     const panel = await screen.findByTestId('stat-badge-info-panel');
-    expect(panel.textContent).toContain('Profit in the cash collected');
+    expect(panel.textContent).toContain('Profit collected');
     expect(panel.textContent).toContain(
-      'For each sale: what it sold for minus what its goods cost (purchase price plus shipping). A sale that is only partly paid counts the paid share of its profit. Cash refunds are taken off. Expenses and the exchange-rate loss are not taken off here — Net profit in Analytics takes them off.',
+      'What customers paid, minus what the goods cost you (price + shipping). Expenses are not taken off here.',
     );
     expect(followed).not.toHaveBeenCalled();
     expect(window.location.href).toBe(before);
@@ -296,7 +296,7 @@ describe('the (i) beside a profit pill', () => {
     const panel = await screen.findByTestId('stat-badge-info-phone-panel');
     expect(panel.textContent).toContain('Profit still to come');
     expect(panel.textContent).toContain(
-      'The profit still inside what customers owe: the unpaid share of each sale’s profit. It arrives as they pay.',
+      'The profit in what customers still owe. You get it when they pay.',
     );
     expect(panel.textContent).not.toContain('Cash refunds');
   });
@@ -306,8 +306,8 @@ describe('the (i) beside a profit pill', () => {
     renderPage();
     fireEvent.click(infos(await screen.findByTestId('sales-cash-collected')).beside!);
     const collected = await screen.findByTestId('stat-badge-info-panel');
-    expect(collected.textContent).toMatch(/^Loss in the cash collected/);
-    expect(collected.textContent).toContain('Cash refunds are taken off.');
+    expect(collected.textContent).toMatch(/^Loss collected/);
+    expect(collected.textContent).toContain('Expenses are not taken off here.');
     cleanup();
     renderPage();
     fireEvent.click(infos(await screen.findByTestId('sales-cash-to-collect')).beside!);
@@ -322,23 +322,23 @@ describe('the (i) beside a profit pill', () => {
     fireEvent.keyDown(panel, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByTestId('stat-badge-info-panel')).toBeNull());
     fireEvent.click(infos(tile).beside!);
-    expect((await screen.findByTestId('stat-badge-info-panel')).textContent).toContain('Profit in the cash collected');
+    expect((await screen.findByTestId('stat-badge-info-panel')).textContent).toContain('Profit collected');
   });
 
   it('reads in Arabic', async () => {
     renderPage('ar');
     const collected = await screen.findByTestId('sales-cash-collected');
-    expect(infos(collected).beside!.getAttribute('aria-label')).toBe('ما هذا الرقم؟');
+    expect(infos(collected).beside!.getAttribute('aria-label')).toBe('ماذا يعني هذا؟');
     fireEvent.click(infos(collected).beside!);
     const panel = await screen.findByTestId('stat-badge-info-panel');
-    expect(panel.textContent).toContain('الربح في النقد المحصّل');
-    expect(panel.textContent).toContain('صافي الربح في التحليلات يخصمها');
+    expect(panel.textContent).toContain('الربح المحصّل');
+    expect(panel.textContent).toContain('المصروفات غير مخصومة هنا');
     cleanup();
     renderPage('ar');
     fireEvent.click(infos(await screen.findByTestId('sales-cash-to-collect')).beside!);
     const toCome = await screen.findByTestId('stat-badge-info-panel');
-    expect(toCome.textContent).toContain('الربح الذي لم يُحصَّل بعد');
-    expect(toCome.textContent).toContain('نصيب غير المدفوع من ربح كل عملية بيع');
+    expect(toCome.textContent).toContain('ربح لم يُحصّل بعد');
+    expect(toCome.textContent).toContain('يصلك عندما يدفعون');
   });
 
   it('the skeleton traces the (i) beside each wide pill, in both places', async () => {
