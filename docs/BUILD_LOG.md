@@ -66,6 +66,13 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `fix/return-credit-over-owed`, not merged — a credit note cannot credit more than is owed** (owner decision
+  2026-11-06, §5). ORD-2026-00016 (2,000, paid in full, returned whole on the default credit note) lost the 2,000:
+  nothing owed went down and no `REFUND_PAID` was written. Now refused (`RETURN_CREDIT_OVER_OWED`), the default is
+  cash when the credit would not fit, and the return dialog picks Cash and explains why. Unit + component tests;
+  TC-INV-96 written, not run (no e2e); TC-INV-64's fixture paid 1,500 instead of 2,000 so its credit step is
+  legitimate. Not done: correcting ORD-2026-00016 on production (it needs its missing cash refund recorded) —
+  the owner's call. Split credit + cash: OPEN idea in §5.
 - **On `dev` 2026-11-04, not shipped — table widths** (owner: "Yes, fix them", "Merge into dev"): `feature/table-widths`
   merged (`37f9bda`). Customers' Balance and Cycles' Profit hold the largest amounts, ROI moved under Profit so the
   setup cycle's two actions fit, four date columns hold the widest Arabic month (TC-COL-04.11/06/07). Ledger at 1280

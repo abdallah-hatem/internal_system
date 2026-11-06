@@ -1993,7 +1993,9 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
   test('TC-INV-64: cash on hand counts only cash handed back — a 300 cash refund is 300, a credit-note return is nothing', async ({ request }) => {
     const { headers, mk, customer } = await leftoverWorld(request, 'Inv L7 Cash');
     const order = ((await (await request.get(`${API}/sales/orders?customerId=${customer.id}&limit=10`, { headers })).json()).data as any[])[0];
-    await mk('payments', { customerId: customer.id, amount: 2000, currency: 'EGP', orderId: order.id });
+    // 1,500 of the 2,000 paid, so 500 is still owed: a credit note can only lower
+    // what is owed (§5, 2026-11-06), and paid in full the credit step is refused.
+    await mk('payments', { customerId: customer.id, amount: 1500, currency: 'EGP', orderId: order.id });
     const item = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data.items[0];
     const cash = async () => cents((await dashboard(request, headers)).cashOnHand);
     const c0 = await cash();
@@ -2839,5 +2841,34 @@ test.describe('What made a profit and loss bar', () => {
     expect(await errCode(await ask('?from=2026-01-01&to=2026-03-01'))).toBe('PNL_BREAKDOWN_TOO_LONG');
     expect(await errCode(await ask(`?from=${dayFromNow(2)}&to=${dayFromNow(2)}`))).toBe('PERIOD_NOT_STARTED');
     expect(await errCode(await ask(`?from=${dayFromNow(-1)}&to=${dayFromNow(-1)}&page=0`))).toBe('LIST_PAGE_INVALID');
+  });
+});
+
+// ─── A credit note can only lower what is still owed (§5, owner 2026-11-06).
+// ORD-2026-00016 was paid in full, returned whole on the default credit note,
+// and 2,000 vanished: nothing owed went down and no cash left the books.
+test.describe('A credit note cannot credit more than is owed (§5, owner 2026-11-06)', () => {
+  const dashboard = async (request: APIRequestContext, headers: Record<string, string>) =>
+    (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data as { cashOnHand: number | string };
+
+  test('TC-INV-96: paid in full — a credit note is refused with a code; named nothing, the refund is cash and leaves the books', async ({ request }) => {
+    const { headers, mk, customer } = await leftoverWorld(request, 'Inv Credit Over Owed');
+    const order = ((await (await request.get(`${API}/sales/orders?customerId=${customer.id}&limit=10`, { headers })).json()).data as { id: string }[])[0];
+    await mk('payments', { customerId: customer.id, amount: 2000, currency: 'EGP', orderId: order.id });
+    const item = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data.items[0];
+    const cash = async () => cents((await dashboard(request, headers)).cashOnHand);
+
+    const credit = await request.post(`${API}/returns`, {
+      headers,
+      data: { saleOrderId: order.id, reason: 'all of it back', refundMethod: 'CREDIT_NOTE', items: [{ saleItemId: item.id, qty: 10 }] },
+    });
+    expect(credit.status()).toBe(400);
+    expect(await errCode(credit)).toBe('RETURN_CREDIT_OVER_OWED');
+
+    const c0 = await cash();
+    const back = await mk('returns', { saleOrderId: order.id, reason: 'all of it back', items: [{ saleItemId: item.id, qty: 10 }] });
+    expect(back.refundMethod).toBe('CASH');
+    expect(c0 - (await cash())).toBe(cents(2000));
+    expect(await outstandingOf(request, headers, order.id)).toBe(0);
   });
 });

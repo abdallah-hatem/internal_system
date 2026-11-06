@@ -4,7 +4,6 @@ import { LatinText } from '@/components/ui/latin-text';
 import { fetchAll, useAllRecords } from '@/lib/list-all';
 import { useServerList } from '@/lib/server-list';
 import { SalesBuyerFilter } from '@/components/sales/sales-buyer-filter';
-import { Select } from '../../../components/ui/select';
 import { CustomerLink, ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
@@ -56,6 +55,7 @@ import { ContractButton, ContractPlanDialog, type ContractSale } from '@/compone
 import { AdjustPriceButton, AdjustPriceDialog } from '@/components/sales/adjust-price';
 import { OrderHistory } from '@/components/sales/order-history';
 import { ReturnSamplesDialog } from '@/components/sales/return-samples-dialog';
+import { ReturnRefundMethod } from '@/components/sales/return-refund-method';
 import { LineHeldNote, LineTotalNow, LineUnitPrice, OrderTotal } from '@/components/sales/value-now';
 import { TabBar } from '@/components/ui/tab-bar';
 import { isSamplesStatus, samplesUnits } from '@/lib/samples';
@@ -1518,7 +1518,7 @@ function SalesPageContent() {
               returnMutation.mutate({
                 saleOrderId: returningOrder.id,
                 reason: String(fd.get('reason') || ''),
-                refundMethod: String(fd.get('refundMethod') || 'CREDIT_NOTE'),
+                refundMethod: String(fd.get('refundMethod') || '') || undefined,
                 items,
               });
             }}
@@ -1567,24 +1567,13 @@ function SalesPageContent() {
               ))}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('refundMethod')}
-              </label>
-              {/* A walk-in has no account to hold a credit, so its refund is
-                  money (§4); the server refuses a credit note on one. */}
-              <Select
-                name="refundMethod"
-                placeholder={tph('chooseRefundMethod')}
-                defaultValue={returningOrder.customer?.isWalkIn ? 'CASH' : 'CREDIT_NOTE'}
-                options={[
-                  ...(returningOrder.customer?.isWalkIn
-                    ? []
-                    : [{ value: 'CREDIT_NOTE', label: t('creditNote') }]),
-                  { value: 'CASH', label: t('cashRefund') },
-                ]}
-              />
-            </div>
+            {/* Cash for a walk-in, and whenever the lines are worth more than
+                the order still owes: a credit note only lowers what is owed (§4). */}
+            <ReturnRefundMethod
+              order={returningOrder}
+              qty={returnQty}
+              placeholder={tph('chooseRefundMethod')}
+            />
 
             <TextareaField
               label={t('reason')}
