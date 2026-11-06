@@ -320,8 +320,10 @@ function InventoryPageContent() {
       {isLoading && <LoadingStatus />}
 
       {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      {/* From xl: the batches and movements a row opens need ~944px, so at 768
+          and 1024 beside the sidebar they scrolled sideways (UI re-check 2, N3). */}
       <DataTable
-        className="hidden md:block"
+        className="hidden xl:block"
         columns={columns}
         rows={inventory}
         rowKey={(item) => item.productId}
@@ -340,12 +342,12 @@ function InventoryPageContent() {
 
       {/* Mobile Cards */}
       {isLoading && (
-        <SkeletonGroup className="md:hidden space-y-3">
+        <SkeletonGroup className="xl:hidden space-y-3">
           {repeat(PAGE_SIZE, (i) => <InventoryCardSkeleton key={i} />)}
         </SkeletonGroup>
       )}
       {!isLoading && (
-        <div className="md:hidden space-y-3">
+        <div className="xl:hidden space-y-3">
           {inventory.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (

@@ -32,7 +32,8 @@ export function useProfitPill() {
       label: t.rich(key, {
         amount,
         n: (chunks) => (
-          <bdi dir="ltr" className="tabular-nums">
+          // The figure never breaks, even where the pill's words wrap (S1).
+          <bdi dir="ltr" className="whitespace-nowrap tabular-nums">
             {chunks}
           </bdi>
         ),

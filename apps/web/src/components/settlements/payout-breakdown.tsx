@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { Money } from '@/components/ui/money';
 import { useCodeLabel } from '@/lib/labels';
+import { useDateFormat } from '@/lib/dates';
 import { SkeletonText, repeat } from '@/components/ui/skeleton';
 import { ExchangeAccountLine } from '@/components/lenders/exchange-result';
 
@@ -55,10 +56,13 @@ export interface PayoutBreakdown {
 
 const num = (v: string | number) => Number(v);
 /**
- * A date inside a translated sentence, kept left-to-right: in Arabic the bidi
- * algorithm otherwise splits "(2026-10-12)" into "(2026-" and "12-10)".
+ * A date inside a translated sentence, kept whole (UI audit M7, 2026-11-06).
+ * Isolated (FSI..PDI), so the bidi algorithm cannot split it against the
+ * Arabic around it: it takes its own direction, "Oct 12, 2026" left to right,
+ * the Arabic date right to left. Its spaces are made non-breaking, so a
+ * narrow line wraps before or after it, never inside it ("2026-08- / 24)").
  */
-const ltr = (day: string) => `\u2066${day}\u2069`;
+const wholeDate = (text: string) => `\u2068${text.replace(/\s/g, '\u00a0')}\u2069`;
 
 function Line({
   label,
@@ -163,6 +167,8 @@ export function PayoutBreakdownView({
   showCycle?: boolean;
 }) {
   const t = useTranslations('settlementsPage');
+  const { formatDate } = useDateFormat();
+  const day = (iso: string) => wholeDate(formatDate(iso));
   const codeLabel = useCodeLabel();
   const open = status === 'DRAFT' || status === 'APPROVED';
 
@@ -253,8 +259,8 @@ export function PayoutBreakdownView({
                     label={
                       p.runningCostsFrom && p.runningCostsTo
                         ? p.runningCostsFrom === p.runningCostsTo
-                          ? t('runningCostsDay', { day: ltr(p.runningCostsFrom) })
-                          : t('runningCostsPeriod', { from: ltr(p.runningCostsFrom), to: ltr(p.runningCostsTo) })
+                          ? t('runningCostsDay', { day: day(p.runningCostsFrom) })
+                          : t('runningCostsPeriod', { from: day(p.runningCostsFrom), to: day(p.runningCostsTo) })
                         : t('runningCostsLine')
                     }
                     amount={running}

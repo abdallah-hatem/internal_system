@@ -257,7 +257,9 @@ function SupplierFields({ record }: { record?: any }) {
       </div>
       <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InputField label={t('wechat')} name="wechat" defaultValue={contact.wechat} placeholder={tph('wechat')} />
-        <InputField label={t('whatsapp')} name="whatsapp" defaultValue={contact.whatsapp} placeholder={tph('whatsapp')} />
+        {/* A number reads left to right in Arabic too; the "+" of its placeholder
+            sat after the digits (UI audit 2026-11, L5). */}
+        <InputField label={t('whatsapp')} name="whatsapp" dir="ltr" defaultValue={contact.whatsapp} placeholder={tph('whatsapp')} />
       </div>
       <TextareaField label={t('notes')} name="notes" defaultValue={record?.notes} placeholder={tph('supplierNotes')} />
     </>

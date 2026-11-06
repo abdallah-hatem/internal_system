@@ -17,11 +17,14 @@ import { BatchMovementList, type BatchMovement } from '@/components/inventory/ba
 /**
  * A product's stock, one batch a line, on the product page (2026-10-22 audit).
  *
- * - Desktop (md and up): the shared table, one column per figure under its own
+ * - Desktop (lg and up): the shared table, one column per figure under its own
  *   header, the whole width of the page. It used to be one button per batch
  *   with "Label: value" pairs side by side, each wrapping onto two lines even
  *   at 1440 and clipped past the card on a phone.
- * - Phone: a card per batch, each figure on its own labelled line.
+ * - Phone and tablet: a card per batch, each figure on its own labelled line.
+ *   At md (768) the table and the movement table under it scrolled sideways
+ *   with nothing to say so, the Arabic cycle code ran into the card's edge and
+ *   the date sat under the chat button (UI re-check P5, 2026-11-06).
  *
  * Opening a batch shows its movements under it, and only there — the page
  * used to repeat them in a Movement History card of their own.
@@ -70,12 +73,13 @@ function Heading() {
   );
 }
 
-// Sized for their content in both languages at md (≈720px of content with or
-// without the sidebar; 718px at 1024 beside it): the figures add to 41.5rem,
-// 44.75rem with the toggle, and sit together from the
-// start; the toggle takes what is left, so its chevron is at the row's end and
-// a wide screen does not spread the figures apart (a 546px cycle column at
-// 1440 put the code half a page away from its numbers).
+// Sized for their content in both languages at lg (718px at 1024 beside the
+// sidebar): the figures add to 41.5rem, 44.75rem with the toggle, and sit
+// together from the start; the toggle takes what is left, so a wide screen
+// does not spread the figures apart (a 546px cycle column at 1440 put the code
+// half a page away from its numbers). Its chevron sits at the toggle column's
+// start, beside "Checked in", not across an empty gap at the row's far end
+// (UI re-check P9).
 const WIDTHS = {
   cycle: '8.75rem',
   received: '5.25rem',
@@ -126,7 +130,7 @@ export function ProductBatches({ batches }: { batches: readonly ProductBatch[] }
       key: 'toggle',
       header: <span className="sr-only">{tInv('movements')}</span>,
       width: WIDTHS.toggle,
-      align: 'end',
+      align: 'start',
       skeleton: { kind: 'none' },
       cell: (b) => (
         <button
@@ -157,7 +161,7 @@ export function ProductBatches({ batches }: { batches: readonly ProductBatch[] }
         <>
           {/* Desktop: the shared table, flush with the card's sides. */}
           <DataTable
-            className="hidden md:block"
+            className="hidden xl:block"
             tableTestId="batches-table"
             frame="none"
             density="dense"
@@ -180,7 +184,7 @@ export function ProductBatches({ batches }: { batches: readonly ProductBatch[] }
           />
 
           {/* Phone: a card per batch, a figure a line. */}
-          <ul className="space-y-3 px-4 pb-4 md:hidden" data-testid="batch-cards">
+          <ul className="space-y-3 px-4 pb-4 xl:hidden" data-testid="batch-cards">
             {batches.map((b) => {
               const open = expanded === b.id;
               return (
@@ -240,13 +244,13 @@ export function ProductBatchesSkeleton() {
     { key: 'landedCost', header: labels.landedCost, width: WIDTHS.landedCost, align: 'end', cell: () => null, skeleton: { kind: 'text', share: 'w-20' } },
     { key: 'arrived', header: labels.arrived, width: WIDTHS.arrived, cell: () => null, skeleton: { kind: 'text', share: 'w-20' } },
     { key: 'checkedIn', header: labels.checkedIn, width: WIDTHS.checkedIn, cell: () => null, skeleton: { kind: 'text', share: 'w-20' } },
-    { key: 'toggle', header: '', width: WIDTHS.toggle, cell: () => null, skeleton: { kind: 'custom', render: () => <Skeleton className="ms-auto size-4 rounded" /> } },
+    { key: 'toggle', header: '', width: WIDTHS.toggle, cell: () => null, skeleton: { kind: 'custom', render: () => <Skeleton className="size-4 rounded" /> } },
   ];
   return (
     <div className="rounded-xl border border-border bg-card">
       <Heading />
       <DataTable
-        className="hidden md:block"
+        className="hidden xl:block"
         frame="none"
         density="dense"
         autoMin={AUTO_MIN}
@@ -257,7 +261,7 @@ export function ProductBatchesSkeleton() {
         skeletonRows={2}
         skeletonRowTestId={null}
       />
-      <SkeletonGroup as="ul" className="space-y-3 px-4 pb-4 md:hidden">
+      <SkeletonGroup as="ul" className="space-y-3 px-4 pb-4 xl:hidden">
         {repeat(2, (i) => (
           <li key={i} className="rounded-lg border border-border px-4 py-3">
             <div className="space-y-1.5">

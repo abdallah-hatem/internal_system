@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { Dialog, DialogAlert, DialogCancel } from '@/components/ui/dialog';
 import { Loader2, Undo2 } from '@/components/ui/icons';
 import { LatinText } from '@/components/ui/latin-text';
+import { isolateCodes } from '@/components/layout/isolate-codes';
 
 /**
  * "Returned" on a samples order (BUSINESS_LOGIC §4, owner 2026-10-28: "I
@@ -122,7 +123,9 @@ export function ReturnSamplesDialog({
 
   return (
     <Dialog
-      title={t('returnTitle', { orderNo: order.orderNo })}
+      // A phone broke "ORD-2026-00080" at its hyphen, and Arabic swapped the
+      // halves: the number is one unbreakable LTR run (UI audit M13).
+      title={isolateCodes(t('returnTitle', { orderNo: order.orderNo }))}
       onClose={close}
       size="md"
       busy={mutation.isPending}

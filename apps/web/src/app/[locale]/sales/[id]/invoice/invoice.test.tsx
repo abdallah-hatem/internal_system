@@ -211,6 +211,30 @@ describe('the invoice as a PDF', () => {
     for (const c of cells) expect(c).toContain('sheet:table-cell');
   });
 
+  it('on a phone nothing scrolls sideways: the line total and quantity sit under the name (UI audit H2)', async () => {
+    renderPage('en');
+    await screen.findByTestId('invoice');
+    fireEvent.click(screen.getByTestId('invoice-lang-en'));
+    // The table's phone minimum fits a 375px screen: 16px page gutters and
+    // the card's 20px padding leave ~303px, under 19rem.
+    const style = screen.getByTestId('invoice-lines').getAttribute('style') ?? '';
+    const phoneMin = style.match(/--dt-min-xs:\s*calc\(([^;]*)\)/)?.[1] ?? '';
+    const rem = phoneMin.split('+').reduce((sum, w) => sum + parseFloat(w), 0);
+    expect(rem).toBeGreaterThan(0);
+    expect(rem).toBeLessThanOrEqual(18);
+
+    // Each line's quantity, price and total are there to read, under the name…
+    const [first, second] = screen.getAllByTestId('invoice-line');
+    const phone = (row: HTMLElement, id: string) => row.querySelector(`[data-testid="${id}"]`) as HTMLElement;
+    expect(phone(first, 'invoice-line-phone').textContent).toMatch(/4 × 1,250\.00/);
+    expect(phone(first, 'invoice-line-total-phone').textContent).toContain('5,000.00');
+    expect(phone(second, 'invoice-line-total-phone').textContent).toContain('11,900.00');
+    // …and only on a phone: paper keeps its columns.
+    for (const id of ['invoice-line-phone', 'invoice-line-total-phone']) {
+      expect(phone(first, id).className).toMatch(/\bsm:hidden\b.*\bprint:hidden\b.*\bsheet:hidden\b/);
+    }
+  });
+
   it('in Arabic the sheet runs right to left and numbers its pages in Arabic', async () => {
     renderPage('ar');
     await screen.findByTestId('invoice');

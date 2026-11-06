@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, type FormEvent } from 'react';
 import { Loader2 } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { DatePicker } from './date-picker';
@@ -49,6 +50,26 @@ export function FieldMark({
   );
 }
 
+/**
+ * The direction of a free-text field: its own text's, once it has some.
+ *
+ * A field takes the page's direction, so an English name or description typed
+ * on an Arabic page was laid out right to left and its full stop jumped to the
+ * front — "Parts Co." showed as ".Parts Co" (UI audit 2026-11, M5). `dir="auto"`
+ * reads the direction from the text instead.
+ *
+ * Only while there is text: Chromium resolves an empty `dir="auto"` field to
+ * left to right, which would pull an Arabic page's placeholder to the left
+ * edge. Empty, the field keeps the page's direction.
+ */
+export function useTextDirection(defaultValue: unknown) {
+  const [filled, setFilled] = useState(defaultValue != null && String(defaultValue) !== '');
+  return {
+    dir: filled ? ('auto' as const) : undefined,
+    onInput: (e: FormEvent<HTMLInputElement | HTMLTextAreaElement>) => setFilled(e.currentTarget.value !== ''),
+  };
+}
+
 export function InputField({
   label,
   name,
@@ -72,6 +93,10 @@ export function InputField({
   dir?: 'rtl' | 'ltr';
   maxLength?: number;
 }) {
+  // Free text follows its own direction; a number, an email or a date keeps
+  // the page's unless the caller says otherwise.
+  const text = useTextDirection(defaultValue);
+  const free = type === 'text' && !dir;
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -96,7 +121,8 @@ export function InputField({
           defaultValue={defaultValue}
           required={required}
           placeholder={placeholder}
-          dir={dir}
+          dir={free ? text.dir : dir}
+          onInput={free ? text.onInput : undefined}
           maxLength={maxLength}
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />

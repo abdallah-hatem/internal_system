@@ -90,7 +90,18 @@ const EM_PER_CHAR = 0.6;
  * label line keeps the height its skeleton traces, on a phone (text-xs) and
  * from sm (text-sm, 20px) alike.
  */
-const LABEL_BADGE = 'inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-1.5 text-[11px] font-medium leading-4 tabular-nums';
+const PILL = 'inline-flex items-center px-1.5 text-[11px] font-medium leading-4 tabular-nums';
+const LABEL_BADGE = `${PILL} shrink-0 whitespace-nowrap rounded-full`;
+/**
+ * The worded pill on a phone's icon row. "+5,011,430 profit to come" is wider
+ * than a 320 or 375 half-width tile beside its icon, and held on one line it
+ * ran out of the tile and was clipped ("…profit to com", UI re-check S1/S2,
+ * 2026-11-06). The row wraps, so the pill drops under the icon when it does not
+ * fit beside it, and the pill's own words wrap within the tile's width; only
+ * its figure stays whole (useProfitPill). rounded-lg is a full round on one
+ * line and still a pill on two.
+ */
+const PHONE_BADGE = `${PILL} min-w-0 max-w-full rounded-lg`;
 const BADGE_TONE: Record<NonNullable<StatTileBadge['tone']>, string> = {
   muted: 'bg-muted text-muted-foreground',
   success: 'bg-success/10 text-success',
@@ -103,8 +114,8 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
   // A worded pill ("+25,502 profit") does not fit beside a label in a phone's
   // half-width tile: "Cash from sales" was cut to "Cash f…" at 390
   // (2026-11-06). There it sits on the icon's row instead, at the other end,
-  // where the row has room and the tile keeps its height; from sm up, beside
-  // the label as a count does.
+  // where the row has room (and below the icon when even that is too narrow,
+  // PHONE_BADGE); from sm up, beside the label as a count does.
   const worded = badge !== undefined && typeof badge.label !== 'string';
   const ids = useId();
   const labelId = `${ids}-label`;
@@ -112,18 +123,22 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
   const figureId = `${ids}-figure`;
   const subId = `${ids}-sub`;
   // The pill and its (i), as one unit: the (i) only ever appears with a pill,
-  // and hides with it at the breakpoint where the pill sits elsewhere.
-  const pill = (testIdSuffix: string, extra: string) =>
+  // and hides with it at the breakpoint where the pill sits elsewhere. On the
+  // phone's icon row the unit may shrink and wrap with the pill (PHONE_BADGE).
+  const pill = (testIdSuffix: string, base: string, extra: string) =>
     badge &&
     (badge.info ? (
-      <span data-testid={`stat-badge-group${testIdSuffix}`} className={`inline-flex shrink-0 items-center gap-1 ${extra}`}>
-        {pillOnly(testIdSuffix, extra)}
+      <span
+        data-testid={`stat-badge-group${testIdSuffix}`}
+        className={`inline-flex items-center gap-1 ${base === PHONE_BADGE ? 'min-w-0 max-w-full' : 'shrink-0'} ${extra}`}
+      >
+        {pillOnly(testIdSuffix, base, extra)}
         <BadgeInfo info={badge.info} testId={`stat-badge-info${testIdSuffix}`} />
       </span>
     ) : (
-      pillOnly(testIdSuffix, extra)
+      pillOnly(testIdSuffix, base, extra)
     ));
-  const pillOnly = (testIdSuffix: string, extra: string) =>
+  const pillOnly = (testIdSuffix: string, base: string, extra: string) =>
     badge && (
       <span
         data-testid={`stat-badge${testIdSuffix}`}
@@ -132,7 +147,7 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
         // A bare count reads left to right; a worded pill ("+25,502
         // profit", "+25,502 ربح") follows the page and isolates its own figure.
         dir={worded ? undefined : 'ltr'}
-        className={`${LABEL_BADGE} ${BADGE_TONE[badge.tone ?? 'muted']} ${extra}`}
+        className={`${base} ${BADGE_TONE[badge.tone ?? 'muted']} ${extra}`}
       >
         {/* One inline run: as flex items the figure and the word lost the
             space between them ("+308,513profit"). */}
@@ -153,7 +168,7 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
         {badge ? (
           <p data-testid="stat-label" className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground sm:text-sm">
             <span id={labelId} className="min-w-0 truncate">{label}</span>
-            {pill('', worded ? 'max-sm:hidden' : '')}
+            {pill('', LABEL_BADGE, worded ? 'max-sm:hidden' : '')}
             <span id={srId} className="sr-only">{badge.srLabel}</span>
           </p>
         ) : (
@@ -179,9 +194,9 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
         {sub && <div id={subId} className="mt-1 text-xs text-muted-foreground">{sub}</div>}
       </div>
       {worded ? (
-        <div data-testid="stat-icon-row" className="flex w-full items-center justify-between gap-2 sm:w-auto">
+        <div data-testid="stat-icon-row" className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
           {icon}
-          {pill('-phone', 'sm:hidden')}
+          {pill('-phone', PHONE_BADGE, 'sm:hidden')}
         </div>
       ) : (
         icon

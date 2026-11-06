@@ -3,6 +3,7 @@ import { LatinText } from '@/components/ui/latin-text';
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useLocalName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useNumberFormat } from '@/lib/numbers';
@@ -78,6 +79,8 @@ interface DashboardData {
 interface TopProduct {
   productId: string;
   name: string;
+  /** Shown on /ar when entered (BUSINESS_LOGIC §3); the API sends both names. */
+  nameAr?: string | null;
   sku: string;
   totalQuantitySold: number;
   /** What it brought in, net of returns — the order the list is in. */
@@ -228,6 +231,7 @@ export default function DashboardPage() {
   });
 
   // Units or revenue, as the person last chose (units by default).
+  const nameOf = useLocalName();
   const [topBy, setTopBy] = useTopProductsBy();
   const { data: topProducts = [], isLoading: loadingProducts } = useQuery({
     queryKey: ['analytics', 'top-products', 'dashboard', topBy],
@@ -474,7 +478,7 @@ export default function DashboardPage() {
                 return (
                   <li key={item.productId} data-testid="top-product" className="py-2.5">
                     <div className="flex items-center justify-between gap-3">
-                      <LatinText truncate className="min-w-0 text-sm font-medium text-card-foreground">{item.name}</LatinText>
+                      <LatinText truncate className="min-w-0 text-sm font-medium text-card-foreground">{nameOf(item)}</LatinText>
                       <span className="flex-shrink-0 text-sm font-semibold text-card-foreground">{topBy === 'units' ? units : revenue}</span>
                     </div>
                     <div className="mt-1.5 flex items-center gap-3">

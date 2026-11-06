@@ -188,6 +188,82 @@ describe('the sale order popup', () => {
     expect(screen.queryByText(/#7f3c9a12/)).toBeNull();
   });
 
+  it('the Items table fits a 320px phone: its phone minimum is within the ~256px the popup leaves (UI re-check 2, N2)', async () => {
+    renderPage();
+    await openOrder('ORD-2026-00002');
+    const header = await screen.findByRole('columnheader', { name: en.sales.lineTotal });
+    const style = header.closest('table')!.getAttribute('style') ?? '';
+    const phoneMin = style.match(/--dt-min-xs:\s*calc\(([^;]*)\)/)?.[1] ?? '';
+    const rem = phoneMin.split('+').reduce((sum, w) => sum + parseFloat(w), 0);
+    expect(rem).toBeGreaterThan(0);
+    expect(rem * 16).toBeLessThanOrEqual(256);
+  });
+
+  it('the batch line may wrap inside its column, so it never runs over the COGS beside it (UI audit H1)', async () => {
+    const confirmed = order('o-1', 'ORD-2026-00002', 'CONFIRMED', '3750.00');
+    confirmed.items[0].allocations = [
+      {
+        id: 'al-1',
+        inventoryBatchId: '7f3c9a12-0000-4000-8000-000000000001',
+        qty: 3,
+        unitCostEgp: '117.30',
+        cogsEgp: '351.90',
+        inventoryBatch: { createdAt: '2026-09-09T10:00:00.000Z', cycle: { code: 'CYC-H26-03' } },
+      },
+    ] as never[];
+    data.detail['o-1'] = confirmed;
+    renderPage();
+    await openOrder('ORD-2026-00002');
+    const batch = await screen.findByTestId('allocation-batch');
+    // Nothing between the batch line and its row holds it on one line…
+    for (let el: HTMLElement | null = batch; el && !el.className.includes('bg-blue-50'); el = el.parentElement) {
+      expect(el.className).not.toMatch(/whitespace-nowrap|\btruncate\b/);
+    }
+    // …but the cycle code itself stays whole, and so does the cost.
+    expect(within(batch).getByText('CYC-H26-03').className).toContain('whitespace-nowrap');
+    expect(screen.getByTestId('allocation-unit-cost').className).toContain('whitespace-nowrap');
+  });
+
+  // Re-check H1 (2026-11-06): beside the COGS the text column was ~60px at 320,
+  // so names were cut to 4-5 letters and break-words split "استُلمت" mid-word.
+  it.each(['en', 'ar'] as const)(
+    'on a phone the COGS sits under the product and batch line, which get the full width (re-check H1, %s)',
+    async (locale) => {
+      const confirmed = order('o-1', 'ORD-2026-00002', 'CONFIRMED', '3750.00');
+      confirmed.items[0].allocations = [
+        {
+          id: 'al-1',
+          inventoryBatchId: '7f3c9a12-0000-4000-8000-000000000001',
+          qty: 3,
+          unitCostEgp: '2658.21',
+          cogsEgp: '7974.63',
+          inventoryBatch: { createdAt: '2026-09-04T10:00:00.000Z', cycle: { code: 'CYC-H26-03' } },
+        },
+      ] as never[];
+      data.detail['o-1'] = confirmed;
+      renderPage(locale);
+      await openOrder('ORD-2026-00002');
+      const row = await screen.findByTestId('allocation-row');
+      const rowClasses = row.className.split(/\s+/);
+      // Stacked on a phone, one row again from sm up.
+      expect(rowClasses).toContain('flex-col');
+      expect(rowClasses).toEqual(expect.arrayContaining(['sm:flex-row', 'sm:items-center', 'sm:justify-between']));
+      expect(rowClasses).not.toContain('flex-row');
+      // The COGS is the row's second line, not a column beside the text.
+      const cogs = within(row).getByTestId('allocation-cogs');
+      expect(cogs.parentElement).toBe(row);
+      expect(cogs.textContent).toContain('7,974.63');
+      expect(cogs.contains(screen.getByTestId('allocation-batch'))).toBe(false);
+      expect(cogs.className.split(/\s+/)).not.toContain('shrink-0');
+      expect(cogs.className.split(/\s+/)).toContain('sm:shrink-0');
+      // No class between the batch text and its row breaks a word in two.
+      for (let el: HTMLElement | null = screen.getByTestId('allocation-batch'); el && el !== row; el = el.parentElement) {
+        expect(el.className).not.toMatch(/break-words|break-all|wrap-break-word|wrap-anywhere/);
+      }
+      if (locale === 'ar') expect(screen.getByTestId('allocation-batch').textContent).toContain('استُلمت');
+    },
+  );
+
   it('in Arabic the tabs are السجل and الطلب', async () => {
     renderPage('ar');
     await openOrder('ORD-2026-00002');

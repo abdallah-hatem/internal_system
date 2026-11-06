@@ -660,6 +660,9 @@ function DetailItem({
   /**
    * Arabic text: ordered right to left even on /en, so "هوندا CBR 150" does
    * not come out scrambled, while the cell stays aligned with its neighbours.
+   * Its own block, as wide as its text: one line sits on the cell's start edge
+   * like the others; a wrapped one aligns its lines as Arabic, on the right,
+   * instead of leaving its last word alone on the left (UI re-check P8).
    */
   rtl?: boolean;
 }) {
@@ -668,7 +671,13 @@ function DetailItem({
       <span className="text-xs text-gray-500 block mb-0.5">{label}</span>
       <p className={`text-sm font-medium text-gray-900 ${mono ? 'font-mono' : ''}`}>
         {/* Each value is its own run: an English description on /ar put its full stop first. */}
-        {rtl ? <bdi dir="rtl">{value}</bdi> : <bdi>{value}</bdi>}
+        {rtl ? (
+          <bdi dir="rtl" className="block w-fit max-w-full text-start">
+            {value}
+          </bdi>
+        ) : (
+          <bdi>{value}</bdi>
+        )}
       </p>
     </div>
   );

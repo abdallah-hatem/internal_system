@@ -600,7 +600,10 @@ export function FundingCard({
                     </span>
                   )}
                 </span>
-                <span className="justify-self-end md:justify-self-start">
+                {/* A phone gives the pill a line of its own (UI audit M11, 2026-11-06):
+                    in half the row at 320, "covered · 3,150.00 EGP left over" sat on
+                    top of "Contributed". */}
+                <span data-testid="share-status-cell" className="col-span-2 justify-self-start md:col-span-1">
                   {!nothingToShare && (
                     <StatusPill short={cover < 0}>
                       {cover < 0
@@ -1171,7 +1174,7 @@ export function FundingCardSkeleton() {
                 <SkeletonText size="base" className="w-20" />
                 <SkeletonText size="sm" className="w-24 justify-self-end md:justify-self-start" />
                 <SkeletonText size="sm" className="hidden w-24 md:block" />
-                <Skeleton className="h-5 w-32 justify-self-end rounded-full md:justify-self-start" />
+                <Skeleton className="col-span-2 h-5 w-32 justify-self-start rounded-full md:col-span-1" />
               </div>
             ))}
           </div>
