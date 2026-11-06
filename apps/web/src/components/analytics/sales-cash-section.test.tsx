@@ -128,6 +128,32 @@ describe('Analytics — Sales cash, all time', () => {
     expect(state.periods.every((u) => u === '/analytics/dashboard')).toBe(true);
   });
 
+  // UI re-check S1 (2026-11-06): "+5,011,430 profit to come" held on one line
+  // ran past a 320/375 half-width tile and was clipped ("…profit to com"), in
+  // Arabic out of the tile's left edge. jsdom has no layout, so this pins what
+  // lets it fit: the icon row wraps, the pill may shrink to the tile and wrap
+  // its words, its figure stays whole, and nothing round it clips.
+  it.each(['en', 'ar'] as const)('a 7-digit pill to come wraps inside its tile on a phone, never clipped (%s)', async (locale) => {
+    state.kpis = { ...KPIS, profitToCollectEgp: 5011430.2 };
+    renderPage(locale);
+    const tile = await screen.findByTestId('sales-cash-to-collect');
+    const row = within(tile).getByTestId('stat-icon-row');
+    expect(row.className.split(/\s+/)).toContain('flex-wrap');
+    const pill = within(row).getByTestId('stat-badge-phone');
+    expect(pill.textContent).toBe(locale === 'en' ? '+5,011,430 profit to come' : '+5,011,430 ربح قادم');
+    const classes = pill.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(['min-w-0', 'max-w-full']));
+    expect(classes).not.toEqual(expect.arrayContaining(['whitespace-nowrap']));
+    expect(classes).not.toEqual(expect.arrayContaining(['shrink-0']));
+    for (let el: HTMLElement | null = pill; el && el !== tile.parentElement; el = el.parentElement) {
+      expect(el.className).not.toMatch(/overflow-hidden|\btruncate\b|whitespace-nowrap/);
+    }
+    // The figure itself never breaks across lines.
+    const figure = pill.querySelector('bdi')!;
+    expect(figure.textContent).toBe('+5,011,430');
+    expect(figure.className.split(/\s+/)).toContain('whitespace-nowrap');
+  });
+
   it('a loss still to come shows red; a zero profit shows no pill', async () => {
     state.kpis = { ...KPIS, profitOnCollectedEgp: 0, profitToCollectEgp: -480.2 };
     renderPage();

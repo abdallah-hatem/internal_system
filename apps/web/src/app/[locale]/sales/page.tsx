@@ -1207,7 +1207,17 @@ function SalesPageContent() {
                 <div className="space-y-2">
                   {(detail.items ?? []).flatMap((item: SaleOrderItem) =>
                     (item.allocations ?? []).map((alloc) => (
-                      <div key={alloc.id} className="flex items-center justify-between bg-blue-50 rounded-lg px-4 py-3 text-sm gap-3">
+                      // On a phone the row stacks: the product and its batch
+                      // line take the card's full width, and the quantity and
+                      // COGS sit on a line of their own under them. Beside each
+                      // other the text column was about 60px at 320, cutting
+                      // names to 4-5 letters and splitting "استُلمت" mid-word
+                      // (UI re-check H1). From sm up, one row as before.
+                      <div
+                        key={alloc.id}
+                        data-testid="allocation-row"
+                        className="flex flex-col gap-2 bg-blue-50 rounded-lg px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                      >
                         <div className="flex items-center gap-2 min-w-0">
                           <Package className="h-4 w-4 text-blue-500 shrink-0" />
                           <div className="min-w-0">
@@ -1218,8 +1228,10 @@ function SalesPageContent() {
                                 narrow card never breaks inside "117.30 EGP /unit"
                                 (re-audit N5). The batch line itself may wrap: held
                                 on one line it ran on top of the COGS figure beside
-                                it at every width (UI audit H1). */}
-                            <p className="text-xs text-gray-500 break-words">
+                                it at every width (UI audit H1). It wraps between
+                                words only: break-words split an Arabic word in
+                                two when the column was narrow (re-check H1). */}
+                            <p className="text-xs text-gray-500">
                               {alloc.inventoryBatch?.cycle?.code ? (
                                 <span data-testid="allocation-batch">
                                   <bdi dir="ltr" className="font-mono whitespace-nowrap">{alloc.inventoryBatch.cycle.code}</bdi>
@@ -1250,7 +1262,10 @@ function SalesPageContent() {
                         {/* The batch cost is the whole point of tracking batches:
                             it is the COGS this sale is charged and can never be
                             recomputed from today's prices. */}
-                        <div className="text-end shrink-0">
+                        <div
+                          data-testid="allocation-cogs"
+                          className="flex items-baseline justify-between gap-3 ps-6 sm:block sm:shrink-0 sm:ps-0 sm:text-end"
+                        >
                           <p className="font-medium text-gray-900">× {alloc.qty}</p>
                           {alloc.cogsEgp != null && (
                             <p className="text-xs text-gray-500">

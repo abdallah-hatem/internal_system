@@ -730,6 +730,23 @@ describe('Cash from sales carries its profit', () => {
     expect(within(stock).queryByTestId('stat-badge-phone')).toBeNull();
   });
 
+  // UI re-check S2 (2026-11-06): "+319,280 profit" reached the tile's edge
+  // at 320. The icon row wraps, so the pill drops under the icon instead.
+  it('on a phone the pill can drop under the icon and wrap its words, so it never reaches past the tile', async () => {
+    withKpis({ profitOnCollectedEgp: 319280 });
+    renderPage();
+    const el = await tile('cashFromSales');
+    const row = within(el).getByTestId('stat-icon-row');
+    expect(row.className.split(/\s+/)).toContain('flex-wrap');
+    const phone = within(row).getByTestId('stat-badge-phone');
+    expect(phone.textContent).toBe('+319,280 profit');
+    expect(phone.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-w-0', 'max-w-full']));
+    expect(phone.className).not.toMatch(/whitespace-nowrap|shrink-0|overflow-hidden/);
+    // Beside the label (from sm up) it stays one line, as before.
+    const beside = within(within(el).getByTestId('stat-label')).getByTestId('stat-badge');
+    expect(beside.className.split(/\s+/)).toEqual(expect.arrayContaining(['whitespace-nowrap', 'rounded-full']));
+  });
+
   it('a large profit keeps its grouping and drops the piastres', async () => {
     withKpis({ profitOnCollectedEgp: 1234567.5 });
     renderPage();

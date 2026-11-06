@@ -213,6 +213,46 @@ describe('the sale order popup', () => {
     expect(screen.getByTestId('allocation-unit-cost').className).toContain('whitespace-nowrap');
   });
 
+  // Re-check H1 (2026-11-06): beside the COGS the text column was ~60px at 320,
+  // so names were cut to 4-5 letters and break-words split "استُلمت" mid-word.
+  it.each(['en', 'ar'] as const)(
+    'on a phone the COGS sits under the product and batch line, which get the full width (re-check H1, %s)',
+    async (locale) => {
+      const confirmed = order('o-1', 'ORD-2026-00002', 'CONFIRMED', '3750.00');
+      confirmed.items[0].allocations = [
+        {
+          id: 'al-1',
+          inventoryBatchId: '7f3c9a12-0000-4000-8000-000000000001',
+          qty: 3,
+          unitCostEgp: '2658.21',
+          cogsEgp: '7974.63',
+          inventoryBatch: { createdAt: '2026-09-04T10:00:00.000Z', cycle: { code: 'CYC-H26-03' } },
+        },
+      ] as never[];
+      data.detail['o-1'] = confirmed;
+      renderPage(locale);
+      await openOrder('ORD-2026-00002');
+      const row = await screen.findByTestId('allocation-row');
+      const rowClasses = row.className.split(/\s+/);
+      // Stacked on a phone, one row again from sm up.
+      expect(rowClasses).toContain('flex-col');
+      expect(rowClasses).toEqual(expect.arrayContaining(['sm:flex-row', 'sm:items-center', 'sm:justify-between']));
+      expect(rowClasses).not.toContain('flex-row');
+      // The COGS is the row's second line, not a column beside the text.
+      const cogs = within(row).getByTestId('allocation-cogs');
+      expect(cogs.parentElement).toBe(row);
+      expect(cogs.textContent).toContain('7,974.63');
+      expect(cogs.contains(screen.getByTestId('allocation-batch'))).toBe(false);
+      expect(cogs.className.split(/\s+/)).not.toContain('shrink-0');
+      expect(cogs.className.split(/\s+/)).toContain('sm:shrink-0');
+      // No class between the batch text and its row breaks a word in two.
+      for (let el: HTMLElement | null = screen.getByTestId('allocation-batch'); el && el !== row; el = el.parentElement) {
+        expect(el.className).not.toMatch(/break-words|break-all|wrap-break-word|wrap-anywhere/);
+      }
+      if (locale === 'ar') expect(screen.getByTestId('allocation-batch').textContent).toContain('استُلمت');
+    },
+  );
+
   it('in Arabic the tabs are السجل and الطلب', async () => {
     renderPage('ar');
     await openOrder('ORD-2026-00002');
