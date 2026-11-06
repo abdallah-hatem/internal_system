@@ -248,6 +248,64 @@ describe('the tiles', () => {
     expect(screen.getByTestId('pnl-summary')).toBeTruthy();
   });
 
+  // Owner 2026-11-06: "Exchange-rate loss on the lender repayments −3,183.74 —
+  // this needs to show that it's a loss". The API's figure is above zero for a
+  // loss (more pounds paid than the debt was worth) and below for a gain.
+  describe('the exchange line says loss or gain', () => {
+    const exchangeLine = () => screen.getByTestId('pnl-summary').querySelector('[data-line="exchange"]') as HTMLElement | null;
+
+    it('a loss: "Exchange-rate loss", its hint, the figure red with a minus', async () => {
+      reply = () => Promise.resolve({ ...PNL, exchangeDifferenceEgp: 3183.74 });
+      renderIn();
+      await screen.findByRole('button', { name: 'How it adds up' });
+      const line = exchangeLine()!;
+      expect(within(line).getByTestId('exchange-line-label').textContent).toBe('Exchange-rate loss');
+      expect(within(line).getByTestId('exchange-line-label').className).toContain('text-destructive');
+      expect(within(line).getByTestId('exchange-line-hint').textContent).toBe('Paid back the lender at a higher rate than borrowed');
+      const amount = within(line).getByTestId('exchange-line-amount');
+      expect(amount.textContent).toBe('−3,183.74 EGP');
+      expect(amount.className).toContain('text-destructive');
+      expect(amount.getAttribute('dir')).toBe('ltr');
+      // Never the neutral word, and never a second minus in the operator column.
+      expect(line.textContent).not.toMatch(/difference/i);
+      expect(line.textContent!.match(/−/g)).toHaveLength(1);
+    });
+
+    it('a gain: "Exchange-rate gain", its hint, the figure green with a plus', async () => {
+      reply = () => Promise.resolve({ ...PNL, exchangeDifferenceEgp: -1200 });
+      renderIn();
+      await screen.findByRole('button', { name: 'How it adds up' });
+      const line = exchangeLine()!;
+      expect(within(line).getByTestId('exchange-line-label').textContent).toBe('Exchange-rate gain');
+      expect(within(line).getByTestId('exchange-line-hint').textContent).toBe('Paid back the lender at a lower rate than borrowed');
+      const amount = within(line).getByTestId('exchange-line-amount');
+      expect(amount.textContent).toBe('+1,200.00 EGP');
+      expect(amount.className).toContain('text-success');
+      expect(line.textContent).not.toContain('−');
+      expect(amount.textContent).not.toContain('-');
+    });
+
+    it('zero: no line at all', async () => {
+      reply = () => Promise.resolve({ ...PNL, exchangeDifferenceEgp: 0 });
+      renderIn();
+      await screen.findByRole('button', { name: 'How it adds up' });
+      expect(exchangeLine()).toBeNull();
+      expect(screen.queryByTestId('exchange-line')).toBeNull();
+    });
+
+    it('in Arabic: the loss in words, the minus kept in front of the digits', async () => {
+      reply = () => Promise.resolve({ ...PNL, exchangeDifferenceEgp: 3183.74 });
+      renderIn('ar');
+      await screen.findByTestId('pnl-summary');
+      const line = exchangeLine()!;
+      expect(within(line).getByTestId('exchange-line-label').textContent).toBe(ar.exchangeResult.loss);
+      expect(within(line).getByTestId('exchange-line-hint').textContent).toBe(ar.exchangeResult.lossHint);
+      const amount = within(line).getByTestId('exchange-line-amount');
+      expect(amount.textContent!.startsWith('−')).toBe(true);
+      expect(amount.getAttribute('dir')).toBe('ltr');
+    });
+  });
+
   // Owner 2026-10-23: Cash paid out left the dashboard; it lives here, for the period.
   it('cash paid out for the period sits under the account, apart from it — not one of its lines', async () => {
     renderIn();

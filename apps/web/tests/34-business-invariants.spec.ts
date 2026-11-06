@@ -2006,6 +2006,30 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
     await mk('returns', { saleOrderId: order.id, reason: 'one more, on credit', refundMethod: 'CREDIT_NOTE', items: [{ saleItemId: item.id, qty: 1 }] });
     expect(await cash()).toBe(c1);
   });
+
+  // Owner 2026-11-06: the dashboard's Cash from sales — payments not reversed,
+  // less cash refunded (api common/cash-from-sales.ts). Written with the
+  // feature; not yet run (the owner asked for no e2e runs that day).
+  test('TC-INV-64b: cash from sales — a payment in, a cash refund out once, a credit note nothing, a reversed payment gone', async ({ request }) => {
+    const { headers, mk, customer } = await leftoverWorld(request, 'Inv Cash Sales');
+    const order = ((await (await request.get(`${API}/sales/orders?customerId=${customer.id}&limit=10`, { headers })).json()).data as any[])[0];
+    const fromSales = async () => cents((await dashboard(request, headers)).cashFromSalesEgp);
+    const s0 = await fromSales();
+    const first = await mk('payments', { customerId: customer.id, amount: 1000, currency: 'EGP', orderId: order.id });
+    expect((await fromSales()) - s0).toBe(cents(1000));
+    await mk('payments', { customerId: customer.id, amount: 500, currency: 'EGP', orderId: order.id });
+    const s1 = await fromSales();
+    expect(s1 - s0).toBe(cents(1500));
+    const item = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data.items[0];
+    await mk('returns', { saleOrderId: order.id, reason: 'one back for cash', refundMethod: 'CASH', items: [{ saleItemId: item.id, qty: 1 }] });
+    const s2 = await fromSales();
+    expect(s1 - s2, 'a 200 cash refund is 200 off, not 400').toBe(cents(200));
+    await mk('returns', { saleOrderId: order.id, reason: 'one more, on credit', refundMethod: 'CREDIT_NOTE', items: [{ saleItemId: item.id, qty: 1 }] });
+    expect(await fromSales(), 'a credit note hands no cash back').toBe(s2);
+    const rev = await request.post(`${API}/payments/${first.id}/reverse`, { headers, data: { reason: 'bounced' } });
+    expect(rev.ok(), await rev.text()).toBeTruthy();
+    expect(s2 - (await fromSales()), 'a reversed payment was never collected').toBe(cents(1000));
+  });
 });
 
 // ─── L7 alignment review (2026-10-12): a cost's shares are fixed on its own day,

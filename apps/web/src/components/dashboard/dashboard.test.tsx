@@ -30,11 +30,13 @@ const post = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api', () => ({ api: { get, post } }));
 
 import DashboardPage from '@/app/[locale]/dashboard/page';
-import { QUICK_ACTIONS, quickActionsFor } from '@/components/dashboard/dashboard-model';
+import { QUICK_ACTIONS, RIGHT_NOW_TILES, quickActionsFor } from '@/components/dashboard/dashboard-model';
 
 const KPIS = {
   totalRevenue: 1000, totalExpenses: 50, totalCogs: 400, totalCashOut: 600, totalCashIn: 700,
-  cashOnHand: 100, netProfit: 550, activeCycles: 2, inventoryValue: 3000, receivables: 300,
+  // Cash on hand is still in the response (the assistant reads it) and unlike
+  // Cash from sales, so a tile showing the wrong one shows the wrong number.
+  cashOnHand: 100, cashFromSalesEgp: 126400, netProfit: 550, activeCycles: 2, inventoryValue: 3000, receivables: 300,
   collected: 700, lowStockAlerts: 3, totalCustomers: 4, totalProducts: 5, unitsInStock: 42,
   // This calendar month — deliberately unlike the all-time figures above, so
   // a tile reading the wrong one shows the wrong number.
@@ -86,10 +88,9 @@ describe('dashboard tiles lead to their lists', () => {
     ['receivables', '/customers?sort=balance'],
     ['expenses', '/ledger'],
     ['netProfit', '/analytics'],
-    ['cashOnHand', '/ledger'],
+    ['cashFromSales', '/payments'],
     ['activeCycles', '/cycles'],
-    ['inventoryValue', '/inventory'],
-    ['unitsInStock', '/inventory'],
+    ['stock', '/inventory'],
     ['lowStockAlerts', '/inventory?stock=low'],
     ['owedToLenders', '/lenders'],
   ])('%s → %s', async (key, href) => {
@@ -326,7 +327,7 @@ describe('every tile shows its icon on a phone too', () => {
     renderPage();
     const el = await tile('revenue');
     const icons = screen.getAllByTestId('tile-icon');
-    expect(icons).toHaveLength(11);
+    expect(icons).toHaveLength(10);
     for (const icon of icons) {
       expect(icon.className.split(/\s+/)).not.toContain('hidden');
       expect(icon.querySelector('svg')).toBeTruthy();
@@ -340,20 +341,20 @@ describe('every tile shows its icon on a phone too', () => {
 });
 
 // Owner 2026-10-23: a phone shows the first four Right now figures and the
-// four of This month; the other three Right now tiles wait behind See more (3).
-// A wider screen shows every tile.
+// four of This month; the rest of Right now waits behind See more — two tiles
+// since Right now became six (2026-11-06). A wider screen shows every tile.
 describe('a phone shows four and four, then See more', () => {
-  const FIRST = ['cashOnHand', 'receivables', 'owedToLenders', 'inventoryValue', 'revenue', 'collected', 'netProfit', 'expenses'];
-  const LATER = ['unitsInStock', 'lowStockAlerts', 'activeCycles'];
+  const FIRST = ['cashFromSales', 'receivables', 'owedToLenders', 'stock', 'revenue', 'collected', 'netProfit', 'expenses'];
+  const LATER = ['lowStockAlerts', 'activeCycles'];
   const phoneHidden = (key: string) => screen.getByTestId(`tile-${key}`).className.split(/\s+/).includes('max-sm:hidden');
 
-  it('the eight show, the other three wait — on a phone only', async () => {
+  it('the eight show, the other two wait — on a phone only', async () => {
     renderPage();
     await tile('revenue');
     for (const key of FIRST) expect(phoneHidden(key), key).toBe(false);
     for (const key of LATER) expect(phoneHidden(key), key).toBe(true);
     const toggle = screen.getByTestId('tiles-toggle');
-    expect(toggle.textContent).toContain('See more (3)');
+    expect(toggle.textContent).toContain('See more (2)');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(toggle.className.split(/\s+/)).toContain('sm:hidden');
     // The toggle sits in Right now, under its tiles, before This month begins.
@@ -376,7 +377,7 @@ describe('a phone shows four and four, then See more', () => {
   it('reads in Arabic', async () => {
     renderPage('ar');
     await tile('revenue');
-    expect(screen.getByTestId('tiles-toggle').textContent).toContain('عرض المزيد (3)');
+    expect(screen.getByTestId('tiles-toggle').textContent).toContain('عرض المزيد (2)');
   });
 
   it('an investor, who has no business tiles, gets no toggle', async () => {
@@ -401,7 +402,7 @@ describe('two groups: Right now, then This month', () => {
     renderPage();
     await tile('revenue');
     expect(keysIn('dashboard-right-now')).toEqual([
-      'cashOnHand', 'receivables', 'owedToLenders', 'inventoryValue', 'unitsInStock', 'lowStockAlerts', 'activeCycles',
+      'cashFromSales', 'receivables', 'owedToLenders', 'stock', 'lowStockAlerts', 'activeCycles',
     ]);
     expect(keysIn('dashboard-this-month')).toEqual(['revenue', 'collected', 'netProfit', 'expenses']);
     // Right now comes first on the page.
@@ -422,10 +423,10 @@ describe('two groups: Right now, then This month', () => {
     expect(within(screen.getByTestId('dashboard-this-month')).getByRole('heading', { name: 'هذا الشهر' })).toBeTruthy();
   });
 
-  it('the labels say what each figure is: To collect, Stock value', async () => {
+  it('the labels say what each figure is: To collect, Stock', async () => {
     renderPage();
     expect((await tile('receivables')).textContent).toContain('To collect');
-    expect((await tile('inventoryValue')).textContent).toContain('Stock value');
+    expect((await tile('stock')).textContent).toContain('Stock');
   });
 
   it('This month’s figures are the API’s month block, not the all-time ones', async () => {
@@ -437,7 +438,7 @@ describe('two groups: Right now, then This month', () => {
     expect((await tile('netProfit')).textContent).not.toContain('550.00');
     expect((await tile('expenses')).textContent).toContain('21.25');
     // Right now still reads the figures of today.
-    expect((await tile('cashOnHand')).textContent).toContain('100.00');
+    expect((await tile('cashFromSales')).textContent).toContain('126,400.00');
     expect((await tile('receivables')).textContent).toContain('300.00');
   });
 
@@ -465,19 +466,17 @@ describe('two groups: Right now, then This month', () => {
     expect(screen.getByTestId('dashboard-pnl-link').textContent).toContain(ar.analytics.pnl.title);
   });
 
-  it('a wide screen: a row of four then a row of three, each filling its width; no lone tile in two columns', async () => {
+  it('a wide screen: Right now in two rows of three, no tile spanning; This month one row of four', async () => {
     renderPage();
     await tile('revenue');
-    for (const key of ['cashOnHand', 'receivables', 'owedToLenders', 'inventoryValue']) {
-      expect(await classes(key), key).toContain('@[68rem]:col-span-3');
+    // Six tiles: three across wide, two across below — full rows either way,
+    // so no tile needs to stretch over the row (2026-11-06).
+    expect(screen.getByTestId('dashboard-right-now-grid').className.split(/\s+/)).toEqual(
+      expect.arrayContaining(['grid-cols-2', '@[68rem]:grid-cols-3']),
+    );
+    for (const key of ['cashFromSales', 'receivables', 'owedToLenders', 'stock', 'lowStockAlerts', 'activeCycles']) {
+      expect((await classes(key)).some((c) => c.includes('col-span')), key).toBe(false);
     }
-    for (const key of ['unitsInStock', 'lowStockAlerts', 'activeCycles']) {
-      expect(await classes(key), key).toContain('@[68rem]:col-span-4');
-    }
-    expect(screen.getByTestId('dashboard-right-now-grid').className.split(/\s+/)).toContain('@[68rem]:grid-cols-12');
-    // Seven in two columns: the last takes the row.
-    expect(await classes('activeCycles')).toContain('col-span-2');
-    expect(await classes('lowStockAlerts')).not.toContain('col-span-2');
     // Four in This month: two rows of two on a phone, one row of four wide.
     expect(screen.getByTestId('dashboard-this-month-grid').className.split(/\s+/)).toEqual(
       expect.arrayContaining(['grid-cols-2', '@[68rem]:grid-cols-4']),
@@ -487,7 +486,7 @@ describe('two groups: Right now, then This month', () => {
     }
   });
 
-  it('the skeleton traces the two groups: headed, seven then four, with the tiles’ own spans', async () => {
+  it('the skeleton traces the two groups: headed, six then four, the phone’s hidden two hidden, a second line and a badge where the tile has one', async () => {
     get.mockImplementation((url: string) => {
       if (url.startsWith('/analytics/dashboard')) return new Promise(() => {});
       return Promise.resolve({ data: { data: [] } });
@@ -495,16 +494,143 @@ describe('two groups: Right now, then This month', () => {
     renderPage();
     const first = await screen.findByTestId('dashboard-right-now');
     const second = screen.getByTestId('dashboard-this-month');
-    expect(within(first).getAllByTestId('skeleton-row')).toHaveLength(7);
+    expect(within(first).getAllByTestId('skeleton-row')).toHaveLength(RIGHT_NOW_TILES.length);
+    expect(within(first).getAllByTestId('skeleton-row')).toHaveLength(6);
     expect(within(second).getAllByTestId('skeleton-row')).toHaveLength(4);
     expect(within(first).getByRole('heading', { name: 'Right now' })).toBeTruthy();
     expect(within(second).getByRole('heading', { name: 'This month' })).toBeTruthy();
-    // The same spans as the tiles, so nothing moves when the figures land.
-    const rn = within(first).getAllByTestId('skeleton-row').map((el) => el.className.split(/\s+/));
-    expect(rn.slice(0, 4).every((c) => c.includes('@[68rem]:col-span-3'))).toBe(true);
-    expect(rn.slice(4).every((c) => c.includes('@[68rem]:col-span-4'))).toBe(true);
-    expect(rn[6]).toContain('col-span-2');
-    expect(rn.slice(4).every((c) => c.includes('max-sm:hidden'))).toBe(true);
+    // The same grid as the tiles, and no spans on either.
+    expect(first.querySelector('.grid')!.className.split(/\s+/)).toContain('@[68rem]:grid-cols-3');
+    const rn = within(first).getAllByTestId('skeleton-row');
+    expect(rn.every((el) => !el.className.includes('col-span'))).toBe(true);
+    // Hidden on a phone exactly where the tiles are: the last two.
+    expect(rn.map((el) => el.className.split(/\s+/).includes('max-sm:hidden'))).toEqual([false, false, false, false, true, true]);
+    // A text column of three lines — label, figure, second line — where the
+    // tile carries a second line: Cash from sales and Owed to lenders.
+    const lines = rn.map((el) => el.querySelector('.flex-1')!.children.length);
+    expect(lines).toEqual([3, 2, 3, 2, 2, 2]);
+    // The count pill beside Stock's label, and nowhere else.
+    expect(rn.map((el) => !!el.querySelector('[data-testid="skeleton-badge"]'))).toEqual([false, false, false, true, false, false]);
+  });
+
+  it('…and the tiles carry that second line and badge exactly where the skeleton does', async () => {
+    renderPage();
+    await tile('revenue');
+    const subs = await Promise.all(
+      RIGHT_NOW_TILES.map(async (key) => (await tile(key)).querySelector('.flex-1')!.children.length),
+    );
+    expect(subs).toEqual([3, 2, 3, 2, 2, 2]);
+    const badges = await Promise.all(RIGHT_NOW_TILES.map(async (key) => !!within(await tile(key)).queryByTestId('stat-badge')));
+    expect(badges).toEqual([false, false, false, true, false, false]);
+  });
+});
+
+// Owner 2026-11-06: "we don't need cash on hand, make it available cash from
+// sales", and Stock value with Units in stock as one tile.
+describe('Cash from sales replaces Cash on hand; one Stock tile', () => {
+  it('Cash from sales is the first Right now tile, the server’s figure, saying what it is', async () => {
+    renderPage();
+    const el = await tile('cashFromSales');
+    expect(el.textContent).toContain('Cash from sales');
+    expect(el.textContent).toContain('126,400.00');
+    expect(el.textContent).toContain('Paid in, less refunds');
+    // One line, as the skeleton traces it: cut, never wrapped (it wrapped at 390).
+    expect(within(el).getByTestId('cash-from-sales-sub').className.split(/\s+/)).toContain('truncate');
+    expect(within(el).getByTestId('cash-from-sales-sub').getAttribute('title')).toBe('Paid in, less refunds');
+    // Not cash on hand under a new name.
+    expect(el.textContent).not.toContain('100.00 EGP');
+    expect(within(screen.getByTestId('dashboard-right-now')).getAllByRole('link')[0]).toBe(el);
+  });
+
+  it('Cash on hand is gone from the dashboard, in both languages, though the API still sends it', async () => {
+    renderPage();
+    await tile('revenue');
+    expect(screen.queryByTestId('tile-cashOnHand')).toBeNull();
+    expect(screen.queryByText(/Cash on hand/i)).toBeNull();
+    expect(document.body.textContent).not.toContain('Cash on hand');
+    cleanup();
+    renderPage('ar');
+    await tile('revenue');
+    expect(document.body.textContent).not.toContain('النقد المتاح');
+    expect((await tile('cashFromSales')).textContent).toContain(ar.dashboard.cashFromSales);
+    expect((await tile('cashFromSales')).textContent).toContain(ar.dashboard.cashFromSalesSub);
+  });
+
+  it('a negative figure (more refunded than paid) is shown as it is, never as zero', async () => {
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: { ...KPIS, cashFromSalesEgp: -300 } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    expect((await tile('cashFromSales')).textContent).toContain('-300.00');
+  });
+
+  it('an API older than the figure shows 0, not cash on hand', async () => {
+    const old: Record<string, unknown> = { ...KPIS };
+    delete old.cashFromSalesEgp;
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: old } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    const el = await tile('cashFromSales');
+    expect(el.textContent).toContain('0.00');
+    expect(el.textContent).not.toContain('100.00');
+  });
+
+  it('Stock: the value as the figure, the unit count a small pill beside its title — not a second line', async () => {
+    renderPage();
+    const el = await tile('stock');
+    expect(within(el).getByTestId('stat-figure').textContent).toContain('3,000.00');
+    const label = within(el).getByTestId('stat-label');
+    const badge = within(label).getByTestId('stat-badge');
+    expect(badge.textContent).toBe('42');
+    // Beside the title, after it, in the same line.
+    expect(label.textContent).toMatch(/^Stock42/);
+    // Muted, small, a pill — the screen reader hears the words instead.
+    expect(badge.className.split(/\s+/)).toEqual(expect.arrayContaining(['rounded-full', 'bg-muted', 'text-muted-foreground']));
+    expect(badge.getAttribute('aria-hidden')).toBe('true');
+    expect(within(label).getByText('42 units in stock').className).toContain('sr-only');
+    // No second line under the figure.
+    expect(el.querySelector('.flex-1')!.children).toHaveLength(2);
+    cleanup();
+    renderPage('ar');
+    const arEl = await tile('stock');
+    expect(arEl.textContent).toContain(ar.dashboard.stock);
+    expect(within(arEl).getByTestId('stat-badge').textContent).toBe('42');
+    expect(within(arEl).getByText('42 قطعة في المخزون').className).toContain('sr-only');
+  });
+
+  it('there is no Units in stock tile, nor a Stock value one — Stock is the one place the count shows', async () => {
+    renderPage();
+    await tile('revenue');
+    expect(screen.queryByTestId('tile-unitsInStock')).toBeNull();
+    expect(screen.queryByTestId('tile-inventoryValue')).toBeNull();
+    expect(RIGHT_NOW_TILES as readonly string[]).not.toContain('unitsInStock');
+    expect(RIGHT_NOW_TILES as readonly string[]).not.toContain('inventoryValue');
+    expect(document.body.textContent).not.toMatch(/Units in stock|Items in stock|Stock value/);
+    // The count appears once on the whole dashboard: the badge.
+    expect(screen.getAllByTestId('stat-badge')).toHaveLength(1);
+  });
+
+  it('Stock keeps fractional units (metres, kilos) and reads 0 when empty', async () => {
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: { ...KPIS, unitsInStock: 12.5 } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    expect(within(await tile('stock')).getByTestId('stat-badge').textContent).toBe('12.5');
+    cleanup();
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) {
+        const k: Record<string, unknown> = { ...KPIS, inventoryValue: 0 };
+        delete k.unitsInStock;
+        return Promise.resolve({ data: { data: k } });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    expect(within(await tile('stock')).getByTestId('stat-badge').textContent).toBe('0');
   });
 });
 

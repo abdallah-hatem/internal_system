@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Money } from '@/components/ui/money';
 import { useCodeLabel } from '@/lib/labels';
 import { SkeletonText, repeat } from '@/components/ui/skeleton';
+import { ExchangeAccountLine } from '@/components/lenders/exchange-result';
 
 /**
  * A payout explains itself (BUSINESS_LOGIC §8, owner 2026-10-11; built L7).
@@ -171,8 +172,6 @@ export function PayoutBreakdownView({
       case 'loss':
         // Samples the shops kept or lost (§4) are a loss line of their own.
         return c.category === 'samples_written_off' ? t('costSamplesWrittenOff') : t('costLoss');
-      case 'exchange':
-        return t('costExchange');
       case 'recovery':
         return t('costRecovery', { category });
       case 'otherIncome':
@@ -199,9 +198,21 @@ export function PayoutBreakdownView({
             ) : b.costs.length === 0 ? (
               <p className="py-1 text-xs text-muted-foreground">{t('noCycleCosts')}</p>
             ) : (
-              b.costs.map((c, i) => (
-                <Line key={`${c.kind}-${c.category ?? i}`} label={costLabel(c)} amount={-num(c.amountEgp)} />
-              ))
+              b.costs.map((c, i) =>
+                c.kind === 'exchange' ? (
+                  // A loss or a gain on repaying friends, in red or green with
+                  // its sign, and why (owner 2026-11-06).
+                  <ExchangeAccountLine
+                    key={`${c.kind}-${i}`}
+                    diffEgp={num(c.amountEgp)}
+                    operatorColumn={false}
+                    labelClassName="text-muted-foreground"
+                    amountForTotal={-num(c.amountEgp)}
+                  />
+                ) : (
+                  <Line key={`${c.kind}-${c.category ?? i}`} label={costLabel(c)} amount={-num(c.amountEgp)} />
+                ),
+              )
             )}
             <Total label={t('cycleProfit')} amount={num(b.cycleProfitEgp)} tone="profit" />
           </dl>

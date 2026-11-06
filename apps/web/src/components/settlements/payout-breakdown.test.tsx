@@ -93,7 +93,8 @@ describe('the cycle’s lines', () => {
       en.settlementsPage.cogsLine,
       en.codes.ledgerCategory.extra_freight,
       en.settlementsPage.costLoss,
-      en.settlementsPage.costExchange,
+      // −150 is pounds saved on the dirham: said as a gain (owner 2026-11-06).
+      en.exchangeResult.gain,
       en.settlementsPage.costRecovery.replace('{category}', en.codes.ledgerCategory.supplier_refund),
     ]);
     expect(cycle.textContent).not.toContain(en.settlementsPage.expenses);
@@ -104,6 +105,41 @@ describe('the cycle’s lines', () => {
     const cycle = screen.getByTestId('breakdown-cycle');
     expect(cents(amounts(cycle).reduce((s, a) => s + a, 0))).toBe(cents(total(cycle)));
     expect(total(cycle)).toBe(36650);
+  });
+
+  // Owner 2026-11-06: "Exchange-rate loss on the lender repayments −3,183.74 —
+  // this needs to show that it's a loss". The API's cost line is +3,183.74 for
+  // a loss (it comes off the profit); −150 above is a gain.
+  it('an exchange-rate loss reads as a loss: its label, hint, red, a minus — and still adds up', () => {
+    const lossy: PayoutBreakdown = {
+      ...BREAKDOWN,
+      costs: [{ kind: 'exchange', category: null, amountEgp: '3183.74' }],
+      expensesEgp: '3183.74',
+      cycleProfitEgp: '36816.26',
+    };
+    renderIn('en', lossy);
+    const cycle = screen.getByTestId('breakdown-cycle');
+    const line = within(cycle).getByTestId('exchange-line');
+    expect(within(line).getByTestId('exchange-line-label').textContent).toBe('Exchange-rate loss');
+    expect(within(line).getByTestId('exchange-line-label').className).toContain('text-destructive');
+    expect(within(line).getByTestId('exchange-line-hint').textContent).toBe(en.exchangeResult.lossHint);
+    const amount = within(line).getByTestId('exchange-line-amount');
+    expect(amount.textContent).toBe('−3,183.74 EGP');
+    expect(amount.className).toContain('text-destructive');
+    expect(cents(amounts(cycle).reduce((s, a) => s + a, 0))).toBe(cents(total(cycle)));
+  });
+
+  it('a gain reads as a gain: green, with a plus', () => {
+    renderIn('en');
+    const line = within(screen.getByTestId('breakdown-cycle')).getByTestId('exchange-line');
+    expect(within(line).getByTestId('exchange-line-label').textContent).toBe('Exchange-rate gain');
+    expect(within(line).getByTestId('exchange-line-amount').textContent).toBe('+150.00 EGP');
+    expect(within(line).getByTestId('exchange-line-amount').className).toContain('text-success');
+    cleanup();
+    renderIn('ar');
+    const arLine = within(screen.getByTestId('breakdown-cycle')).getByTestId('exchange-line');
+    expect(within(arLine).getByTestId('exchange-line-label').textContent).toBe(ar.exchangeResult.gain);
+    expect(within(arLine).getByTestId('exchange-line-hint').textContent).toBe(ar.exchangeResult.gainHint);
   });
 
   it('leftovers moved are stated beside the figures, not inside them', () => {

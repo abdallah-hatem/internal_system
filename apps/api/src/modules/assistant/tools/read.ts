@@ -729,7 +729,7 @@ export function registerReadTools(
     {
       title: 'Get the dashboard',
       description:
-        'The office dashboard\'s figures, in EGP: revenue, cost of goods sold, operating expenses, net profit, cash in, cash out and cash on hand, what has been collected, receivables (what customers owe), inventory value at landed cost, active cycles, low-stock alerts, and customer and product counts — all of these all time or as of now — plus `month`: revenue, collected, expenses and net profit for this calendar month in Cairo, from its 1st to today (the same figures as Analytics\' profit and loss for This month). Use it for "how are we doing" questions.',
+        "The office dashboard's figures, in EGP: revenue, cost of goods sold, operating expenses, net profit, cash in, cash out and cash on hand, cash from sales (customer payments not reversed less cash refunded for returns — the dashboard's first tile), what has been collected, receivables (what customers owe), inventory value at landed cost, active cycles, low-stock alerts, and customer and product counts — all of these all time or as of now — plus `month`: revenue, collected, expenses and net profit for this calendar month in Cairo, from its 1st to today (the same figures as Analytics' profit and loss for This month). Use it for \"how are we doing\" questions.",
       inputSchema: {},
     },
     async () => {

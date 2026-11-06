@@ -322,6 +322,49 @@ describe('clicking a bar opens what made it', () => {
     expect(within(popup).queryByTestId('pnl-breakdown-other')).toBeNull();
   });
 
+  // Owner 2026-11-06: an exchange-rate loss reads as a loss, a gain as a gain.
+  it('the exchange line and each repayment: a loss red with a minus, a gain green with a plus', async () => {
+    const exchange = LOSS_DAY.sections.exchange!;
+    breakdownReply = () =>
+      Promise.resolve({
+        ...LOSS_DAY,
+        totals: { ...LOSS_DAY.totals, exchangeDifferenceEgp: 3183.74 },
+        sections: {
+          ...LOSS_DAY.sections,
+          exchange: {
+            ...exchange,
+            total: 2,
+            rows: [
+              { ...exchange.rows[0], id: 'rep-loss', amountEgp: 3383.74 },
+              { ...exchange.rows[0], id: 'rep-gain', amountEgp: -200 },
+            ],
+          },
+        },
+      });
+    renderIn();
+    const popup = await openBar('2026-10-08');
+    const totals = await within(popup).findByTestId('pnl-breakdown-totals');
+    const line = totals.querySelector('[data-line="exchange"]') as HTMLElement;
+    expect(within(line).getByTestId('exchange-line-label').textContent).toBe('Exchange-rate loss');
+    expect(within(line).getByTestId('exchange-line-hint').textContent).toBe(en.exchangeResult.lossHint);
+    expect(within(line).getByTestId('exchange-line-amount').textContent).toBe('−3,183.74 EGP');
+    expect(within(line).getByTestId('exchange-line-amount').className).toContain('text-destructive');
+    const rows = within(popup).getByTestId('pnl-breakdown-exchange');
+    const loss = rows.querySelector('li[data-repayment="rep-loss"] [data-result]')!;
+    const gain = rows.querySelector('li[data-repayment="rep-gain"] [data-result]')!;
+    expect(loss.textContent).toBe('−3,383.74 EGP');
+    expect(loss.className).toContain('text-destructive');
+    expect(gain.textContent).toBe('+200.00 EGP');
+    expect(gain.className).toContain('text-success');
+  });
+
+  it('no exchange line in the totals when the period’s difference is zero', async () => {
+    renderIn();
+    const popup = await openBar('2026-10-08');
+    const totals = await within(popup).findByTestId('pnl-breakdown-totals');
+    expect(totals.querySelector('[data-line="exchange"]')).toBeNull();
+  });
+
   it('the business paying is said too, not left blank', async () => {
     breakdownReply = () =>
       Promise.resolve({

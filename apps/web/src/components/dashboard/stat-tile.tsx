@@ -21,6 +21,12 @@ export interface StatTileProps {
   testId?: string;
   /** A second line under the figure — what it is made of. */
   sub?: React.ReactNode;
+  /**
+   * A small count beside the label — the Stock tile's units (owner
+   * 2026-11-06). `label` is what is shown in the pill; `srLabel` what a screen
+   * reader hears instead ("22 units in stock").
+   */
+  badge?: { label: string; srLabel: string };
   /** Extra classes for the frame — a grid span, say. */
   className?: string;
 }
@@ -59,7 +65,14 @@ const FIGURE_SIZE =
  */
 const EM_PER_CHAR = 0.6;
 
-export function StatTile({ label, value, icon: Icon, color, href, testId, sub, className = '' }: StatTileProps) {
+/**
+ * The muted pill beside a tile's label. One line of text-xs (16px) tall, so the
+ * label line keeps the height its skeleton traces, on a phone (text-xs) and
+ * from sm (text-sm, 20px) alike.
+ */
+const LABEL_BADGE = 'inline-flex shrink-0 items-center rounded-full bg-muted px-1.5 text-[11px] font-medium leading-4 tabular-nums text-muted-foreground';
+
+export function StatTile({ label, value, icon: Icon, color, href, testId, sub, badge, className = '' }: StatTileProps) {
   const figure = <TileFigure value={value} />;
   const chars = useFigureText(value).length;
   const body = (
@@ -68,7 +81,17 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, c
     // wall of grey numbers (owner 2026-10-18, option A).
     <div className="flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between">
       <div className={`@container w-full min-w-0 flex-1 ${FIGURE_SIZE}`}>
-        <p className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
+        {badge ? (
+          <p data-testid="stat-label" className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground sm:text-sm">
+            <span className="min-w-0 truncate">{label}</span>
+            <span data-testid="stat-badge" aria-hidden="true" dir="ltr" className={LABEL_BADGE}>
+              {badge.label}
+            </span>
+            <span className="sr-only">{badge.srLabel}</span>
+          </p>
+        ) : (
+          <p data-testid="stat-label" className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
+        )}
         {/* Always one line (2026-11-02): an eight-digit figure, "19,847,808.93
             EGP", wrapped onto a second line at 1440 and at 390, and the tile
             came out 24–34px taller than its skeleton. The figure keeps its
@@ -118,14 +141,30 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, c
  * A tile that has not arrived, traced from `StatTile`: the same frame, the
  * label and figure lines at their responsive sizes, and the icon badge
  * (`p-3` round a `size-6` icon, 48px) that sets the height from `sm` up.
- * `sub` adds the second line the owed-to-lenders tile carries.
+ * `sub` adds the second line a tile carries under its figure; `badge` the
+ * small count pill beside the label (the Stock tile's units).
  */
-export function StatTileSkeleton({ sub = false, className = '' }: { sub?: boolean; className?: string }) {
+export function StatTileSkeleton({
+  sub = false,
+  badge = false,
+  className = '',
+}: {
+  sub?: boolean;
+  badge?: boolean;
+  className?: string;
+}) {
   return (
     <div data-testid="skeleton-row" className={`block min-h-11 rounded-xl border border-border bg-card p-3 sm:p-6 ${className}`}>
       <div className="flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between">
         <div className="min-w-0 w-full flex-1">
-          <SkeletonText size="xs" lineClassName="sm:h-5" className="w-20 sm:h-3 sm:w-24" />
+          {badge ? (
+            <div className="flex items-center gap-1.5">
+              <SkeletonText size="xs" lineClassName="sm:h-5" className="w-14 sm:h-3 sm:w-16" />
+              <Skeleton data-testid="skeleton-badge" className="h-4 w-7 shrink-0 rounded-full" />
+            </div>
+          ) : (
+            <SkeletonText size="xs" lineClassName="sm:h-5" className="w-20 sm:h-3 sm:w-24" />
+          )}
           <SkeletonText size="base" lineClassName={`mt-1 sm:h-8 ${FOUR_ACROSS_FIGURE_LINE}`} className="w-24 sm:h-5 sm:w-36" />
           {sub && <SkeletonText size="xs" lineClassName="mt-1" className="w-28" />}
         </div>

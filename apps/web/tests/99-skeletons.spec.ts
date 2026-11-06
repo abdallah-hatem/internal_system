@@ -51,7 +51,7 @@ const PAGE_SIZE = 10;
  *   ShipmentPanel, FundingCardSkeleton).
  */
 // The tiles are read from the dashboard's own lists (CLAUDE.md §11): since the two
-// groups (owner 2026-10-23) there are 7 Right now and 4 This month tiles, and a phone
+// groups (owner 2026-10-23) there are 6 Right now (since 2026-11-06) and 4 This month tiles, and a phone
 // shows PHONE_FIRST_TILES (4 + 4) until See more. Writing 13 and 6 here again would go
 // stale on the next regrouping, which is how this line fell behind.
 const DASHBOARD_ROWS = (width: number) =>

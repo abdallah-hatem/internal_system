@@ -16,6 +16,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { useIsPhone } from '@/lib/use-phone';
 import { weeksOfDays, type PnlWeek } from './pnl-weeks';
 import { PnlBreakdown } from './pnl-breakdown';
+import { ExchangeAccountLine } from '@/components/lenders/exchange-result';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { FilterPills } from '@/components/ui/list-toolbar';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
@@ -401,7 +402,8 @@ function AddsUp({ data }: { data: ProfitAndLoss }) {
     { key: 'expenses', label: t('pnl.expenses'), value: data.expensesEgp, sign: '−' },
     { key: 'recovered', label: t('pnl.recovered'), value: data.recoveredEgp, sign: '+', hideZero: true },
     { key: 'otherIncome', label: t('pnl.otherIncome'), value: data.otherIncomeEgp, sign: '+', hideZero: true },
-    { key: 'exchange', label: t('pnl.exchangeDifference'), value: data.exchangeDifferenceEgp, sign: '−', hideZero: true },
+    // Drawn by ExchangeAccountLine: a loss or a gain, never "difference" (owner 2026-11-06).
+    { key: 'exchange', label: '', value: data.exchangeDifferenceEgp, sign: '', hideZero: true },
     { key: 'net', label: t('pnl.netProfit'), value: data.netProfitEgp, sign: '=', strong: true },
   ];
   return (
@@ -420,7 +422,9 @@ function AddsUp({ data }: { data: ProfitAndLoss }) {
       <dl data-testid="pnl-summary" className="mt-2 max-w-md text-sm">
         {lines
           .filter((l) => !(l.hideZero && l.value === 0))
-          .map((l) => (
+          .map((l) => l.key === 'exchange' ? (
+            <ExchangeAccountLine key={l.key} diffEgp={l.value} />
+          ) : (
             <div
               key={l.key}
               data-line={l.key}
