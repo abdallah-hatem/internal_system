@@ -56,10 +56,29 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   UNION ALL SELECT 12, 'order allocated beyond its own total',
          count(*) FROM sale_orders o
    WHERE (SELECT coalesce(sum(a.amount),0) FROM payment_allocations a WHERE a.sale_order_id=o.id) > o.total
+  -- A returned order may keep what was paid on it when that money went back
+  -- as a cash refund: it came in for the order and left again (2026-11-06,
+  -- RET-2026-00007). Only payments beyond the cash refunded are stranded.
   UNION ALL SELECT 12.1, 'money allocated to a cancelled or returned order',
-         count(*) FROM payment_allocations a
-    JOIN sale_orders o ON o.id = a.sale_order_id
-   WHERE o.status IN ('CANCELLED', 'RETURNED')
+         count(*) FROM sale_orders o
+   WHERE (o.status = 'CANCELLED'
+          AND EXISTS (SELECT 1 FROM payment_allocations a WHERE a.sale_order_id = o.id))
+      OR (o.status = 'RETURNED'
+          AND (SELECT coalesce(sum(a.amount),0) FROM payment_allocations a WHERE a.sale_order_id = o.id)
+            > (SELECT coalesce(sum(r.refund_egp),0) FROM sale_returns r
+                WHERE r.sale_order_id = o.id AND r.refund_method = 'CASH'))
+  -- A credit note lowers what is owed, never below zero, so credit beyond the
+  -- balance vanished: paid plus credited came to more than the order. Fares
+  -- returned a paid 2,000 order on a credit note and the 2,000 was nowhere
+  -- (2026-11-06); a cash refund was what happened.
+  UNION ALL SELECT 12.11, 'credit note bigger than what the order still owed',
+         count(*) FROM sale_orders o
+   WHERE (SELECT coalesce(sum(a.amount),0) FROM payment_allocations a
+           JOIN payments p ON p.id = a.payment_id
+          WHERE a.sale_order_id = o.id AND p.status <> 'REVERSED')
+       + (SELECT coalesce(sum(r.refund_egp),0) FROM sale_returns r
+          WHERE r.sale_order_id = o.id AND r.refund_method = 'CREDIT_NOTE')
+       > o.total
   UNION ALL SELECT 12.2, 'cancelled order still showing a balance',
          count(*) FROM sale_orders
    WHERE status = 'CANCELLED' AND outstanding <> 0
