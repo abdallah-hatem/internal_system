@@ -1213,13 +1213,15 @@ function SalesPageContent() {
                             <p className="font-medium text-gray-900">
                               <ProductLink truncate id={item.productId} name={localName(item.product, locale)} />
                             </p>
-                            {/* Each piece stays whole, so a narrow card breaks
-                                between the batch and its cost, never inside
-                                "117.30 EGP /unit" (re-audit N5). */}
-                            <p className="text-xs text-gray-500">
+                            {/* The cost and the cycle code each stay whole, so a
+                                narrow card never breaks inside "117.30 EGP /unit"
+                                (re-audit N5). The batch line itself may wrap: held
+                                on one line it ran on top of the COGS figure beside
+                                it at every width (UI audit H1). */}
+                            <p className="text-xs text-gray-500 break-words">
                               {alloc.inventoryBatch?.cycle?.code ? (
-                                <span className="whitespace-nowrap" data-testid="allocation-batch">
-                                  <bdi dir="ltr" className="font-mono">{alloc.inventoryBatch.cycle.code}</bdi>
+                                <span data-testid="allocation-batch">
+                                  <bdi dir="ltr" className="font-mono whitespace-nowrap">{alloc.inventoryBatch.cycle.code}</bdi>
                                   {alloc.inventoryBatch.createdAt && (
                                     <>
                                       {' · '}

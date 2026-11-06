@@ -188,6 +188,31 @@ describe('the sale order popup', () => {
     expect(screen.queryByText(/#7f3c9a12/)).toBeNull();
   });
 
+  it('the batch line may wrap inside its column, so it never runs over the COGS beside it (UI audit H1)', async () => {
+    const confirmed = order('o-1', 'ORD-2026-00002', 'CONFIRMED', '3750.00');
+    confirmed.items[0].allocations = [
+      {
+        id: 'al-1',
+        inventoryBatchId: '7f3c9a12-0000-4000-8000-000000000001',
+        qty: 3,
+        unitCostEgp: '117.30',
+        cogsEgp: '351.90',
+        inventoryBatch: { createdAt: '2026-09-09T10:00:00.000Z', cycle: { code: 'CYC-H26-03' } },
+      },
+    ] as never[];
+    data.detail['o-1'] = confirmed;
+    renderPage();
+    await openOrder('ORD-2026-00002');
+    const batch = await screen.findByTestId('allocation-batch');
+    // Nothing between the batch line and its row holds it on one line…
+    for (let el: HTMLElement | null = batch; el && !el.className.includes('bg-blue-50'); el = el.parentElement) {
+      expect(el.className).not.toMatch(/whitespace-nowrap|\btruncate\b/);
+    }
+    // …but the cycle code itself stays whole, and so does the cost.
+    expect(within(batch).getByText('CYC-H26-03').className).toContain('whitespace-nowrap');
+    expect(screen.getByTestId('allocation-unit-cost').className).toContain('whitespace-nowrap');
+  });
+
   it('in Arabic the tabs are السجل and الطلب', async () => {
     renderPage('ar');
     await openOrder('ORD-2026-00002');
