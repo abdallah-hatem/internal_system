@@ -20,11 +20,35 @@ function PopoverTrigger({
 /** The least room, in px, a popover keeps from the screen's edge. */
 export const POPOVER_GUTTER = 8
 
+/**
+ * The height of the phone bar fixed at the foot of the screen, home-indicator
+ * inset included — 0 where it is not shown (from `md` up it is `display:none`)
+ * or not on the page. Read when a panel is placed, which happens as it opens.
+ */
+function phoneBarHeight(): number {
+  if (typeof document === "undefined") return 0
+  const bar = document.querySelector<HTMLElement>('[data-testid="phone-bar"]')
+  return bar ? Math.ceil(bar.getBoundingClientRect().height) : 0
+}
+
+/**
+ * The default gutter, and on a phone the bar at the foot of the screen as well:
+ * the panel sits above the bar (z-[90] over z-30), so at 430 in Arabic the end
+ * date's calendar opened down over it (UI re-check M8). A panel with no room
+ * below it then flips above its trigger, as it does at the screen's edge.
+ */
+function defaultCollisionPadding() {
+  const bar = phoneBarHeight()
+  return bar > 0
+    ? { top: POPOVER_GUTTER, right: POPOVER_GUTTER, left: POPOVER_GUTTER, bottom: POPOVER_GUTTER + bar }
+    : POPOVER_GUTTER
+}
+
 function PopoverContent({
   className,
   align = "center",
   sideOffset = 4,
-  collisionPadding = POPOVER_GUTTER,
+  collisionPadding,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
   /**
@@ -50,7 +74,7 @@ function PopoverContent({
         data-slot="popover-content"
         align={align}
         sideOffset={sideOffset}
-        collisionPadding={collisionPadding}
+        collisionPadding={collisionPadding ?? defaultCollisionPadding()}
         className={cn(
           "z-[90] w-72 origin-(--radix-popover-content-transform-origin) rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-hidden data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className
