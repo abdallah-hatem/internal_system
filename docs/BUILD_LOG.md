@@ -14,6 +14,13 @@ paid in one step, and **samples by branch** (BUSINESS_LOGIC §4 "Samples by bran
 then "tidy and push dev and merge"): New Order shows the order's branch's samples first, the rest under a collapsed
 "At other branches", tags a sample taken from another branch, regroups when the branch changes; Add all = the order's
 branch only (GUESS); one short heading per samples order instead of a sentence repeating its rows. No migration.
+- **2026-11-06, production data fix:** RET-2026-00007 (Sameh, ORD-2026-00016, one Y30, 2,000 paid in cash) was
+  saved as a credit note on a paid order, so the 2,000 vanished and cash on hand stayed 2,000 high; Fares had handed
+  the cash back (owner). `prisma/one-off/2026-11-06-ret-00007-cash-refund.ts` made it a cash refund with its
+  `REFUND_PAID` row (rehearsed on a fresh prodcopy, then `--production`): cash on hand 164,803.65 → 162,803.65.
+  Every other return (6) was checked: none credited more than was owed. `check-data.sh` 12.11 now flags a credit
+  note bigger than what the order owed, and 12.1 lets a returned order keep payments refunded in cash. The code fix
+  (refuse such a credit note; the form picks Cash on a paid order) is on `fix/return-credit-over-owed`.
 - **Edit order** (on a confirmed order) is not shipped: saved on `feature/edit-order` (`4bdbf1e`) with its migration
   `20261026100000_sale_order_edits`, which must not be applied to production until that branch ships. Master's
   history holds no Edit order commit, so the branch can still be merged later.
