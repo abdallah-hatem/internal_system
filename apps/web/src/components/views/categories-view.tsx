@@ -147,6 +147,10 @@ export default function CategoriesPage() {
   const parentIds = (list.meta?.parentIds ?? []) as string[];
   const isOpen = (id: string) => !!search || !collapsedIds.has(id);
   const allOpen = !!search || parentIds.every((id) => !collapsedIds.has(id));
+  // The empty toggle slot lines a leaf up with a sibling that has an arrow. On
+  // a page with no arrows at all it lines up with nothing, and on a phone it
+  // was 28px of every row the name needed (UI audit 2026-11, M4).
+  const anyToggle = rows.some((cat) => (cat.children?.length ?? 0) > 0);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
@@ -276,34 +280,40 @@ export default function CategoriesPage() {
                         <ChevronRight className="h-4 w-4 rtl:rotate-180" />
                       )}
                     </button>
-                  ) : (
-                    <span className="w-5 shrink-0" />
-                  )}
+                  ) : anyToggle ? (
+                    <span data-testid="toggle-slot" className="w-5 shrink-0" />
+                  ) : null}
 
                   {/* Icon + Name */}
                   <Tag className="h-4 w-4 text-gray-400 shrink-0" />
-                  <LatinText truncate className="flex-initial text-sm font-medium text-gray-900">{localName(cat, locale)}</LatinText>
-                  {/* The name in the other language, so a partner on /en
-                      can see the Arabic was entered, and the reverse. */}
-                  {otherName(cat, locale) && (
-                    <bdi className="min-w-0 truncate text-xs text-gray-400" data-testid="category-other-name">
-                      {otherName(cat, locale)}
-                    </bdi>
-                  )}
+                  {/* The name is never cut: on a phone it has a line of its own
+                      and wraps, and what describes it flows onto the next line.
+                      Truncated beside the other name and the badges it showed
+                      four letters at 375px (UI audit 2026-11, M4). */}
+                  <div data-testid="category-text" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                    <LatinText className="basis-full break-words text-sm font-medium text-gray-900 sm:basis-auto">{localName(cat, locale)}</LatinText>
+                    {/* The name in the other language, so a partner on /en
+                        can see the Arabic was entered, and the reverse. */}
+                    {otherName(cat, locale) && (
+                      <bdi className="min-w-0 break-words text-xs text-gray-400" data-testid="category-other-name">
+                        {otherName(cat, locale)}
+                      </bdi>
+                    )}
 
-                  {/* Parent badge */}
-                  {cat.parent && (
-                    <span className="shrink-0 whitespace-nowrap text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                      <bdi>{localName(cat.parent, locale)}</bdi>
-                    </span>
-                  )}
+                    {/* Parent badge */}
+                    {cat.parent && (
+                      <span className="whitespace-nowrap text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                        <bdi>{localName(cat.parent, locale)}</bdi>
+                      </span>
+                    )}
 
-                  {/* Product count */}
-                  {cat._count && cat._count.products > 0 && (
-                    <span className="shrink-0 whitespace-nowrap text-xs text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
-                      {t('productCount', { count: cat._count.products })}
-                    </span>
-                  )}
+                    {/* Product count */}
+                    {cat._count && cat._count.products > 0 && (
+                      <span className="whitespace-nowrap text-xs text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
+                        {t('productCount', { count: cat._count.products })}
+                      </span>
+                    )}
+                  </div>
 
                   {/* Spacer + Actions */}
                   {mayRow && (

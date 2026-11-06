@@ -113,7 +113,7 @@ export function ProductDetail({ sku }: { sku: string }) {
         <div className="flex flex-col gap-3 text-start">
           {data.category ? <p className="text-sm text-gray-500">{localName(data.category, locale)}</p> : null}
 
-          <h1 className="text-xl font-bold text-gray-900">{localName(data, locale)}</h1>
+          <h1 className="text-xl font-bold text-gray-900"><bdi>{localName(data, locale)}</bdi></h1>
 
           <p className="text-xs text-gray-400">{t('sku', { sku: data.sku })}</p>
 
@@ -134,8 +134,12 @@ export function ProductDetail({ sku }: { sku: string }) {
             <p className="text-sm font-medium text-brand-700">{t('tradePrices')}</p>
           ) : null}
 
+          {/* Typed in either language, and an English one shows on /ar when
+              there is no Arabic: dir="auto" reads the paragraph's direction
+              from its text, so its full stop stays at its end (UI audit
+              2026-11, M5). */}
           {localDescription(data, locale) ? (
-            <p className="text-sm leading-relaxed whitespace-pre-line text-gray-700">
+            <p dir="auto" className="text-sm leading-relaxed whitespace-pre-line text-gray-700">
               {localDescription(data, locale)}
             </p>
           ) : null}

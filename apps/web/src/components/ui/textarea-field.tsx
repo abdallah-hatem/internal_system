@@ -1,6 +1,6 @@
 'use client';
 
-import { FieldMark } from './fields';
+import { FieldMark, useTextDirection } from './fields';
 
 /**
  * A labelled multi-line field, matching InputField's markup so the two sit
@@ -36,6 +36,9 @@ export function TextareaField({
   /** `rtl` for prose written in Arabic whatever the page's language. */
   dir?: 'rtl' | 'ltr';
 }) {
+  // Without a fixed direction, the prose follows its own (an English
+  // description on an Arabic page ends with its full stop, not starts with it).
+  const text = useTextDirection(defaultValue);
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -50,7 +53,8 @@ export function TextareaField({
         rows={rows}
         minLength={minLength}
         maxLength={maxLength}
-        dir={dir}
+        dir={dir ?? text.dir}
+        onInput={dir ? undefined : text.onInput}
         className="w-full resize-y rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary-500"
       />
     </div>

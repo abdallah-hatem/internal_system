@@ -168,7 +168,9 @@ export default function LenderPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {data.phone && <span dir="ltr">{data.phone}</span>}
               {data.phone && data.notes && ' · '}
-              {data.notes}
+              {/* Typed in either language: isolated, so an English note's full
+                  stop stays at its end on the Arabic page (UI audit 2026-11, M5). */}
+              {data.notes && <LatinText>{data.notes}</LatinText>}
             </p>
           )}
         </div>

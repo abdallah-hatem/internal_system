@@ -283,7 +283,7 @@ export default function SuppliersPage() {
               <div key={supplier.id} className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <p className="font-medium text-gray-900">{supplier.name}</p>
+                    <p className="font-medium text-gray-900"><LatinText>{supplier.name}</LatinText></p>
                     {supplier.country && <p className="text-xs text-gray-500">{countryLabel(supplier.country)}</p>}
                   </div>
                   {mayRow && (
@@ -401,7 +401,7 @@ export default function SuppliersPage() {
         >
           <div className="space-y-4">
             <p className="text-sm text-gray-600">{t('confirmDelete')}</p>
-            <p className="text-sm font-medium text-gray-900">{deletingSupplier.name}</p>
+            <p className="text-sm font-medium text-gray-900"><LatinText>{deletingSupplier.name}</LatinText></p>
             {orderCount(deletingSupplier) > 0 && (
               <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 {t('deleteBlocked')}
