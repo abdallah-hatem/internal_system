@@ -61,8 +61,9 @@ describe('a partner’s payout history', () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     const lines = within(item).getByTestId('breakdown-p-a');
-    expect(lines.textContent?.replace(/[\u2066\u2069]/g, '')).toContain(
-      en.settlementsPage.runningCostsPeriod.replace('{from}', '2026-09-01').replace('{to}', '2026-09-20'),
+    // Dates are isolated whole (FSI..PDI, non-breaking spaces; UI audit M7): undo both to compare.
+    expect(lines.textContent?.replace(/[\u2068\u2069]/g, '').replace(/\u00a0/g, ' ')).toContain(
+      en.settlementsPage.runningCostsPeriod.replace('{from}', 'Sep 1, 2026').replace('{to}', 'Sep 20, 2026'),
     );
     expect(within(item).getByText('Abdallah')).toBeTruthy();
   });
