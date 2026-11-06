@@ -188,6 +188,17 @@ describe('the sale order popup', () => {
     expect(screen.queryByText(/#7f3c9a12/)).toBeNull();
   });
 
+  it('the Items table fits a 320px phone: its phone minimum is within the ~256px the popup leaves (UI re-check 2, N2)', async () => {
+    renderPage();
+    await openOrder('ORD-2026-00002');
+    const header = await screen.findByRole('columnheader', { name: en.sales.lineTotal });
+    const style = header.closest('table')!.getAttribute('style') ?? '';
+    const phoneMin = style.match(/--dt-min-xs:\s*calc\(([^;]*)\)/)?.[1] ?? '';
+    const rem = phoneMin.split('+').reduce((sum, w) => sum + parseFloat(w), 0);
+    expect(rem).toBeGreaterThan(0);
+    expect(rem * 16).toBeLessThanOrEqual(256);
+  });
+
   it('the batch line may wrap inside its column, so it never runs over the COGS beside it (UI audit H1)', async () => {
     const confirmed = order('o-1', 'ORD-2026-00002', 'CONFIRMED', '3750.00');
     confirmed.items[0].allocations = [

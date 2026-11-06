@@ -161,7 +161,7 @@ export function ProductBatches({ batches }: { batches: readonly ProductBatch[] }
         <>
           {/* Desktop: the shared table, flush with the card's sides. */}
           <DataTable
-            className="hidden lg:block"
+            className="hidden xl:block"
             tableTestId="batches-table"
             frame="none"
             density="dense"
@@ -184,7 +184,7 @@ export function ProductBatches({ batches }: { batches: readonly ProductBatch[] }
           />
 
           {/* Phone: a card per batch, a figure a line. */}
-          <ul className="space-y-3 px-4 pb-4 lg:hidden" data-testid="batch-cards">
+          <ul className="space-y-3 px-4 pb-4 xl:hidden" data-testid="batch-cards">
             {batches.map((b) => {
               const open = expanded === b.id;
               return (
@@ -250,7 +250,7 @@ export function ProductBatchesSkeleton() {
     <div className="rounded-xl border border-border bg-card">
       <Heading />
       <DataTable
-        className="hidden lg:block"
+        className="hidden xl:block"
         frame="none"
         density="dense"
         autoMin={AUTO_MIN}
@@ -261,7 +261,7 @@ export function ProductBatchesSkeleton() {
         skeletonRows={2}
         skeletonRowTestId={null}
       />
-      <SkeletonGroup as="ul" className="space-y-3 px-4 pb-4 lg:hidden">
+      <SkeletonGroup as="ul" className="space-y-3 px-4 pb-4 xl:hidden">
         {repeat(2, (i) => (
           <li key={i} className="rounded-lg border border-border px-4 py-3">
             <div className="space-y-1.5">
