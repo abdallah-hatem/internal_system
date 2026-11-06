@@ -59,6 +59,23 @@ function TopProductNameSkeleton() {
   );
 }
 
+/** One phone row of Top Products: the name and SKU, three figures under them. */
+function TopProductPhoneRowSkeleton() {
+  return (
+    <li data-testid="skeleton-card" className="py-2.5">
+      <TopProductNameSkeleton />
+      <div className="mt-1.5 flex justify-between gap-4">
+        {repeat(3, (i) => (
+          <div key={i} className="w-16">
+            <SkeletonText size="xs" className="w-full" />
+            <SkeletonText size="xs" className="w-2/3" />
+          </div>
+        ))}
+      </div>
+    </li>
+  );
+}
+
 /** One cycle card: code and origin, the profit and ROI at the end, three figures under a rule. */
 function CycleProfitCardSkeleton() {
   return (
@@ -115,6 +132,14 @@ export default function AnalyticsPage() {
 
   const isLoading = loadingProducts || loadingCycles;
 
+  // The margin, green or red; the table's column and the phone row both show it.
+  const margin = (p: TopProduct) =>
+    p.marginPct === null ? (
+      <span className="text-gray-400">—</span>
+    ) : (
+      <span className={p.marginPct >= 0 ? 'text-green-600' : 'text-red-600'}>{pct(p.marginPct)}</span>
+    );
+
   // Top products: the name (its SKU under it), quantity sold, revenue,
   // margin. The revenue fits "99,999,999.00 EGP" ("23,685,158.93 EGP" is 124px).
   //
@@ -144,12 +169,7 @@ export default function AnalyticsPage() {
     {
       key: 'margin', header: t('margin'), width: '4rem', kind: 'value', align: 'end',
       skeleton: { kind: 'text', share: 'w-1/2' },
-      cell: (p) =>
-        p.marginPct === null ? (
-          <span className="text-gray-400">—</span>
-        ) : (
-          <span className={p.marginPct >= 0 ? 'text-green-600' : 'text-red-600'}>{pct(p.marginPct)}</span>
-        ),
+      cell: margin,
     },
   ];
 
@@ -184,7 +204,7 @@ export default function AnalyticsPage() {
               page; below that each takes the whole width (2026-11-02). */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Top Products */}
-            <section className="bg-white rounded-xl border border-gray-200 p-6">
+            <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   <Package className="h-5 w-5 text-gray-400" />
@@ -208,16 +228,57 @@ export default function AnalyticsPage() {
                 // half the page wide, so the SKU sits under the name rather than
                 // in a column of its own (its header was an untranslated "SKU"),
                 // and the name takes what the three figures leave.
-                <DataTable
-                  frame="none"
-                  density="compact"
-                  autoMin="7rem"
-                  isLoading={loadingProducts}
-                  skeletonRows={ANALYTICS_TOP}
-                  rows={productList}
-                  rowKey={(p) => p.productId}
-                  columns={topProductColumns}
-                />
+                //
+                // A phone gets a row per product instead (UI audit M1,
+                // 2026-11-06): the table needs 26.25rem, and at 375 the card
+                // has 293px, so Revenue sat past the edge in a sideways scroll
+                // nobody could see. The name and SKU on top, the three figures
+                // under them, Revenue never cut.
+                <>
+                  <DataTable
+                    className="hidden md:block"
+                    tableTestId="top-products-table"
+                    frame="none"
+                    density="compact"
+                    autoMin="7rem"
+                    isLoading={loadingProducts}
+                    skeletonRows={ANALYTICS_TOP}
+                    rows={productList}
+                    rowKey={(p) => p.productId}
+                    columns={topProductColumns}
+                  />
+                  {loadingProducts ? (
+                    <SkeletonGroup as="ul" className="divide-y divide-gray-100 md:hidden">
+                      {repeat(ANALYTICS_TOP, (i) => <TopProductPhoneRowSkeleton key={i} />)}
+                    </SkeletonGroup>
+                  ) : (
+                    <ul data-testid="top-products-cards" className="divide-y divide-gray-100 md:hidden">
+                      {productList.map((p) => (
+                        <li key={p.productId} data-testid="top-product-card" className="py-2.5">
+                          <p className="text-sm font-medium text-gray-900 line-clamp-2 break-words" title={localName(p, locale)}>
+                            {localName(p, locale)}
+                          </p>
+                          <p className="truncate font-mono text-xs text-gray-500" title={p.sku}><bdi dir="ltr">{p.sku}</bdi></p>
+                          {/* Labels over values; a narrow phone wraps a figure to the next line, never past the edge. */}
+                          <dl className="mt-1.5 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs">
+                            <div>
+                              <dt className="text-gray-500">{t('quantitySold')}</dt>
+                              <dd className="whitespace-nowrap tabular-nums text-gray-900">{formatNumber(p.totalQuantitySold)}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-gray-500">{t('revenue')}</dt>
+                              <dd data-testid="top-product-card-revenue" className="whitespace-nowrap tabular-nums text-gray-900"><Money value={p.revenueEgp} /></dd>
+                            </div>
+                            <div className="text-end">
+                              <dt className="text-gray-500">{t('margin')}</dt>
+                              <dd className="whitespace-nowrap tabular-nums">{margin(p)}</dd>
+                            </div>
+                          </dl>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </section>
 
