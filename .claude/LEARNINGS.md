@@ -335,6 +335,14 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   `node.*playwright`, not the bare string. — 2026-08-31
 
 
+## Money edge cases are tests, not afterthoughts
+
+- Every way money can leave a record gets a test against a record that has already been paid. A return on a credit note
+  lowered `outstanding` "never below 0", so on a fully paid order the credit vanished and cash on hand stayed high while
+  the cash had gone back (RET-2026-00007, 2026-11-06). That is §0's "more than is owed" and nobody tested it. The owner:
+  "this is unacceptable, it should have been added as an edge case test". Any `max(…, 0)` or clamp on money is a place
+  where an amount silently disappears: test what happens to the part that was clamped. — 2026-11-06
+
 ## Build and deploy
 - `apps/web` unit tests may import `apps/api/src` to pin a shared rule (sale totals, low stock, settlement warnings,
   notification messages). Vercel installs only the web app's packages, so anything that type-checks those tests breaks
