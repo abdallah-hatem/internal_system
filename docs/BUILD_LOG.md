@@ -72,6 +72,17 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `fix/ci-master`, not merged — CI on `master` green again** (runs 42153028725, 42158860943). Three causes:
+  (1) the six visual baselines the 2026-11-06 changes moved (dashboard, Analytics, Products; en + ar): Linux ones
+  taken from CI's own images of run 42158860943, darwin ones retaken on an agent stack at the frozen clock; all
+  twelve looked at. (2) Products oldest first broke three tests that relied on a new product being on page one:
+  TC-AR-05 clicked Edit before its search landed (now waits for the one row), TC-DEACT-12 asserted newest first
+  (now Off, On), TC-SKEL-20 looked for its part among the held rows (now checks the row already on screen stays,
+  then finds the part once the search lands). (3) TC-SKEL-STORE-01 at 1440px: not the card — grid cards stretch
+  to the tallest in their row, and with only two parts of its own the test's first row was finished by
+  99-categories-collapse's "0720… a Child A part 1/2", two lines at 1440px, so card one measured 15.25px past the
+  one-line skeleton (it passed on retry, when the first attempt's parts filled the row). The spec now makes four
+  parts, a whole first row. All five reproduced locally with the old tests and pass with the new.
 - **On `dev` 2026-11-06, not shipped — the Products tab lists the oldest product first** (owner): `sort=oldest` on
   `/products`, sent by the Products tab only; pickers keep newest first. Tests in `products-stock.spec.ts` and
   `products-summary-cards.test.tsx`, seen to fail first.
