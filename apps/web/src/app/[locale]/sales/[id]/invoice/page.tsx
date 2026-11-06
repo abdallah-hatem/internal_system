@@ -72,8 +72,8 @@ type InvoiceLine = Invoice['lines'][number];
  * The lines table's columns, shared by the invoice and its placeholder
  * (components/ui/data-table.tsx): #, product, quantity, unit price, discount,
  * line total. The amounts fit "123,456.00 EGP" and never cut; the product
- * takes what is left and, on a document that is printed, wraps in full. On a phone the price and discount move under the name;
- * on paper (A4, 186mm wide) every column prints.
+ * takes what is left and, on a document that is printed, wraps in full. On a phone the quantity, price, discount and line
+ * total move under the name, so nothing scrolls sideways (UI audit H2); on paper (A4, 186mm wide) every column prints.
  */
 function useInvoiceColumns(currency?: string): Column<InvoiceLine>[] {
   const t = useTranslations('sales.invoice');
@@ -105,9 +105,9 @@ function useInvoiceColumns(currency?: string): Column<InvoiceLine>[] {
               <LatinText>{name}</LatinText>
             </p>
             <p className="text-xs text-muted-foreground"><LatinText dir="ltr" truncate>{line.sku}</LatinText></p>
-            {/* On a phone, price and discount sit under the name. */}
-            <p className="text-xs text-muted-foreground tabular-nums sm:hidden print:hidden sheet:hidden">
-              <bdi dir="ltr">{formatAmount(line.unitPrice)}</bdi>
+            {/* On a phone, quantity, price, discount and line total sit under the name. */}
+            <p className="text-xs text-muted-foreground tabular-nums sm:hidden print:hidden sheet:hidden" data-testid="invoice-line-phone">
+              {formatNumber(line.quantity)} × <bdi dir="ltr">{formatAmount(line.unitPrice)}</bdi>
               {Number(line.discount) > 0 && (
                 <>
                   {' · '}
@@ -115,13 +115,16 @@ function useInvoiceColumns(currency?: string): Column<InvoiceLine>[] {
                 </>
               )}
             </p>
+            <p className="text-sm font-medium text-foreground tabular-nums sm:hidden print:hidden sheet:hidden" data-testid="invoice-line-total-phone">
+              <Money value={line.lineTotal} currency={currency} />
+            </p>
           </>
         );
       },
     },
     {
       key: 'quantity', header: t('quantity'), width: '4.5rem', kind: 'value', align: 'end', className: 'align-top',
-      skeleton: { kind: 'text', share: 'w-1/3' }, cell: (line) => formatNumber(line.quantity),
+      hiddenBelow: 'sm', skeleton: { kind: 'text', share: 'w-1/3' }, cell: (line) => formatNumber(line.quantity),
     },
     {
       key: 'unitPrice', header: t('unitPrice'), width: '7.5rem', kind: 'value', align: 'end', className: 'align-top',
@@ -135,7 +138,7 @@ function useInvoiceColumns(currency?: string): Column<InvoiceLine>[] {
     },
     {
       key: 'lineTotal', header: t('lineTotal'), width: '9rem', kind: 'value', align: 'end', className: 'align-top font-medium',
-      skeleton: { kind: 'text', share: 'w-2/3' }, cell: (line) => <Money value={line.lineTotal} currency={currency} />,
+      hiddenBelow: 'sm', skeleton: { kind: 'text', share: 'w-2/3' }, cell: (line) => <Money value={line.lineTotal} currency={currency} />,
     },
   ];
 }
