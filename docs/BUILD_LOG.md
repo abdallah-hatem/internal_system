@@ -72,7 +72,7 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
-- **On `feature/profit-pill-info`, not merged — an (i) beside each profit pill** (owner 2026-11-06, §12): Radix
+- **Live 2026-11-06 (was `feature/profit-pill-info`) — an (i) beside each profit pill** (owner 2026-11-06, §12): Radix
   popover with what the figure is (collected / to come, loss titles, en + ar); a tile with an (i) is a stretched
   link (`stat-tile-link` over the frame) so the button is not inside the `<a>`; other tiles stay one `<a>`. Skeleton
   traces the (i). Component tests in `sales-cash-section.test.tsx` and `dashboard.test.tsx`, seen to fail first.

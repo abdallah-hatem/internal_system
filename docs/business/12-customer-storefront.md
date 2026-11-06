@@ -212,8 +212,7 @@ option B: "finish and ship"), on `feature/cash-profit`, not merged.**
   غير مخصومة هنا." and "Profit still to come — The profit in what customers still owe. You get it when they pay." /
   "ربح لسه جاي — ده الربح اللي في الفلوس اللي لسه على العملاء. هيوصلك لما يدفعوا." A loss says "Loss collected" / "Loss
   still to come". Tapping the (i) does not open the tile's list: on those tiles the link is laid over the tile
-  (a stretched link) instead of wrapping it, so the button is not inside the `<a>`. On `feature/profit-pill-info`,
-  not merged. GUESS (agent's wording): the Arabic text and the button's name "What does this mean?" / "يعني إيه ده؟".
+  (a stretched link) instead of wrapping it, so the button is not inside the `<a>`. Live 2026-11-06. GUESS (agent's wording): the Arabic text and the button's name "What does this mean?" / "يعني إيه ده؟".
 
 **Right now simplified: Cash from sales, one Stock tile — DECIDED 2026-11-06 (owner), on
 `feature/dashboard-cash-from-sales`, not merged.** The owner: "simplify the dashboard cards, we don't need cash
