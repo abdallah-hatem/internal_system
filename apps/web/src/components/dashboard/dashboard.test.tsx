@@ -521,8 +521,12 @@ describe('two groups: Right now, then This month', () => {
     expect(rn[0].querySelector('[data-testid="skeleton-badge"]')!.className.split(/\s+/)).toEqual(
       expect.arrayContaining(['w-20', 'max-sm:hidden']),
     );
-    // …and on a phone on the icon's row, as the tile puts it.
+    // …and on a phone on its own line under the icon, as the tile puts it
+    // (the same column, so the two are one height whatever the figure, CI 2026-11-07).
     expect(rn[0].querySelector('[data-testid="skeleton-badge-phone"]')!.className.split(/\s+/)).toContain('sm:hidden');
+    expect(rn[0].querySelector('[data-testid="skeleton-icon-row"]')!.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(['flex-col', 'items-start', 'gap-2']),
+    );
     expect(rn[3].querySelector('[data-testid="skeleton-badge-phone"]')).toBeNull();
     expect(rn[3].querySelector('[data-testid="skeleton-badge"]')!.className.split(/\s+/)).toContain('w-7');
   });
@@ -769,13 +773,22 @@ describe('Cash from sales carries its profit', () => {
   });
 
   // UI re-check S2 (2026-11-06): "+319,280 profit" reached the tile's edge
-  // at 320. The icon row wraps, so the pill drops under the icon instead.
-  it('on a phone the pill can drop under the icon and wrap its words, so it never reaches past the tile', async () => {
+  // at 320. Then CI (2026-11-07): beside the icon, "+135,775 profit" and its (i)
+  // wrapped under it at 390 and the tile came out 22px taller than its
+  // skeleton. The pill is always on its own line under the icon on a phone, so
+  // the tile is one height whatever the figure, and it wraps its words there.
+  it('on a phone the pill is always on its own line under the icon and wraps its words, so it never reaches past the tile', async () => {
     withKpis({ profitOnCollectedEgp: 319280 });
     renderPage();
     const el = await tile('cashFromSales');
     const row = within(el).getByTestId('stat-icon-row');
-    expect(row.className.split(/\s+/)).toContain('flex-wrap');
+    const rowClasses = row.className.split(/\s+/);
+    expect(rowClasses).toEqual(expect.arrayContaining(['flex-col', 'items-start', 'gap-2']));
+    expect(rowClasses).not.toContain('flex-wrap');
+    expect(row.children).toHaveLength(2);
+    expect(row.children[0].getAttribute('data-testid')).toBe('tile-icon');
+    expect(row.children[1].getAttribute('data-testid')).toBe('stat-pill-line-phone');
+    expect(row.children[1].firstElementChild!.getAttribute('data-testid')).toBe('stat-badge-group-phone');
     const phone = within(row).getByTestId('stat-badge-phone');
     expect(phone.textContent).toBe('+319,280 profit');
     expect(phone.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-w-0', 'max-w-full']));

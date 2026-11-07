@@ -18,6 +18,12 @@ export interface StatTileBadge {
   srLabel: string;
   tone?: 'muted' | 'success' | 'danger';
   /**
+   * The words `label` shows, as plain text ("+25,502 profit"), for their
+   * length: on a phone a worded pill steps its type down to fit its line
+   * (PHONE_PILL_FONT). Without it the pill keeps its size and wraps instead.
+   */
+  text?: string;
+  /**
    * What the figure is, behind a small (i) right after the pill (owner
    * 2026-11-06, the profit pills). Opens on a tap, not a hover, so a phone
    * can read it too.
@@ -93,15 +99,38 @@ const EM_PER_CHAR = 0.6;
 const PILL = 'inline-flex items-center px-1.5 text-[11px] font-medium leading-4 tabular-nums';
 const LABEL_BADGE = `${PILL} shrink-0 whitespace-nowrap rounded-full`;
 /**
- * The worded pill on a phone's icon row. "+5,011,430 profit to come" is wider
- * than a 320 or 375 half-width tile beside its icon, and held on one line it
- * ran out of the tile and was clipped ("…profit to com", UI re-check S1/S2,
- * 2026-11-06). The row wraps, so the pill drops under the icon when it does not
- * fit beside it, and the pill's own words wrap within the tile's width; only
- * its figure stays whole (useProfitPill). rounded-lg is a full round on one
- * line and still a pill on two.
+ * The worded pill on a phone, on its own line under the icon. "+5,011,430
+ * profit to come" is wider than a 320 or 375 half-width tile beside its icon,
+ * and held on one line it ran out of the tile and was clipped ("…profit to
+ * com", UI re-check S1/S2, 2026-11-06). It then sat beside the icon and wrapped
+ * under it only when it did not fit, so the tile's height hung on the figure's
+ * length and the screen's width, and no skeleton could trace it: at 390,
+ * "+135,775 profit" and its (i) wrapped and the first tile came out 22px taller
+ * than its skeleton (CI, 2026-11-07). Always under the icon, the tile is one
+ * height whatever the figure. The pill's own words still wrap within the
+ * tile's width if a figure is ever too long for its line; only the figure
+ * stays whole (useProfitPill). rounded-lg is a full round on one line and
+ * still a pill on two.
  */
 const PHONE_BADGE = `${PILL} min-w-0 max-w-full rounded-lg`;
+/**
+ * A worded pill on its phone line keeps to one line by stepping its type down
+ * from 11px as far as its length needs, as the figure does (EM_PER_CHAR): at
+ * 320, "+1,234,568 profit" in 11px wrapped to two lines and the tile came out
+ * 14px taller than its skeleton. Measured 0.47–0.49 of an em a character in
+ * the pill's face, en and ar (2026-11-07); 0.55 leaves room. The line is the
+ * pill line's width (`cqi`, PHONE_PILL_LINE) less the (i) and its gap (20px)
+ * and the pill's own padding (12px). It stops at 9px: a figure too long even
+ * then wraps its words inside the tile, never past it (PHONE_BADGE) — at 320
+ * that is past "+12,345,678 profit", or "+N profit to come" from 6 digits.
+ */
+const PILL_EM_PER_CHAR = 0.55;
+export const PHONE_PILL_FONT = (text: string | undefined) =>
+  text
+    ? `max(9px, min(11px, calc((100cqi - 32px) / ${(Math.max(text.length, 1) * PILL_EM_PER_CHAR).toFixed(2)})))`
+    : undefined;
+/** The phone's line for the worded pill, under the icon; the container the pill's type measures against. */
+const PHONE_PILL_LINE = '@container flex w-full sm:hidden';
 const BADGE_TONE: Record<NonNullable<StatTileBadge['tone']>, string> = {
   muted: 'bg-muted text-muted-foreground',
   success: 'bg-success/10 text-success',
@@ -113,9 +142,8 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
   const chars = useFigureText(value).length;
   // A worded pill ("+25,502 profit") does not fit beside a label in a phone's
   // half-width tile: "Cash from sales" was cut to "Cash f…" at 390
-  // (2026-11-06). There it sits on the icon's row instead, at the other end,
-  // where the row has room (and below the icon when even that is too narrow,
-  // PHONE_BADGE); from sm up, beside the label as a count does.
+  // (2026-11-06). There it sits on its own line under the icon instead
+  // (PHONE_BADGE); from sm up, beside the label as a count does.
   const worded = badge !== undefined && typeof badge.label !== 'string';
   const ids = useId();
   const labelId = `${ids}-label`;
@@ -124,7 +152,8 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
   const subId = `${ids}-sub`;
   // The pill and its (i), as one unit: the (i) only ever appears with a pill,
   // and hides with it at the breakpoint where the pill sits elsewhere. On the
-  // phone's icon row the unit may shrink and wrap with the pill (PHONE_BADGE).
+  // phone's line under the icon the unit may shrink and wrap with the pill
+  // (PHONE_BADGE).
   const pill = (testIdSuffix: string, base: string, extra: string) =>
     badge &&
     (badge.info ? (
@@ -148,6 +177,9 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
         // profit", "+25,502 ربح") follows the page and isolates its own figure.
         dir={worded ? undefined : 'ltr'}
         className={`${base} ${BADGE_TONE[badge.tone ?? 'muted']} ${extra}`}
+        style={base === PHONE_BADGE ? { fontSize: PHONE_PILL_FONT(badge.text) } : undefined}
+        // The length the phone pill's type is fitted to (jsdom drops `cqi` from style).
+        data-fit-chars={base === PHONE_BADGE ? badge.text?.length : undefined}
       >
         {/* One inline run: as flex items the figure and the word lost the
             space between them ("+308,513profit"). */}
@@ -194,9 +226,11 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, b
         {sub && <div id={subId} className="mt-1 text-xs text-muted-foreground">{sub}</div>}
       </div>
       {worded ? (
-        <div data-testid="stat-icon-row" className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+        <div data-testid="stat-icon-row" className="flex w-full flex-col items-start gap-2 sm:w-auto">
           {icon}
-          {pill('-phone', PHONE_BADGE, 'sm:hidden')}
+          <div data-testid="stat-pill-line-phone" className={PHONE_PILL_LINE}>
+            {pill('-phone', PHONE_BADGE, 'sm:hidden')}
+          </div>
         </div>
       ) : (
         icon
@@ -315,13 +349,16 @@ export function StatTileSkeleton({
           {sub && <SkeletonText size="xs" lineClassName="mt-1" className="w-28" />}
         </div>
         {badge === 'wide' ? (
-          // On a phone the worded pill sits on the icon's row (StatTile).
-          <div className="flex w-full items-center justify-between gap-2 sm:w-auto">
+          // On a phone the worded pill and its (i) sit on their own line under
+          // the icon (StatTile, PHONE_BADGE).
+          <div data-testid="skeleton-icon-row" className="flex w-full flex-col items-start gap-2 sm:w-auto">
             <Skeleton className={`size-7 flex-shrink-0 rounded-lg sm:size-12 ${FOUR_ACROSS_BADGE_SKELETON}`} />
-            <span className="inline-flex shrink-0 items-center gap-1 sm:hidden">
-              <Skeleton data-testid="skeleton-badge-phone" className="h-4 w-20 shrink-0 rounded-full sm:hidden" />
-              <Skeleton data-testid="skeleton-badge-info-phone" className="size-4 shrink-0 rounded-full" />
-            </span>
+            <div data-testid="skeleton-pill-line-phone" className={PHONE_PILL_LINE}>
+              <span className="inline-flex shrink-0 items-center gap-1 sm:hidden">
+                <Skeleton data-testid="skeleton-badge-phone" className="h-4 w-20 shrink-0 rounded-full sm:hidden" />
+                <Skeleton data-testid="skeleton-badge-info-phone" className="size-4 shrink-0 rounded-full" />
+              </span>
+            </div>
           </div>
         ) : (
           <Skeleton className={`size-7 flex-shrink-0 rounded-lg sm:size-12 ${FOUR_ACROSS_BADGE_SKELETON}`} />

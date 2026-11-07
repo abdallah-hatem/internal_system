@@ -6,14 +6,33 @@
 import { expect, type Page } from '@playwright/test';
 import { messages, openNav, type Locale } from './ui';
 
-/** Holds every GET to the API until released; logins and saves pass. */
-export async function gateApi(page: Page) {
+/**
+ * Holds every GET to the API until released; logins and saves pass.
+ *
+ * `rewrite` changes a response's body on its way to the page — for a screen
+ * whose height depends on a figure the test cannot otherwise choose (the
+ * dashboard's profit pill, 99-skeletons TC-SKEL-21). It is given the URL and
+ * the parsed body, and returns the body to send, or undefined to send it as is.
+ */
+export async function gateApi(page: Page, opts: { rewrite?: (url: string, body: unknown) => unknown } = {}) {
   let open: () => void = () => {};
   let gate = Promise.resolve();
   let holding = false;
   await page.route(/\/api\/v1\//, async (route) => {
     const req = route.request();
     if (holding && req.method() === 'GET' && !/\/auth\//.test(req.url())) await gate;
+    if (opts.rewrite && req.method() === 'GET') {
+      try {
+        const response = await route.fetch();
+        const body: unknown = await response.json().catch(() => undefined);
+        const changed = body === undefined ? undefined : opts.rewrite(req.url(), body);
+        if (changed !== undefined) await route.fulfill({ response, json: changed });
+        else await route.fulfill({ response });
+      } catch {
+        // The page closed while the request was out.
+      }
+      return;
+    }
     await route.continue().catch(() => {});
   });
   return {

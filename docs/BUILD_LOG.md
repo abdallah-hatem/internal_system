@@ -72,6 +72,13 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `fix/ci-round-2`, not merged — CI run 42257729297 (master) made green** (2026-11-07): the dashboard's first
+  tile on a phone matches its skeleton whatever the profit (the pill and its (i) on their own line under the icon,
+  type fitted to the line; §12; new TC-SKEL-21 at 320/375/390/430 en+ar with the figure rewritten short to 8
+  digits); TC-I18N-03 no longer reads rich-text tag names (`<ltr>`) as English; TC-RC-01 expects today in the app's
+  date format (lib/dates `formatDate`); dashboard and Analytics baselines retaken for the (i) (Linux from the run,
+  darwin locally). TC-SKEL-03 at 390 fails locally on the seed's categories (first one has a product pill), before
+  and after this branch; CI passes it.
 - **Live 2026-11-06 (was `feature/profit-pill-info`) — an (i) beside each profit pill** (owner 2026-11-06, §12): Radix
   popover with what the figure is (collected / to come, loss titles, en + ar); a tile with an (i) is a stretched
   link (`stat-tile-link` over the frame) so the button is not inside the `<a>`; other tiles stay one `<a>`. Skeleton

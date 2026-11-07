@@ -38,6 +38,8 @@ export function useProfitPill() {
           </bdi>
         ),
       }),
+      // The same words as plain text, for their length (the phone pill fits its line, stat-tile PHONE_PILL_FONT).
+      text: t.markup(key, { amount, n: (chunks) => chunks }),
       srLabel: t(`${key}Sr`, { amount: formatNumber(Math.abs(whole), { maximumFractionDigits: 0 }) }),
       tone: loss ? 'danger' : 'success',
       // The (i) beside the pill says what the figure is (owner 2026-11-06:
