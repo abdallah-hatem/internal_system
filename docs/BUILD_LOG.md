@@ -72,7 +72,7 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
-- **On `fix/ci-round-2`, not merged — CI run 42257729297 (master) made green** (2026-11-07): the dashboard's first
+- **Live 2026-11-07 (was `fix/ci-round-2`) — CI run 42257729297 (master) made green** (2026-11-07): the dashboard's first
   tile on a phone matches its skeleton whatever the profit (the pill and its (i) on their own line under the icon,
   type fitted to the line; §12; new TC-SKEL-21 at 320/375/390/430 en+ar with the figure rewritten short to 8
   digits); TC-I18N-03 no longer reads rich-text tag names (`<ltr>`) as English; TC-RC-01 expects today in the app's
