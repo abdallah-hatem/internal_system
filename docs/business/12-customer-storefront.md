@@ -424,7 +424,9 @@ day, week or month buckets). `GET /analytics/profit-and-loss?from=&to=`
     longer starts it — it counts nowhere in profit). A row dated after today (check-data 25) still counts
     in all time's totals, so the buckets run on to its day rather than drop it.
   - A samples write-off with no recorded moment (none should exist) falls on its order's day.
-  - **Cash paid out — added 2026-10-23 (owner), when it left the dashboard.** Under "How it adds up", apart
+  - **Cash paid out — REMOVED from the screen 2026-11-08 (owner: "cash paid out section in the how it adds up is
+    kinda confusing … just remove it").** The API still returns `cashOutEgp`; the web no longer shows it.
+    Was: added 2026-10-23 (owner), when it left the dashboard. Under "How it adds up", apart
     from its lines: the money out of the ledger in the period, stock bought included — not a cost and not in
     net profit (`cashOutEgp`, `common/cash-position.ts`). It costs two queries, so a period is fifteen.
 - **What made a bar — DECIDED 2026-10-28 (owner: "in the Profit and loss analytics chart, maybe clicking on a day
