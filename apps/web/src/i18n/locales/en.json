@@ -1106,8 +1106,6 @@
       "expenses": "Expenses",
       "recovered": "Refunds recovered",
       "otherIncome": "Other income",
-      "cashOut": "Cash paid out",
-      "cashOutHint": "Money that left the ledger in this period, stock bought included. Not a cost: it is not part of the profit above.",
       "expensesByCategory": "Expenses by category",
       "goodsLost": "Goods lost on the way",
       "noExpenses": "No expenses in this period.",
