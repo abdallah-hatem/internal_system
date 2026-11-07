@@ -21,6 +21,7 @@ mistakes it for an agreement.
 | "On the owner" in the Sales list's branch filter; the highest page (§3) | Always offered; pages run 1 to 1,000,000. GUESS. |
 | A partner's payout left in his account, in cash on hand (§8) | Counted as paid out to him, though it sits in his account. OPEN. |
 | Whether every contribution must come from a partner's account (§8) | No: contributions entered by hand still work and touch no account. OPEN. |
+| Taking profit before a cycle is settled — an advance on a payout (raised 2026-11-07, owner: "not now but keep in mind") | Not possible. Profit leaves only through a settlement, which refuses while the cycle holds stock; a withdrawal draws untied money only. Idea offered: record an advance against a partner and cycle, cash goes down, profit unchanged, taken off his payout at settlement, capped at his share of profit already collected. Not built. |
 
 ---
 
