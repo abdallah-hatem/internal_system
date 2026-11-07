@@ -14,6 +14,9 @@ paid in one step, and **samples by branch** (BUSINESS_LOGIC §4 "Samples by bran
 then "tidy and push dev and merge"): New Order shows the order's branch's samples first, the rest under a collapsed
 "At other branches", tags a sample taken from another branch, regroups when the branch changes; Add all = the order's
 branch only (GUESS); one short heading per samples order instead of a sentence repeating its rows. No migration.
+- **2026-11-08 — Cash paid out removed from Analytics' How it adds up (owner: "kinda confusing … just remove it"):**
+  built on the VPS session (`fix/remove-pnl-cash-paid-out`, PR #3), Analytics baselines retaken (darwin here, Linux from
+  CI), merged into `dev` and shipped. Web only; the API still returns `cashOutEgp`. No migration.
 - **2026-11-06, later — the Sameh sale removed (owner: "that was just a test, remove any sale related thing from
   sameh today"):** `prisma/one-off/2026-11-06-remove-sameh-test-sale.ts` deleted ORD-2026-00016, its line, payment
   and allocation, RET-2026-00007 and its line, their 3 ledger rows, 2 stock movements (net 0, stock unchanged),
