@@ -213,6 +213,13 @@ option B: "finish and ship"), on `feature/cash-profit`, not merged.**
   "ربح لسه جاي — ده الربح اللي في الفلوس اللي لسه على العملاء. هيوصلك لما يدفعوا." A loss says "Loss collected" / "Loss
   still to come". Tapping the (i) does not open the tile's list: on those tiles the link is laid over the tile
   (a stretched link) instead of wrapping it, so the button is not inside the `<a>`. Live 2026-11-06. GUESS (agent's wording): the Arabic text and the button's name "What does this mean?" / "يعني إيه ده؟".
+- **On a phone, the pill and its (i) have their own line under the icon** — 2026-11-07 (agent, on `fix/ci-round-2`,
+  not merged; layout only, no figure or wording changed). They sat beside the icon and dropped under it only when
+  they did not fit, so the tile's height depended on the figure and the screen width and the skeleton could not
+  trace it (CI: "+135,775 profit" at 390 came out 22px taller than its skeleton). Now always under the icon, on
+  every phone width, en and ar, and the pill's type steps down from 11px (never under 9px) to keep its words on
+  one line: "+12,345,678 profit" still fits one line at 320. Longer than that (e.g. "+5,011,430 profit to come"
+  on Analytics at 320) its words wrap inside the tile, never past it. From `sm` up nothing changed.
 
 **Right now simplified: Cash from sales, one Stock tile — DECIDED 2026-11-06 (owner), on
 `feature/dashboard-cash-from-sales`, not merged.** The owner: "simplify the dashboard cards, we don't need cash

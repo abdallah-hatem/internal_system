@@ -208,6 +208,50 @@ const SCREENS: Screen[] = [
   },
 ];
 
+/**
+ * The first tile on a phone carries the worded profit pill and its (i). Beside
+ * the icon, the pair wrapped under it only when it did not fit, so the tile's
+ * height hung on the figure's length and the width: TC-SKEL-01 passed on the
+ * Mac with a small seeded profit and failed on CI at 390 with "+135,775
+ * profit", 22px taller than its skeleton (2026-11-07). The pill is on its own
+ * line under the icon on a phone since. The figure is chosen here (the
+ * dashboard's response, rewritten on its way) rather than left to whatever the
+ * run before has sold, and tried short and long, at each phone width, in both
+ * languages, with a loss too (a different word, the same line).
+ */
+test.describe('Skeletons: the profit pill on a phone', () => {
+  const PROFITS = [25, 135_775, 1_234_568, -48_250];
+  for (const width of [320, 375, 390, 430]) {
+    for (const locale of ['en', 'ar'] as const) {
+      test(`TC-SKEL-21 the first tile lands at its skeleton's height whatever the profit, at ${width}px (${locale})`, async ({ page }) => {
+        test.setTimeout(90_000);
+        await page.setViewportSize({ width, height: 844 });
+        let profit = PROFITS[0];
+        const gate = await gateApi(page, {
+          rewrite: (url, body) => {
+            if (!/\/analytics\/dashboard(\?|$)/.test(url)) return undefined;
+            const wrapped = body as { data?: Record<string, unknown> } & Record<string, unknown>;
+            (wrapped.data ?? wrapped).profitOnCollectedEgp = profit;
+            return body;
+          },
+        });
+        for (const p of PROFITS) {
+          profit = p;
+          gate.hold();
+          if (p === PROFITS[0]) await login(page, locale);
+          else await page.reload();
+          const box = await expectSkeleton(page, DASHBOARD_ROWS(width));
+          gate.release();
+          // The pill landed, with the figure asked for.
+          const pill = page.getByTestId('stat-badge-phone').filter({ visible: true }).first();
+          await expect(pill).toContainText(Math.abs(p).toLocaleString('en-US'));
+          await expectSameHeight(page, box);
+        }
+      });
+    }
+  }
+});
+
 for (const viewport of [
   { width: 1440, height: 900 },
   { width: 390, height: 844 },

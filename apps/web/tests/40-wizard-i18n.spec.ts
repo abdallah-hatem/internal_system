@@ -71,8 +71,15 @@ test.describe('Cycle wizard translations', () => {
     // string was reported as untranslated. Placeholders are removed by shape
     // now, and only the plural/select KEYWORDS are named, because those are
     // fixed by the ICU spec.
+    //
+    // Rich-text tags go the same way: `<ltr>…</ltr>` round "1 {currency} =
+    // {rate}" (currentRate, the phone audit 2026-11-06) is markup that keeps the
+    // rate left to right, never shown, and its name read as English (CI
+    // 2026-11-07). The words between the tags stay and are still checked.
     const strip = (text: string) =>
       text
+        // A rich-text tag, opening or closing: <ltr>, </n>.
+        .replace(/<\/?[A-Za-z]\w*>/g, '')
         // A whole simple placeholder: {amount}, {customer}.
         .replace(/\{\s*[A-Za-z_]\w*\s*\}/g, '')
         // The header of a plural or select, leaving its translated bodies.

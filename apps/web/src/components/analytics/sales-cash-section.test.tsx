@@ -49,7 +49,7 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import AnalyticsPage from '@/app/[locale]/analytics/page';
-import { StatTile, StatTileSkeleton } from '@/components/dashboard/stat-tile';
+import { PHONE_PILL_FONT, StatTile, StatTileSkeleton } from '@/components/dashboard/stat-tile';
 import { Banknote } from '@/components/ui/icons';
 
 const KPIS = {
@@ -133,14 +133,15 @@ describe('Analytics — Sales cash, all time', () => {
   // UI re-check S1 (2026-11-06): "+5,011,430 profit to come" held on one line
   // ran past a 320/375 half-width tile and was clipped ("…profit to com"), in
   // Arabic out of the tile's left edge. jsdom has no layout, so this pins what
-  // lets it fit: the icon row wraps, the pill may shrink to the tile and wrap
+  // lets it fit: the pill has its own line under the icon, may shrink to the tile and wrap
   // its words, its figure stays whole, and nothing round it clips.
   it.each(['en', 'ar'] as const)('a 7-digit pill to come wraps inside its tile on a phone, never clipped (%s)', async (locale) => {
     state.kpis = { ...KPIS, profitToCollectEgp: 5011430.2 };
     renderPage(locale);
     const tile = await screen.findByTestId('sales-cash-to-collect');
     const row = within(tile).getByTestId('stat-icon-row');
-    expect(row.className.split(/\s+/)).toContain('flex-wrap');
+    // Its own line under the icon (CI 2026-11-07), not beside it and wrapping.
+    expect(row.className.split(/\s+/)).toEqual(expect.arrayContaining(['flex-col', 'items-start']));
     const pill = within(row).getByTestId('stat-badge-phone');
     expect(pill.textContent).toBe(locale === 'en' ? '+5,011,430 profit to come' : '+5,011,430 ربح قادم');
     const classes = pill.className.split(/\s+/);
@@ -249,7 +250,7 @@ describe('the (i) beside a profit pill', () => {
     phone: within(tile).queryByTestId('stat-badge-info-phone'),
   });
 
-  it('sits right after the pill in both places it shows — beside the title from sm, on the icon row on a phone', async () => {
+  it('sits right after the pill in both places it shows — beside the title from sm, under the icon on a phone', async () => {
     renderPage();
     for (const id of ['sales-cash-collected', 'sales-cash-to-collect']) {
       const tile = await screen.findByTestId(id);
@@ -379,6 +380,35 @@ describe('the (i) beside a profit pill', () => {
       expect(phone.previousElementSibling!.getAttribute('data-testid')).toBe('skeleton-badge-phone');
       expect(phone.parentElement!.className.split(/\s+/)).toContain('sm:hidden');
     }
+  });
+
+  // CI 2026-11-07, TC-SKEL-01 at 390: the pill sat beside the icon and wrapped
+  // under it only when it did not fit, so the tile was 22px taller than its
+  // skeleton for some figures. jsdom has no layout; what it can pin is that the
+  // tile and the skeleton lay the phone's icon line out the same way, a column
+  // of the icon then the pill and its (i), whatever the figure's length.
+  it.each([25, 319280, 5011430])('on a phone, tile and skeleton both put the pill on its own line under the icon (+%s)', async (profit) => {
+    state.kpis = { ...KPIS, profitOnCollectedEgp: profit, profitToCollectEgp: profit };
+    renderPage();
+    const tileRow = within(await screen.findByTestId('sales-cash-collected')).getByTestId('stat-icon-row');
+    cleanup();
+    render(<StatTileSkeleton badge="wide" />);
+    const skelRow = screen.getByTestId('skeleton-icon-row');
+    const layout = (el: Element) => el.className.split(/\s+/).filter((c) => /^(sm:)?(flex|flex-col|flex-wrap|items-|justify-|gap-|w-)/.test(c)).sort();
+    expect(layout(tileRow)).toEqual(layout(skelRow));
+    expect(layout(tileRow)).toEqual(expect.arrayContaining(['flex-col', 'items-start', 'gap-2']));
+    expect(layout(tileRow)).not.toContain('flex-wrap');
+    // The same two lines in the same order: the icon, then the pill and its (i), hidden from sm.
+    expect([...tileRow.children].map((c) => c.getAttribute('data-testid'))).toEqual(['tile-icon', 'stat-pill-line-phone']);
+    expect(skelRow.children).toHaveLength(2);
+    expect(skelRow.children[1].className).toBe(tileRow.children[1].className);
+    expect(tileRow.children[1].className.split(/\s+/)).toEqual(expect.arrayContaining(['@container', 'flex', 'w-full', 'sm:hidden']));
+    // The pill keeps to its line by stepping its type down as far as its words need (never under 9px).
+    const pill = within(tileRow).getByTestId('stat-badge-phone');
+    const words = pill.textContent!;
+    expect(pill.getAttribute('data-fit-chars')).toBe(String(words.length));
+    expect(PHONE_PILL_FONT(words)).toBe(`max(9px, min(11px, calc((100cqi - 32px) / ${(words.length * 0.55).toFixed(2)})))`);
+    expect(PHONE_PILL_FONT(undefined)).toBeUndefined();
   });
 
   it('a count pill (Stock’s units) gets no (i), and its tile stays one link', () => {

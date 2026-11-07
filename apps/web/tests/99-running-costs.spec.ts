@@ -17,7 +17,8 @@
  *  `L7_SHOTS=1` also writes the review screenshots to .ui-audit/l7/.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { apiCtx, today } from './support/fixtures';
+import { apiCtx } from './support/fixtures';
+import { formatDate } from '../src/lib/dates';
 import {
   approved,
   cents,
@@ -101,6 +102,14 @@ async function go(page: Page, path: 'settlements' | 'partners', locale: Locale =
 }
 const openSettlements = (page: Page, locale: Locale = 'en') => go(page, 'settlements', locale);
 
+/**
+ * Today as the payout line shows it: the app writes a settlement's period in
+ * its own date format ("Nov 3, 2026 – Nov 6, 2026"), not the ISO day, so the
+ * test asks the app's own formatter (lib/dates formatDate) rather than writing
+ * either form down (CI 2026-11-07, when the line moved off "2026-11-06").
+ */
+const shownToday = () => formatDate(new Date().toISOString());
+
 test.describe('A payout takes his share of the running costs and says so (L7, §8)', () => {
   test('TC-RC-01: before paying it shows what paying today takes; paid, the line names its period and he is handed his payout less it; the Partners page agrees; reversing puts it back', async ({ page, request }) => {
     const m = messages('en');
@@ -124,7 +133,7 @@ test.describe('A payout takes his share of the running costs and says so (L7, §
     await c.getByRole('button', { name: m.settlementsPage.markPaid }).click();
     await expect(page.getByText(m.settlementsPage.paid)).toBeVisible();
     await expect(linesA).not.toContainText(m.settlementsPage.runningCostsProjected);
-    await expect(linesA).toContainText(today());
+    await expect(linesA).toContainText(shownToday());
     expect(cents(await amountOf(linesA.locator('[data-total]')))).toBe(cents(61200 - owedA));
     const payouts = (await settlementRows(request, w.headers, id)).filter((r) => r.type === 'SETTLEMENT_PAYOUT');
     expect(payouts.map((r) => cents(r.amount))).toContain(cents(61200 - owedA));
@@ -149,7 +158,7 @@ test.describe('A payout takes his share of the running costs and says so (L7, §
     // alone joined the stale request and CI still failed 3/3).
     await expect(payout).toBeVisible({ timeout: 30_000 });
     await payout.click();
-    await expect(partnerA.getByTestId(`breakdown-${pidA}`)).toContainText(today());
+    await expect(partnerA.getByTestId(`breakdown-${pidA}`)).toContainText(shownToday());
 
     // Reverse it from the settlement card: his share waits again.
     await openSettlements(page);
