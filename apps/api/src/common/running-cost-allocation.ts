@@ -249,7 +249,10 @@ export async function assignWaitingRunningCosts(
     },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   });
-  if (candidates.length === 0) return [];
+  if (candidates.length === 0) {
+    await reshareOpenCosts(tx, cycles);
+    return [];
+  }
   const undone = new Set(
     (
       await tx.financialTransaction.findMany({
@@ -273,17 +276,97 @@ export async function assignWaitingRunningCosts(
       : businessDay(cost.createdAt);
     const to = cyclesForCost(day, cycles);
     if (to.length === 0) continue; // waits
-    const parts = equalParts(new Prisma.Decimal(cost.amount), to.length);
-    for (const [i, cycleId] of to.entries()) {
-      // A cost of a piastre over two cycles: the empty part is no part.
-      if (parts[i].lte(0)) continue;
-      await tx.runningCostAllocation.create({
-        data: { costEntryId: cost.id, cycleId, amountEgp: parts[i] },
-      });
-      written.push({ costEntryId: cost.id, cycleId, amountEgp: parts[i] });
-    }
+    written.push(...(await writeParts(tx, cost.id, cost.amount, to)));
   }
+  await reshareOpenCosts(tx, cycles);
   return written;
+}
+
+/** A cost's equal parts over `to`, written; a part of nothing is no part. */
+async function writeParts(
+  tx: Db,
+  costEntryId: string,
+  amount: Prisma.Decimal | string | number,
+  to: string[],
+) {
+  const parts = equalParts(new Prisma.Decimal(amount), to.length);
+  const out: {
+    costEntryId: string;
+    cycleId: string;
+    amountEgp: Prisma.Decimal;
+  }[] = [];
+  for (const [i, cycleId] of to.entries()) {
+    // A cost of a piastre over two cycles: the empty part is no part.
+    if (parts[i].lte(0)) continue;
+    await tx.runningCostAllocation.create({
+      data: { costEntryId, cycleId, amountEgp: parts[i] },
+    });
+    out.push({ costEntryId, cycleId, amountEgp: parts[i] });
+  }
+  return out;
+}
+
+/** "cycleId amount" per part, in order: two splits are the same when these are. */
+const splitKey = (parts: { cycleId: string; amountEgp: Prisma.Decimal }[]) =>
+  parts.map((p) => `${p.cycleId} ${p.amountEgp.toFixed(2)}`).join('|');
+
+/**
+ * A cost already shared, none of whose cycles is being settled yet, is split
+ * again when the cycles for its day are not the ones holding it — a cycle whose
+ * goods were paid for later that same day ran that day too ("a cycle running
+ * at any moment of that Cairo day counts", §8, 2026-11-08). Without this the
+ * split depended on the hour the cost was typed in: rent entered at 10:00 went
+ * wholly to the cycle selling then, entered at 16:00 it was halved with the one
+ * paid for at 15:00. Once any cycle holding a part is being settled, settled,
+ * closed or cancelled the cost never moves (its split is agreed there). A
+ * draft settlement the move touches is refused at approval
+ * (`SETTLEMENT_STALE_COSTS`) and calculated again.
+ */
+async function reshareOpenCosts(tx: Db, cycles: CycleHistory[]) {
+  const lockedIds = new Set(cycles.filter((c) => c.locked).map((c) => c.id));
+  const shared = await tx.financialTransaction.findMany({
+    where: {
+      cycleId: null,
+      reversalOfId: null,
+      direction: 'OUTFLOW',
+      runningCostAllocations: { some: {} },
+    },
+    select: {
+      id: true,
+      amount: true,
+      occurredOn: true,
+      createdAt: true,
+      runningCostAllocations: {
+        select: { cycleId: true, amountEgp: true, createdAt: true, id: true },
+      },
+    },
+  });
+  for (const cost of shared) {
+    const held = cost.runningCostAllocations;
+    if (held.some((p) => lockedIds.has(p.cycleId))) continue;
+    const day = cost.occurredOn
+      ? cost.occurredOn.toISOString().slice(0, 10)
+      : businessDay(cost.createdAt);
+    const to = cyclesForCost(day, cycles);
+    if (to.length === 0) continue; // nothing to move it to: it stays
+    const want = equalParts(new Prisma.Decimal(cost.amount), to.length)
+      .map((amountEgp, i) => ({ cycleId: to[i], amountEgp }))
+      .filter((p) => p.amountEgp.gt(0));
+    const have = to
+      .map((cycleId) => held.find((p) => p.cycleId === cycleId))
+      .filter((p) => p !== undefined)
+      .map((p) => ({
+        cycleId: p.cycleId,
+        amountEgp: new Prisma.Decimal(p.amountEgp),
+      }));
+    if (held.length === want.length && splitKey(have) === splitKey(want)) {
+      continue;
+    }
+    await tx.runningCostAllocation.deleteMany({
+      where: { costEntryId: cost.id },
+    });
+    await writeParts(tx, cost.id, cost.amount, to);
+  }
 }
 
 /** Each cycle's shared running costs, by category, from the stored parts. */

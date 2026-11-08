@@ -48,7 +48,7 @@ import { API } from './support/env';
 import { BASE, login, messages, openCustomer, openNav, openView, type Locale } from './support/ui';
 import { PAGE_VIEWS } from '../src/lib/page-views';
 import { gateApi, go } from './support/gate';
-import { recordCost, soldOutCycle } from './support/running-costs';
+import { recordCost, soldOutCycle, ownRunningCosts } from './support/running-costs';
 
 const stamp = Date.now().toString(36).toUpperCase();
 /** Long enough to need two lines in its column, and to be cut after them. */
@@ -133,6 +133,9 @@ async function build(request: APIRequestContext) {
   // Planning: the wizard is not finished, so the row offers Continue setup.
   setupCycleCode = (await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' })).code;
 }
+
+// Running costs a test here records are undone after it, so they do not move into the cycles later specs build (§8, 2026-11-09).
+ownRunningCosts(test, 'all');
 
 test.beforeAll(async ({ request }) => {
   test.setTimeout(120_000);
@@ -472,7 +475,9 @@ type Messages = ReturnType<typeof messages>;
 const BIGGEST: { name: string; nav: NavKey; placeholder: (m: Messages) => string; find: () => string; shows: (locale: Locale) => (string | RegExp)[]; widths?: number[] }[] = [
   { name: 'Customers: an 8-digit balance', nav: 'customers', placeholder: (m) => m.customers.search, find: () => BIG_SHOP, shows: () => [BIG_SHOP, /19,847,808\.93/] },
   { name: 'Cycles: an 8-digit profit', nav: 'cycles', placeholder: (m) => m.cycles.search, find: () => bigCycleCode, shows: () => [bigCycleCode, /\d\d,\d{3},\d{3}\.\d\d/] },
-  { name: 'Cycles: a 7-digit loss', nav: 'cycles', placeholder: (m) => m.cycles.search, find: () => lossCycleCode, shows: () => [lossCycleCode, /-4,692,036\.46/] },
+  // Its own loss less its part of the running costs shared to it (§8, 2026-11-08: the August rent below waited for
+  // the cycles paid for since, this one among them), so the digits after the first few are not fixed — the width is.
+  { name: 'Cycles: a 7-digit loss', nav: 'cycles', placeholder: (m) => m.cycles.search, find: () => lossCycleCode, shows: () => [lossCycleCode, /-4,\d{3},\d{3}\.\d\d/] },
   { name: 'Cycles: a cycle still in setup', nav: 'cycles', placeholder: (m) => m.cycles.search, find: () => setupCycleCode, shows: (l) => [setupCycleCode, messages(l).cycles.continueSetup] },
   // The search by amount also finds other rows holding those digits; the August one is measured with them.
   // At 1440 only: the ledger is 1064px at 1280 whatever its dates (seen 2026-11-04, not fixed).

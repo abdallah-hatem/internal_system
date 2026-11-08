@@ -1,17 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- API responses are parsed JSON; each caller names the field it reads */
 /**
- * L7 (BUSINESS_LOGIC §8): running costs come out of the core partners'
- * payouts. A cycle that sold out, funded by named people, built the way the
+ * Running costs (BUSINESS_LOGIC §8, 2026-11-08): an expense with no cycle is
+ * shared equally to the cycles running on the day it is dated, inside their
+ * profit. A cycle that sold out, funded by named people, built the way the
  * business builds one — an order, a leg, a check-in, a confirmed sale (§4) —
  * and the readings the running-cost tests compare before and after.
  *
  * Running costs are the whole business's, so whatever earlier specs recorded
- * is waiting too. These helpers read what is waiting rather than assuming
- * nothing is, and the cycles they build fund a payout big enough to take all
- * of it.
+ * is shared too: these helpers read what is there rather than assuming
+ * nothing is.
  */
-import { expect, type APIRequestContext } from '@playwright/test';
+import { expect, type APIRequestContext, type test as Test } from '@playwright/test';
 import { API, apiCtx, daysAgo, today } from './fixtures';
+import { psqlQuery } from './database';
 
 export type Headers = Record<string, string>;
 
@@ -93,13 +94,10 @@ export async function runningCosts(request: APIRequestContext, headers: Headers,
   const res = await request.get(`${API}/settlements/running-costs?from=${range.from}&to=${range.to}`, { headers });
   expect(res.ok(), await res.text()).toBeTruthy();
   return (await res.json()).data as {
-    spentEgp: string; chargedEgp: string; waitingEgp: string; waitingAllTimeEgp: string;
-    partners: { userId: string; name: string; shareEgp: string; chargedEgp: string; waitingEgp: string; takesResidual: boolean }[];
+    spentEgp: string; sharedEgp: string; chargedEgp: string; waitingEgp: string; waitingAllTimeEgp: string;
+    cycles: { cycleId: string; code: string; status: string; sharedEgp: string }[];
   };
 }
-
-export const waitingFor = (rc: Awaited<ReturnType<typeof runningCosts>>, userId: string) =>
-  Number(rc.partners.find((p) => p.userId === userId)?.waitingEgp ?? 0);
 
 /** Calculate and approve; the id of the approved settlement. */
 export async function approved(mk: any, cycleId: string) {
@@ -121,3 +119,68 @@ export async function settlementRows(request: APIRequestContext, headers: Header
 }
 
 export const cents = (n: number | string) => Math.round(Number(n) * 100);
+
+/**
+ * A spec that records running costs owns them (LEARNINGS "A fixture should
+ * own what it asserts on"). Since 2026-11-09 a running cost none of whose
+ * cycles is settled yet is split again over every cycle that ran on its day
+ * (§8) — and in a test run every cycle runs today — so a cost one test left
+ * behind would go on moving into every cycle the rest of the run builds, and
+ * every exact profit after it would be off by its part. After each test the
+ * running costs it recorded are undone, through the API as a person would,
+ * unless a settled cycle already holds a part (then it never moves anyway).
+ * `ownRunningCosts(test)` in the spec file; `'all'` where the costs are built
+ * in `beforeAll` and read by every test.
+ */
+export function ownRunningCosts(t: typeof Test, scope: 'each' | 'all' = 'each') {
+  let since = new Date();
+  const start = () => {
+    since = new Date();
+  };
+  const undo = async ({ request }: { request: APIRequestContext }) => undoRunningCostsSince(request, since);
+  if (scope === 'all') {
+    t.beforeAll(start);
+    t.afterAll(undo);
+  } else {
+    t.beforeEach(start);
+    t.afterEach(undo);
+  }
+}
+
+export async function undoRunningCostsSince(request: APIRequestContext, since: Date) {
+  const ids = psqlQuery(`
+    SELECT f.id FROM financial_transactions f
+     WHERE f.cycle_id IS NULL AND f.type = 'EXPENSE' AND f.direction = 'OUTFLOW'
+       AND f.reversal_of_id IS NULL AND f.created_at >= '${since.toISOString()}'::timestamptz
+       AND NOT EXISTS (SELECT 1 FROM financial_transactions r WHERE r.reversal_of_id = f.id)
+       AND NOT EXISTS (
+         SELECT 1 FROM running_cost_allocations a JOIN import_cycles c ON c.id = a.cycle_id
+          WHERE a.cost_entry_id = f.id
+            AND (c.status IN ('SETTLEMENT', 'CLOSED', 'CANCELLED')
+                 OR EXISTS (SELECT 1 FROM settlements s WHERE s.cycle_id = c.id AND s.status IN ('APPROVED', 'PAID'))));`)
+    .split('\n')
+    .filter(Boolean);
+  if (ids.length === 0) return;
+  const { headers } = await apiCtx(request);
+  const refused: string[] = [];
+  for (const id of ids) {
+    const res = await request.post(`${API}/ledger/${id}/reverse`, {
+      headers,
+      data: { reason: 'test clean-up: a running cost this test recorded' },
+    });
+    if (res.status() >= 500) throw new Error(`undo running cost ${id}: ${await res.text()}`);
+    // Refused for its own reason (the partner it credited has taken the money
+    // out, TC-PAIDBY-03): parked on a closed cycle of its own instead, as the
+    // database suites park theirs (api common/running-costs-quiet-spec.ts).
+    if (!res.ok()) refused.push(id);
+  }
+  if (refused.length === 0) return;
+  const list = refused.map((id) => `'${id}'::uuid`).join(', ');
+  psqlQuery(`
+    WITH sink AS (
+      INSERT INTO import_cycles (id, code, origin_type, currency, status, updated_at)
+      VALUES (gen_random_uuid(), 'PARK-' || substr(md5(random()::text), 1, 8), 'UAE_DIRECT', 'EGP', 'CLOSED', now())
+      RETURNING id)
+    , gone AS (DELETE FROM running_cost_allocations WHERE cost_entry_id IN (${list}))
+    UPDATE financial_transactions SET cycle_id = (SELECT id FROM sink) WHERE id IN (${list});`);
+}

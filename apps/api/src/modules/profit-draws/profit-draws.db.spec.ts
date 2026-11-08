@@ -38,10 +38,12 @@ import { quietRunningCosts } from '../../common/running-costs-quiet-spec';
 const url = process.env.INTEGRATION_DATABASE_URL;
 const suite = url ? describe : describe.skip;
 
+// Cairo days, as the service judges "not dated forward": a UTC day is
+// yesterday's in Cairo from 22:00 UTC, so "tomorrow" was today there.
 const daysAgo = (n: number) =>
-  new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+  businessToday(new Date(Date.now() - n * 86_400_000));
 const daysAhead = (n: number) =>
-  new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  businessToday(new Date(Date.now() + n * 86_400_000));
 
 type Person = { id: string };
 

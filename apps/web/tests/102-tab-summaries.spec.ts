@@ -16,6 +16,10 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { API, apiCtx, owedOrder, refusedCallers, stockedProduct } from './support/fixtures';
 import { login, messages, openNav, openView } from './support/ui';
+import { ownRunningCosts } from './support/running-costs';
+
+// Running costs a test here records are undone after it, so they do not move into the cycles later specs build (§8, 2026-11-09).
+ownRunningCosts(test);
 
 const en = messages('en');
 const stamp = Date.now();
