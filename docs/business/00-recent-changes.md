@@ -4,7 +4,7 @@ Last updated 2026-11-08 (§8: running costs shared to the selling cycles — inv
 
 ---
 
-**Running costs shared to the selling cycles** — 2026-11-08, owner ("investor has to pay for everything as well, fuel, packaging etc... its all one process"), on `feature/costs-to-selling-cycle`. An expense with no cycle is split equally over the cycles running when it is recorded — from the moment their goods are paid for until their settlement is approved — or waits for the next one paid for and comes off their profit, so investors bear it by share; payouts are no longer charged running costs. Guesses: equal split, "paid for" = order confirmed (Preparing), the day recorded. Details in §8.
+**Running costs shared to the selling cycles** — 2026-11-08, owner ("investor has to pay for everything as well, fuel, packaging etc... its all one process"), on `feature/costs-to-selling-cycle`. An expense with no cycle is split equally over the cycles running when it is recorded — from the moment their goods are paid for until their settlement is approved — or waits for the next one paid for and comes off their profit, so investors bear it by share; payouts are no longer charged running costs. "Paid for" = order confirmed, Preparing (owner: "preparing is correct"). Guesses: equal split, the day recorded. Details in §8.
 
 ---
 

@@ -80,7 +80,7 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   "a cost is shared the moment we pay for the goods from china or uae, not when we start selling"). Rules: §8
   "investors pay for every cost too". Migration `20261108200000_running_cost_allocations` (one table, CHECK amount > 0;
   additive). An expense with no cycle is split equally over the cycles running when it is recorded — from Preparing
-  (order confirmed and paid, GUESS for "paid for") through Selling, with no approved/paid settlement
+  (order confirmed and paid; owner 2026-11-08: "preparing is correct") through Selling, with no approved/paid settlement
   (`TAKES_RUNNING_COSTS`, `common/running-cost-allocation.ts`) — or waits and goes to the cycles running when one next
   enters a running status (or a settlement is reversed, or any is calculated). Read by settlement (`project`: expenses
   + `shared` cost lines), Analytics' cycle profitability and so profit draws. Approval refuses a stale draft
@@ -90,7 +90,7 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   old charged as history. Web: section, `shared` breakdown line, ledger hint, codes en+ar. check-data rows 30–30.2.
   Tests: `running-cost-allocation.db.spec.ts` 15 (13 rules seen to fail when broken; the settled-cycle filter and the
   lock are belt-and-braces no test reaches); suites that leave costs waiting park them (`running-costs-quiet-spec.ts`).
-  **Guesses for the owner:** equal split (not by sales); "paid for" = order confirmed (Preparing); the day recorded,
+  **Guesses for the owner:** equal split (not by sales); the day recorded,
   not the day dated. **Not done:** e2e `34-business-invariants` TC-INV-59/60/61/63 and `tests/support/running-costs.ts`
   still assert the old model (e2e paused). **Found:** profit draws read "collected" strictly while the dashboard's profit
   in the cash (`profit-on-collected.ts`, owner-accepted 2026-11-06) reads it proportionally — owner to choose.
