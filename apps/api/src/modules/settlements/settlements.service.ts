@@ -323,15 +323,20 @@ export class SettlementsService {
    * Nothing here writes, and it deliberately does not check for a locked
    * settlement — asking is not recalculating.
    */
-  async project(cycleId: string) {
-    const participants = await this.prisma.cycleParticipant.findMany({
+  async project(
+    cycleId: string,
+    // A caller inside a transaction passes it: production has one connection
+    // per request, so a read through this.prisma there waits for ever (P2028).
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const participants = await db.cycleParticipant.findMany({
       where: { cycleId },
       orderBy: { createdAt: 'asc' },
     });
     if (participants.length === 0) return null;
 
     // --- Revenue and COGS from this cycle's batches ------------------------
-    const allocations = await this.prisma.saleItemAllocation.findMany({
+    const allocations = await db.saleItemAllocation.findMany({
       where: {
         inventoryBatch: { cycleId },
         saleItem: {
@@ -358,7 +363,7 @@ export class SettlementsService {
     // A damaged return reverses the revenue but reverses no cost, because the
     // stock never went back on the shelf: cogsReversedEgp is zero for those,
     // and the cost stays spent as a write-off.
-    const returnItems = await this.prisma.saleReturnItem.findMany({
+    const returnItems = await db.saleReturnItem.findMany({
       where: {
         inventoryBatch: { cycleId },
         // Must match the allocation filter above: a fully returned order is no
@@ -383,7 +388,7 @@ export class SettlementsService {
     // stored — the figure the dashboard takes off too. Written as the held
     // units taken back at what was lowered and handed out again at nothing,
     // so revenue drops by exactly that and units sold and cost stay put.
-    const adjustmentItems = await this.prisma.salePriceAdjustmentItem.findMany({
+    const adjustmentItems = await db.salePriceAdjustmentItem.findMany({
       where: {
         inventoryBatch: { cycleId },
         adjustment: {
@@ -409,17 +414,14 @@ export class SettlementsService {
     // Leftovers moved to another cycle (§8, L5) have left these batches, so
     // they are no longer here — and the moved batch on the cycle that took
     // them is that cycle's own stock. One reading (common/unsold-stock.ts).
-    const { unitsRemaining, unsoldValue } = await unsoldStock(
-      this.prisma,
-      cycleId,
-    );
+    const { unitsRemaining, unsoldValue } = await unsoldStock(db, cycleId);
 
     // --- Expenses not already inside landed cost ---------------------------
     // Both directions: a reversed expense (money back in, pointing at it) is
     // taken off again, through the one signed reading the cycle page and the
     // dashboard use (L6, rule 11). Recoveries and other income are netted
     // below, not charged here.
-    const expenseTxns = await this.prisma.financialTransaction.findMany({
+    const expenseTxns = await db.financialTransaction.findMany({
       where: {
         cycleId,
         category: { notIn: [...NOT_OPERATING_EXPENSE] },
@@ -433,7 +435,7 @@ export class SettlementsService {
     });
     // Other income charged to the cycle raises its profit (§9, L6), net of
     // any undone.
-    const otherIncomeTxns = await this.prisma.financialTransaction.findMany({
+    const otherIncomeTxns = await db.financialTransaction.findMany({
       where: {
         cycleId,
         category: { in: [...OTHER_INCOME_CATEGORIES] },
@@ -445,7 +447,7 @@ export class SettlementsService {
     // they were sold at, and a settlement may already have been agreed on it.
     // Both directions: an undone refund's OUTFLOW takes its inflow back
     // (B5b), through the one signed reading analytics uses too (rule 11).
-    const recoveryTxns = await this.prisma.financialTransaction.findMany({
+    const recoveryTxns = await db.financialTransaction.findMany({
       where: {
         cycleId,
         category: { in: [...COST_RECOVERY_CATEGORIES] },
@@ -460,13 +462,13 @@ export class SettlementsService {
     // Samples the shops kept or lost (§4, samples at shops) are the same
     // kind of cost — goods paid for that will never sell — through the one
     // definition the dashboard and the P&L read too.
-    const writeOffs = await cycleWriteOffsEgp(this.prisma, cycleId);
+    const writeOffs = await cycleWriteOffsEgp(db, cycleId);
     const losses = writeOffs.total;
 
     // What repaying a friend in pounds cost beyond his payment at the order's
     // rate (§18): a cost when the dirham rose, a gain when it fell. Read from
     // the repayments through the one definition analytics reads too.
-    const exchangeDiff = await exchangeDifferenceEgp(this.prisma, cycleId);
+    const exchangeDiff = await exchangeDifferenceEgp(db, cycleId);
 
     const expenses = netOperatingExpenseEgp(expenseTxns)
       .sub(netRecoveredEgp(recoveryTxns))

@@ -375,6 +375,39 @@ suite('profit taken before settlement (Postgres)', () => {
     expect((await roomOf(cycle.id, people[1])).availableEgp).toBe('300.00');
   });
 
+  // Production runs one connection per request (prisma.service.ts, connection_limit 1). A read
+  // made outside the draw's transaction waits for a connection the transaction holds: it hung
+  // until the pool gave up, while this suite's larger pool hid it (CLAUDE LEARNINGS, P2028).
+  it('records a draw on a single connection, as production does', async () => {
+    const { cycle, people, pay } = await tradedCycle();
+    await pay(2000);
+    const one = new PrismaClient({
+      datasources: {
+        db: {
+          url: `${url}${url!.includes('?') ? '&' : '?'}connection_limit=1&pool_timeout=5`,
+        },
+      },
+    });
+    try {
+      const db = one as unknown as PrismaService;
+      const audit = { log: jest.fn() } as unknown as AuditService;
+      const single = new ProfitDrawsService(
+        db,
+        audit,
+        new SettlementsService(db, audit, new CostingService(db)),
+      );
+      await expect(
+        single.create(
+          cycle.id,
+          { partnerUserId: people[0].id, amountEgp: 100 },
+          actor,
+        ),
+      ).resolves.toMatchObject({ data: { amountEgp: '100.00' } });
+    } finally {
+      await one.$disconnect();
+    }
+  });
+
   it('follows an agreed split, not equal thirds', async () => {
     const { cycle, people, pay } = await tradedCycle(undefined, {
       split: [50, 30, 20],
