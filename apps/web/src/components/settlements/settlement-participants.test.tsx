@@ -73,6 +73,45 @@ describe('participantRows', () => {
     expect(paid.runningCosts).toBe(-4000);
   });
 
+  it('profit he took before settlement comes off his payout (§8, 2026-11-08), and only his', () => {
+    const [p1, p2] = participantRows([...LINES, line('8', 'p1', 'PROFIT_DRAWN', -40000, partner)]);
+    expect(p1.profitDrawn).toBe(-40000);
+    expect(p1.owed).toBe(0);
+    expect(p1.payout).toBe(100000 + 45000 + 2500 - 40000);
+    expect(p2.profitDrawn).toBe(0);
+    expect(p2.payout).toBe(50000 + 20000);
+  });
+
+  it('took more than his payout came to: the payout is 0, never below, and the rest is owed', () => {
+    // 10,000 share, 25,000 taken: 15,000 owed, paid nothing.
+    const [p] = participantRows([
+      line('1', 'p1', 'PROFIT_SHARE', 10000, partner),
+      line('2', 'p1', 'PROFIT_DRAWN', -25000, partner),
+    ]);
+    expect(p.payout).toBe(0);
+    expect(p.owed).toBe(15000);
+  });
+
+  it('owed is never more than he took: a loss beyond his draws stays a negative payout', () => {
+    // A 30,000 loss share and 5,000 taken: he owes the 5,000; the rest is the loss it always was.
+    const [p] = participantRows([
+      line('1', 'p1', 'PROFIT_SHARE', -30000, partner),
+      line('2', 'p1', 'PROFIT_DRAWN', -5000, partner),
+    ]);
+    expect(p.owed).toBe(5000);
+    expect(p.payout).toBe(-30000);
+  });
+
+  it('to the piastre: a payout his draws exactly cancel reads 0, not -0.00', () => {
+    const [p] = participantRows([
+      line('1', 'p1', 'PROFIT_SHARE', 0.1, partner),
+      line('2', 'p1', 'CAPITAL_RETURN', 0.2, partner),
+      line('3', 'p1', 'PROFIT_DRAWN', -0.3, partner),
+    ]);
+    expect(Object.is(p.payout, 0)).toBe(true);
+    expect(p.owed).toBe(0);
+  });
+
   it('a participant with no name or email has none, and no lines means no rows', () => {
     expect(participantRows(LINES)[2].name).toBeNull();
     expect(participantRows([])).toEqual([]);
@@ -110,6 +149,32 @@ describe('SettlementParticipants on a phone (UI audit 2026-10-10 #1)', () => {
     renderIn('en');
     const cards = within(screen.getByTestId('settlement-participants-cards')).getAllByRole('listitem');
     expect(cards[2].querySelectorAll('dd')[2].textContent).toBe('—');
+  });
+
+  it('no profit taken: no "Profit taken" column or label, so existing settlements read as before', () => {
+    const { container } = renderIn('en');
+    expect([...container.querySelectorAll('th')].map((th) => th.textContent)).not.toContain(en.settlementsPage.profitTaken);
+    expect(container.textContent).not.toContain(en.settlementsPage.profitTaken);
+  });
+
+  it('profit taken: its own column and card line, and an owed payout shows 0 with what he owes (Arabic)', () => {
+    const { container } = renderIn('ar', [
+      line('1', 'p1', 'PROFIT_SHARE', 10000, partner),
+      line('2', 'p1', 'PROFIT_DRAWN', -25000, partner),
+      line('3', 'p2', 'PROFIT_SHARE', 5000, {}),
+    ]);
+    expect([...container.querySelectorAll('th')].map((th) => th.textContent)).toContain(ar.settlementsPage.profitTaken);
+    const cards = within(screen.getByTestId('settlement-participants-cards')).getAllByRole('listitem');
+    const labels = [...cards[0].querySelectorAll('dt')].map((d) => d.textContent);
+    expect(labels).toContain(ar.settlementsPage.profitTaken);
+    const owed = within(cards[0]).getByTestId('payout-owed');
+    expect(owed.textContent).toContain('15,000.00');
+    expect(owed.textContent).toContain('يُخصم من توزيعه القادم');
+    // The payout itself reads 0, not -15,000.
+    const payout = cards[0].querySelectorAll('dd')[cards[0].querySelectorAll('dd').length - 1];
+    expect(payout.querySelector('[data-slot="money"]')!.textContent).toMatch(/^0\.00/);
+    // The other participant took nothing: a dash, and no owed note.
+    expect(within(cards[1]).queryByTestId('payout-owed')).toBeNull();
   });
 
   it('keeps the table, hidden below md, for wider screens', () => {

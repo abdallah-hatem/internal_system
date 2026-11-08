@@ -21,6 +21,36 @@ export interface ParticipantInput {
   investorFeePct: Prisma.Decimal | null;
 }
 
+/**
+ * A cycle's participant rows as the split reads them — the one mapping, for
+ * settling (`SettlementsService.project`) and for what a partner may take
+ * before then (`common/profit-draws.ts`), so the two cannot split differently
+ * (rule 11).
+ */
+export function participantInputsOf(
+  rows: {
+    id: string;
+    participantType: string;
+    contributionAmount: Prisma.Decimal.Value;
+    customProfitPct: Prisma.Decimal.Value | null;
+    investorFeePct: Prisma.Decimal.Value | null;
+  }[],
+): ParticipantInput[] {
+  return rows.map((p) => ({
+    id: p.id,
+    type:
+      p.participantType === 'TEMP_INVESTOR' ? 'TEMP_INVESTOR' : 'CORE_PARTNER',
+    contribution: new Prisma.Decimal(p.contributionAmount),
+    // As settling always read them: a stored value (a Decimal) is set.
+    customProfitPct: p.customProfitPct
+      ? new Prisma.Decimal(p.customProfitPct)
+      : null,
+    investorFeePct: p.investorFeePct
+      ? new Prisma.Decimal(p.investorFeePct)
+      : null,
+  }));
+}
+
 export interface SettlementLineResult {
   participantId: string;
   type: ParticipantType;

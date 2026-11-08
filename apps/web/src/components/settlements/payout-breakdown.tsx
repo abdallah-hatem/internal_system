@@ -41,6 +41,15 @@ export interface ParticipantPayout {
   runningCostsFrom: string | null;
   runningCostsTo: string | null;
   runningCostsStatus: 'charged' | 'projected' | 'released' | 'none';
+  /**
+   * Profit he took before settlement, and anything he still owed from an
+   * earlier payout (§8, 2026-11-08), taken off this payout (negative).
+   * Absent on a breakdown read before draws existed.
+   */
+  profitDrawnEgp?: string;
+  /** What his draws came to beyond this payout: owed, taken off his next payout (positive). */
+  owedEgp?: string;
+  /** What he is paid: the lines above plus what is owed — never below zero because of draws. */
   paidEgp: string;
 }
 
@@ -273,6 +282,12 @@ export function PayoutBreakdownView({
                     }
                   />
                 )}
+                {num(p.profitDrawnEgp ?? 0) !== 0 && (
+                  <Line label={t('profitTakenLine')} amount={num(p.profitDrawnEgp ?? 0)} />
+                )}
+                {/* Beyond his payout: he owes it, and it comes off his next one —
+                    so this payout is 0, not below it (owner 2026-11-08). */}
+                {num(p.owedEgp ?? 0) > 0 && <Line label={t('owedLine')} amount={num(p.owedEgp ?? 0)} />}
                 <Total label={open ? t('wouldBePaid') : t('paidToHim')} amount={num(p.paidEgp)} />
               </dl>
             </div>

@@ -10,6 +10,7 @@ import { AuditService } from '../audit/audit.service';
 import { CostingService } from '../costing/costing.service';
 import {
   distributeCycleProfit,
+  participantInputsOf,
   summarizeCyclePnl,
   ParticipantInput,
 } from './settlement-math';
@@ -66,11 +67,18 @@ import {
   type PlannedCharge,
 } from '../../common/running-costs';
 import { cycleTransfersOutEgp } from '../../common/stock-transfers';
+import {
+  PROFIT_DRAWN_COMPONENT,
+  STANDING_DRAW,
+  deductionsFor,
+  owedAfterPayout,
+} from '../../common/profit-draws';
 
 /**
  * What a participant is actually handed: capital back, their profit share
  * (already net of any fee charged to them), any fee they receive, and — since
- * L7 — less the running costs his payout took (RUNNING_COSTS, negative).
+ * L7 — less the running costs his payout took (RUNNING_COSTS, negative), and
+ * since 2026-11-08 less the profit he already took (PROFIT_DRAWN, negative).
  *
  * The INVESTOR_FEE line is a memo of what was deducted — the deduction is
  * already inside that participant's PROFIT_SHARE. Counting it again makes the
@@ -82,6 +90,7 @@ const PAYABLE_COMPONENTS = [
   'PROFIT_SHARE',
   'INVESTOR_FEE_RECEIVED',
   'RUNNING_COSTS',
+  PROFIT_DRAWN_COMPONENT,
 ];
 
 /**
@@ -133,10 +142,10 @@ function corePartnerPayouts(
     if (l.participant.participantType !== 'CORE_PARTNER' || !userId) continue;
     if (participantOf.has(userId)) continue;
     participantOf.set(userId, l.participantId);
-    capacities.set(
-      userId,
-      payouts.get(l.participantId) ?? new Prisma.Decimal(0),
-    );
+    // A payout his draws took below zero has nothing to take running costs
+    // from (§8, 2026-11-08); he owes the rest, it is not a negative capacity.
+    const payout = payouts.get(l.participantId) ?? new Prisma.Decimal(0);
+    capacities.set(userId, payout.gt(0) ? payout : new Prisma.Decimal(0));
   }
   return { capacities, participantOf };
 }
@@ -484,20 +493,8 @@ export class SettlementsService {
     });
 
     // --- Distribute -------------------------------------------------------
-    const participantInputs: ParticipantInput[] = participants.map((p) => ({
-      id: p.id,
-      type:
-        p.participantType === 'TEMP_INVESTOR'
-          ? 'TEMP_INVESTOR'
-          : 'CORE_PARTNER',
-      contribution: new Prisma.Decimal(p.contributionAmount),
-      customProfitPct: p.customProfitPct
-        ? new Prisma.Decimal(p.customProfitPct)
-        : null,
-      investorFeePct: p.investorFeePct
-        ? new Prisma.Decimal(p.investorFeePct)
-        : null,
-    }));
+    const participantInputs: ParticipantInput[] =
+      participantInputsOf(participants);
 
     // No contributions and no agreed split refuses (`CYCLE_NOT_FUNDED`),
     // a cycle a friend paid for included (owner 2026-10-19, §18): the
@@ -782,6 +779,26 @@ export class SettlementsService {
         }
       }
 
+      // Profit each core partner already took (§8, 2026-11-08): off his
+      // payout, not off the cycle's profit — and anything he still owes from
+      // an earlier payout with it. Read under the cycle's lock, which a draw
+      // takes too.
+      const coreOf = coreParticipantByUser(participants);
+      const { byPartner } = await deductionsFor(tx, cycleId, [
+        ...coreOf.keys(),
+      ]);
+      for (const [userId, drawn] of byPartner) {
+        if (drawn.lte(0)) continue;
+        await tx.settlementLine.create({
+          data: {
+            settlementId: created.id,
+            participantId: coreOf.get(userId)!,
+            component: PROFIT_DRAWN_COMPONENT,
+            amount: drawn.neg(),
+          },
+        });
+      }
+
       return tx.settlement.findUnique({
         where: { id: created.id },
         include: SETTLEMENT_INCLUDE,
@@ -878,6 +895,8 @@ export class SettlementsService {
           'The funding changed after this settlement was calculated. Calculate it again before approving.',
         );
       }
+      // Profit taken or undone since it was calculated (§8, 2026-11-08).
+      await assertDrawsCurrent(tx, id, settlement.cycleId);
       await assertShipmentAccounted(tx, settlement.cycleId);
       // And no friend still owed (§18) — the gate the transition runs too.
       const cycle = await tx.importCycle.findUnique({
@@ -1017,6 +1036,8 @@ export class SettlementsService {
 
     const charged: PlannedCharge[] = [];
     const payouts = new Map<string, Prisma.Decimal>();
+    const carried: { partnerUserId: string; amount: string }[] = [];
+    let drawsSettled = 0;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       // One payout at a time takes running costs, and this one is still
@@ -1032,6 +1053,21 @@ export class SettlementsService {
           'Only APPROVED settlements can be marked as paid',
         );
       }
+
+      // The draws it takes off, as they stand now: something owed carried
+      // over from a payout elsewhere since approval, or a carry undone,
+      // refuses (§8, 2026-11-08). Under each core partner's account lock,
+      // which a draw and a carry take too.
+      const coreUsers = [
+        ...new Set(
+          settlement.lines
+            .filter((l) => l.participant.participantType === 'CORE_PARTNER')
+            .map((l) => l.participant.partnerUserId)
+            .filter((u): u is string => !!u),
+        ),
+      ];
+      await lockAccounts(tx, coreUsers);
+      const drawIds = await assertDrawsCurrent(tx, id, settlement.cycleId);
 
       // --- His share of the running costs (§8, owner 2026-10-11; L7) -------
       // Each core partner on this cycle: his equal share of the general
@@ -1110,12 +1146,44 @@ export class SettlementsService {
       )) {
         const userId = userOf.get(participantId);
         const taken = userId ? takenBy.get(userId) : undefined;
-        const net = taken ? amount.sub(taken) : amount;
-        payouts.set(participantId, net);
-        if (net.isZero()) continue;
+        let net = taken ? amount.sub(taken) : amount;
         const participant = settlement.lines.find(
           (l) => l.participantId === participantId,
         )?.participant;
+
+        // He took more than this payout comes to (§8, 2026-11-08: "they owe
+        // it back"): no cash comes in — it left with the draw — and what is
+        // left over comes off his next payout, on whichever cycle.
+        const drawn = settlement.lines
+          .filter(
+            (l) =>
+              l.participantId === participantId &&
+              l.component === PROFIT_DRAWN_COMPONENT,
+          )
+          .reduce((s, l) => s.add(l.amount), new Prisma.Decimal(0))
+          .neg();
+        const owed = owedAfterPayout(net, drawn);
+        if (owed.gt(0) && participant?.partnerUserId) {
+          await tx.profitDraw.create({
+            data: {
+              kind: 'CARRIED',
+              cycleId: null,
+              partnerUserId: participant.partnerUserId,
+              amountEgp: owed,
+              drawnOn: new Date(`${businessToday()}T00:00:00Z`),
+              carriedFromSettlementId: settlement.id,
+              note: `Taken beyond his payout of ${settlement.cycle.code}`,
+              createdBy: actorId,
+            },
+          });
+          carried.push({
+            partnerUserId: participant.partnerUserId,
+            amount: owed.toFixed(2),
+          });
+          net = net.add(owed);
+        }
+        payouts.set(participantId, net);
+        if (net.isZero()) continue;
 
         await tx.financialTransaction.create({
           data: {
@@ -1164,6 +1232,16 @@ export class SettlementsService {
         }
       }
 
+      // The draws this payout took off are settled: no longer undone on
+      // their own, and never taken off another payout.
+      if (drawIds.length > 0) {
+        const marked = await tx.profitDraw.updateMany({
+          where: { id: { in: drawIds }, settledById: null, ...STANDING_DRAW },
+          data: { settledById: settlement.id },
+        });
+        drawsSettled = marked.count;
+      }
+
       await tx.importCycle.update({
         where: { id: settlement.cycleId },
         data: { status: 'CLOSED', closedOn: new Date() },
@@ -1191,6 +1269,8 @@ export class SettlementsService {
         })),
         acceptedRemainingStock: opts.acceptRemainingStock ?? false,
         payoutsLeftIn: leftIn,
+        profitDrawsSettled: drawsSettled,
+        owedCarriedOver: carried,
         runningCostsCharged: charged.map((c) => ({
           costEntryId: c.costEntryId,
           partnerUserId: c.partnerUserId,
@@ -1238,6 +1318,41 @@ export class SettlementsService {
     });
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      // What it left a partner owing (§8, 2026-11-08) is undone with it —
+      // unless a later payout already took it off, which must be undone first.
+      const carriedRows = await tx.profitDraw.findMany({
+        where: { carriedFromSettlementId: settlement.id, ...STANDING_DRAW },
+        include: {
+          settledBy: {
+            select: { status: true, cycle: { select: { code: true } } },
+          },
+        },
+      });
+      const takenOn = carriedRows.find((r) => r.settledById !== null);
+      if (takenOn) {
+        throw badRequest(
+          'SETTLEMENT_OWED_TAKEN_LATER',
+          `What this settlement left a partner owing was taken off ${takenOn.settledBy?.cycle.code}'s payout. Reverse that settlement first.`,
+          { cycle: takenOn.settledBy?.cycle.code ?? '' },
+        );
+      }
+      if (carriedRows.length > 0) {
+        await tx.profitDraw.updateMany({
+          where: { id: { in: carriedRows.map((r) => r.id) } },
+          data: {
+            reversedAt: new Date(),
+            reversedBy: actorId,
+            reversalReason: `Settlement of ${settlement.cycle.code} reversed: ${reason}`,
+          },
+        });
+      }
+      // The draws its payouts took off stand again, to be taken off the next
+      // settlement of their cycle (or, carried, of any).
+      await tx.profitDraw.updateMany({
+        where: { settledById: settlement.id },
+        data: { settledById: null },
+      });
+
       // Payouts left in partners' accounts come back out with the settlement —
       // never leaving an account below zero (owner 2026-10-25): once a partner
       // has drawn it into another cycle or taken it out, that comes first.
@@ -1494,4 +1609,68 @@ export class SettlementsService {
       },
     };
   }
+}
+
+/** Each core partner's row on the cycle, by user — where his draws are written. */
+function coreParticipantByUser(
+  participants: {
+    id: string;
+    participantType: string;
+    partnerUserId: string | null;
+  }[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const p of participants) {
+    if (p.participantType !== 'CORE_PARTNER' || !p.partnerUserId) continue;
+    if (!out.has(p.partnerUserId)) out.set(p.partnerUserId, p.id);
+  }
+  return out;
+}
+
+/**
+ * Refuse a settlement whose PROFIT_DRAWN lines no longer match the draws as
+ * they stand (§8, 2026-11-08): profit taken or undone after it was
+ * calculated, or something owed from another payout carried over or undone
+ * since. Calculating again writes the lines afresh. Returns the draws it
+ * takes off, for paying.
+ */
+async function assertDrawsCurrent(
+  tx: Prisma.TransactionClient,
+  settlementId: string,
+  cycleId: string,
+): Promise<string[]> {
+  const lines = await tx.settlementLine.findMany({
+    where: { settlementId },
+    select: {
+      component: true,
+      amount: true,
+      participant: { select: { participantType: true, partnerUserId: true } },
+    },
+  });
+  const written = new Map<string, Prisma.Decimal>();
+  const users = new Set<string>();
+  for (const l of lines) {
+    const userId = l.participant.partnerUserId;
+    if (l.participant.participantType !== 'CORE_PARTNER' || !userId) continue;
+    users.add(userId);
+    if (l.component !== PROFIT_DRAWN_COMPONENT) continue;
+    written.set(
+      userId,
+      (written.get(userId) ?? new Prisma.Decimal(0)).add(
+        new Prisma.Decimal(l.amount).neg(),
+      ),
+    );
+  }
+  const { byPartner, drawIds } = await deductionsFor(tx, cycleId, [...users]);
+  for (const userId of users) {
+    const now = byPartner.get(userId) ?? new Prisma.Decimal(0);
+    const then = written.get(userId) ?? new Prisma.Decimal(0);
+    if (!now.eq(then)) {
+      throw badRequest(
+        'SETTLEMENT_STALE_DRAWS',
+        'Profit taken by a partner changed after this settlement was calculated. Calculate it again.',
+      );
+    }
+  }
+  return drawIds;
 }

@@ -903,6 +903,13 @@ export function fakePrisma(db: Store) {
     settlementLine: {
       create: ({ data }: Row) => after(data),
       deleteMany: () => after({ count: 0 }),
+      findMany: () => after([]),
+    },
+    // Profit taken before settlement (§8, 2026-11-08): none in these worlds.
+    profitDraw: {
+      findMany: () => after([]),
+      updateMany: () => after({ count: 0 }),
+      create: ({ data }: Row) => after(data),
     },
     shippingLeg: {
       findUnique: ({ where }: Row) =>

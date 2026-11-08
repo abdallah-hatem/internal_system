@@ -37,7 +37,9 @@ export type CodeKind =
   | 'ledgerKind'
   | 'ledgerDirection'
   // Why a cycle's funding is locked (api common/funding-lock.ts, 2026-10-18).
-  | 'fundingLock';
+  | 'fundingLock'
+  // Why a cycle's profit taken can no longer change (api profit-draws, 2026-11-08).
+  | 'profitDrawLock';
 
 /**
  * Translate an API code for display.

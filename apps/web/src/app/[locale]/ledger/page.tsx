@@ -100,6 +100,8 @@ const TYPE_KEYS: Record<string, string> = {
   LENDER_REPAYMENT: 'lenderRepayment',
   STOCK_TRANSFER: 'stockTransfer',
   STOCK_TRANSFER_REVERSAL: 'stockTransferReversal',
+  PROFIT_DRAW: 'profitDraw',
+  PROFIT_DRAW_REVERSAL: 'profitDrawReversal',
 };
 
 const DIRECTION_COLORS: Record<string, string> = {

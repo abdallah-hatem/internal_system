@@ -141,6 +141,9 @@ const ENDPOINTS = {
   'partnerAccount.reverse': ['partner-accounts/partner-accounts.controller.ts', 'PartnerAccountsController', 'Post', ':partnerUserId/movements/:movementId/reverse'],
   'partnerAccount.contribute': ['partner-accounts/partner-accounts.controller.ts', 'CycleAccountFundingController', 'Post', ':id/account-contributions'],
   'partnerAccount.target': ['partner-accounts/partner-accounts.controller.ts', 'CycleAccountFundingController', 'Put', ':id/funding-target'],
+  'profitDraw.read': ['profit-draws/profit-draws.controller.ts', 'CycleProfitDrawsController', 'Get', ':id/profit-draws'],
+  'profitDraw.take': ['profit-draws/profit-draws.controller.ts', 'CycleProfitDrawsController', 'Post', ':id/profit-draws'],
+  'profitDraw.reverse': ['profit-draws/profit-draws.controller.ts', 'ProfitDrawsController', 'Post', ':id/reverse'],
 };
 
 test('every action names the endpoint it calls', () => {

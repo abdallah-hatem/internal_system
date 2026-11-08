@@ -132,6 +132,8 @@ export default function SettlementsPage() {
       refetchNow(['users', 'participation']),
       refetchNow(['running-costs']),
       queryClient.invalidateQueries({ queryKey: ['cycles'] }),
+      // A payout takes the profit taken off it (§8, 2026-11-08): the cycle's card says so.
+      queryClient.invalidateQueries({ queryKey: ['profit-draws'] }),
     ]);
 
   const onError = (e: any) =>

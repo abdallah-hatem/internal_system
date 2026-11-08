@@ -18,7 +18,7 @@ export const AUDIT_ENTITY_TYPES = [
   'InventoryBatch', 'StockTransfer',
   // Money
   'FinancialTransaction', 'Settlement', 'Lender', 'LenderFinancing', 'LenderRepayment', 'LenderPlan',
-  'CurrencyRate', 'PartnerAccountMovement',
+  'CurrencyRate', 'PartnerAccountMovement', 'ProfitDraw',
   // Catalogue and contacts
   'Product', 'Category', 'Supplier', 'Provider',
   // The office chat

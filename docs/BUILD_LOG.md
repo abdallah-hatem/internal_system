@@ -75,6 +75,21 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `feature/profit-advance` 2026-11-08, NOT committed, NOT merged — profit taken before a cycle is settled**
+  (owner 2026-11-08: "I am allowed to take some of my share profit any time mid cycle … the profit we made does not
+  change", then: up to his share of profit collected; owed back off his next payout; any core partner records it).
+  Rules: BUSINESS_LOGIC §8 "Profit taken before a cycle is settled". Migration `20261108100000_profit_draws` (one
+  table `profit_draws`, enum `ProfitDrawKind`, CHECKs on amount and shape; additive). API: `GET/POST
+  /cycles/:id/profit-draws`, `POST /profit-draws/:id/reverse` (CORE_PARTNER); ledger `profit_draw` OUTFLOW (cash, not
+  an expense; out of Analytics' investment); settlement `PROFIT_DRAWN` line, stale-draws refusal at approve and pay,
+  CARRIED rows for what is owed, reversal frees/undoes them. Web: Profit taken card on the cycle page (after Funding),
+  Take profit / Undo dialogs, settlement table and breakdown lines, 11 refusal codes en+ar. check-data rows 29–29.4.
+  Tests: `profit-draws.db.spec.ts` 21 (Postgres) — all 18 rules seen to fail when broken; `common/profit-draws.spec.ts`
+  18; web +31 (card, participants, breakdown, errors); API full 2,480 passed, web 1,871/1,871, unit 195/195. Seen in a
+  browser en desktop and ar 375px on seeded history. **Open for the owner:** "collected" is read strictly (what
+  customers owe counts against profit first) — on the seeded history both selling cycles read 0 to take; the
+  proportional reading would give H26-02 ~84,945. Found in passing: Analytics' cycle "investment" counts settlement
+  payouts as cost (existing, not changed).
 - **Live 2026-11-07 (was `fix/ci-round-2`) — CI run 42257729297 (master) made green** (2026-11-07): the dashboard's first
   tile on a phone matches its skeleton whatever the profit (the pill and its (i) on their own line under the icon,
   type fitted to the line; §12; new TC-SKEL-21 at 320/375/390/430 en+ar with the figure rewritten short to 8

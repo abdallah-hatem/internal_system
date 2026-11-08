@@ -640,6 +640,27 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM financial_transactions r
          JOIN financial_transactions f ON f.id = r.reversal_of_id
    WHERE r.paid_by_user_id IS DISTINCT FROM f.paid_by_user_id
+  -- Profit taken before settlement (BUSINESS_LOGIC §8, 2026-11-08).
+  UNION ALL SELECT 29, 'profit draw whose cash row is missing, another amount, or on another cycle',
+         count(*) FROM profit_draws d
+   WHERE d.kind='DRAW'
+     AND NOT EXISTS (SELECT 1 FROM financial_transactions f
+                      WHERE f.id=d.ledger_entry_id AND f.category='profit_draw'
+                        AND f.direction='OUTFLOW' AND f.amount=d.amount_egp
+                        AND f.cycle_id=d.cycle_id AND f.related_id=d.id)
+  UNION ALL SELECT 29.1, 'undone profit draw whose cash was not put back, or put back twice',
+         count(*) FROM profit_draws d
+   WHERE d.kind='DRAW' AND d.reversed_at IS NOT NULL
+     AND (SELECT count(*) FROM financial_transactions f
+           WHERE f.reversal_of_id=d.ledger_entry_id AND f.direction='INFLOW') <> 1
+  UNION ALL SELECT 29.2, 'profit draw settled by a settlement that is not paid',
+         count(*) FROM profit_draws d JOIN settlements s ON s.id=d.settled_by_id
+   WHERE s.status <> 'PAID'
+  UNION ALL SELECT 29.3, 'something owed carried from a settlement that is not paid',
+         count(*) FROM profit_draws d JOIN settlements s ON s.id=d.carried_from_settlement_id
+   WHERE d.kind='CARRIED' AND d.reversed_at IS NULL AND s.status <> 'PAID'
+  UNION ALL SELECT 29.4, 'profit draw both undone and taken off a payout',
+         count(*) FROM profit_draws WHERE reversed_at IS NOT NULL AND settled_by_id IS NOT NULL
 SQL
 )
 

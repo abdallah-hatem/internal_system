@@ -35,6 +35,13 @@ export interface ParticipantRow {
   fee: number;
   /** His share of the running costs taken from this payout (L7), negative. */
   runningCosts: number;
+  /** Profit he took before settlement, and anything owed from an earlier payout (§8, 2026-11-08), negative. */
+  profitDrawn: number;
+  /**
+   * What his draws came to beyond this payout: owed, and taken off his next
+   * payout — the payout shows 0, never below zero because of draws.
+   */
+  owed: number;
   payout: number;
 }
 
@@ -76,6 +83,10 @@ export function participantRows(
     // Running costs come out of a core partner's payout (§8, L7).
     const hasLine = group.some((l) => l.component === 'RUNNING_COSTS');
     const runningCosts = hasLine ? pick('RUNNING_COSTS') : (projected[key] ?? 0);
+    // Profit taken before settlement comes off the payout (§8, 2026-11-08).
+    const profitDrawn = pick('PROFIT_DRAWN');
+    const payable = capital + share + feeReceived + runningCosts + profitDrawn;
+    const owed = owedAfterPayout(payable, -profitDrawn);
     return {
       key,
       name: nameOf(group[0]),
@@ -85,9 +96,24 @@ export function participantRows(
       feeCharged,
       fee: feeCharged + feeReceived,
       runningCosts,
-      payout: capital + share + feeReceived + runningCosts,
+      profitDrawn,
+      owed,
+      // To the piastre: -3,000.10 + 3,000.10 must read 0, not -0.00.
+      payout: Math.round((payable + owed) * 100) / 100 || 0,
     };
   });
+}
+
+/**
+ * What a partner still owes after a payout that came to less than he had
+ * already taken — the API's `owedAfterPayout` (common/profit-draws.ts), read
+ * the same way: the part of a negative payout his draws account for, never
+ * more than he drew, so a loss beyond that stays what it always was. Zero when
+ * the payout covers the draws. `drawn` is positive.
+ */
+export function owedAfterPayout(payable: number, drawn: number): number {
+  if (payable >= 0 || drawn <= 0) return 0;
+  return Math.min(-payable, drawn);
 }
 
 const feeTone = (fee: number) =>
@@ -112,6 +138,21 @@ export function SettlementParticipants({
     r.fee === 0 ? '—' : <Money value={r.fee} />;
   const running = (r: ParticipantRow) =>
     r.runningCosts === 0 ? '—' : <Money value={r.runningCosts} />;
+  // Profit taken before settlement (§8, 2026-11-08): a column only when
+  // someone took some, so a settlement without any reads as it always did.
+  const anyDrawn = rows.some((r) => r.profitDrawn !== 0);
+  const drawn = (r: ParticipantRow) =>
+    r.profitDrawn === 0 ? '—' : <Money value={r.profitDrawn} />;
+  const payout = (r: ParticipantRow) => (
+    <>
+      <Money value={r.payout} />
+      {r.owed > 0 && (
+        <span data-testid="payout-owed" className="block text-[11px] font-normal text-destructive whitespace-normal">
+          {t.rich('owesNote', { amount: () => <Money value={r.owed} /> })}
+        </span>
+      )}
+    </>
+  );
 
   // The participant takes what is left and wraps; every amount fits
   // "-123,456.00 EGP" and never cuts.
@@ -136,7 +177,10 @@ export function SettlementParticipants({
       cellProps: (r) => ({ title: feeTitle(r) }), cell: fee,
     },
     { key: 'running', header: t('runningCosts'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: running },
-    { key: 'payout', header: t('payout'), width: '9.25rem', kind: 'value', align: 'end', className: 'font-semibold text-foreground', cell: (r) => <Money value={r.payout} /> },
+    ...(anyDrawn
+      ? [{ key: 'drawn', header: t('profitTaken'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: drawn } satisfies Column<ParticipantRow>]
+      : []),
+    { key: 'payout', header: t('payout'), width: '9.25rem', kind: 'value', align: 'end', className: 'font-semibold text-foreground', cell: payout },
   ];
 
   return (
@@ -174,9 +218,15 @@ export function SettlementParticipants({
                 <dt className="text-xs text-muted-foreground">{t('runningCosts')}</dt>
                 <dd className="whitespace-nowrap tabular-nums text-muted-foreground">{running(r)}</dd>
               </div>
+              {anyDrawn && (
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">{t('profitTaken')}</dt>
+                  <dd className="whitespace-nowrap tabular-nums text-muted-foreground">{drawn(r)}</dd>
+                </div>
+              )}
               <div className="min-w-0">
                 <dt className="text-xs text-muted-foreground">{t('payout')}</dt>
-                <dd className="whitespace-nowrap tabular-nums font-semibold text-foreground"><Money value={r.payout} /></dd>
+                <dd className="whitespace-nowrap tabular-nums font-semibold text-foreground">{payout(r)}</dd>
               </div>
             </dl>
           </li>

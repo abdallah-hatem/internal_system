@@ -69,6 +69,9 @@ function world() {
     user: [],
     financialTransaction: [],
     lenderPlan: [],
+    // Profit taken before settlement (§8, 2026-11-08): none in these worlds.
+    settlementLine: [],
+    profitDraw: [],
   };
   const withRelations = (table: string, row: Row) => {
     if (table === 'cycleParticipant') {

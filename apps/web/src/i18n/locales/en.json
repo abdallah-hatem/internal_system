@@ -898,6 +898,8 @@
     }
   },
   "ledger": {
+    "profitDraw": "Profit taken",
+    "profitDrawReversal": "Profit taken undone",
     "title": "Financial Ledger",
     "entryNo": "Entry #",
     "type": "Type",
@@ -1498,6 +1500,10 @@
     "backToCycle": "Back to the cycle"
   },
   "settlementsPage": {
+    "profitTaken": "Profit taken",
+    "profitTakenLine": "Profit taken before settlement",
+    "owedLine": "Owed — taken off his next payout",
+    "owesNote": "owes <amount></amount>, taken off his next payout",
     "title": "Settlements",
     "selectCycle": "Choose a cycle to settle",
     "calculate": "Calculate",
@@ -1587,11 +1593,23 @@
     "cancelFailed": "Could not cancel the instalment plan"
   },
   "errors": {
+    "PROFIT_DRAW_NOT_ON_CYCLE": "{partner} is not a core partner on {cycle}, so he has no share of its profit to take.",
+    "PROFIT_DRAW_OVER_AVAILABLE": "{partner} can take at most {available} EGP from {cycle} now: his share of the profit collected is {share} EGP, he has taken {drawn} EGP and owes {owed} EGP.",
+    "PROFIT_DRAW_CYCLE_LOCKED": "Profit taken from {cycle} can no longer change: {status}.",
+    "PROFIT_DRAW_REASON_REQUIRED": "Say why this profit taken is being undone.",
+    "PROFIT_DRAW_CARRIED_NOT_REVERSIBLE": "What a partner still owes from a payout is undone with that settlement, not on its own.",
+    "PROFIT_DRAW_ALREADY_REVERSED": "This profit taken was already undone.",
+    "PROFIT_DRAW_SETTLED": "This was taken off a paid settlement. Reverse that settlement first.",
+    "PROFIT_DRAW_AMOUNT_NOT_POSITIVE": "The amount must be more than zero.",
+    "PROFIT_DRAW_AMOUNT_PRECISION": "The amount can have at most two decimals.",
+    "SETTLEMENT_STALE_DRAWS": "Profit taken by a partner changed after this settlement was calculated. Calculate it again before approving.",
+    "SETTLEMENT_OWED_TAKEN_LATER": "What this settlement left a partner owing was already taken off {cycle}'s payout. Reverse that settlement first.",
     "PUSH_NOT_CONFIGURED": "Alerts are not set up on the server yet.",
     "NO_PUSH_DEVICE": "None of your devices has alerts turned on. Turn them on above first.",
     "PUSH_TEST_NOT_DELIVERED": "The test alert could not reach your devices ({devices}). Turn alerts off and on again on this device, then try again.",
     "NOT_FOUND": "{entity} not found",
     "entity": {
+      "profitDraw": "Profit taken",
       "auditLog": "Audit log",
       "category": "Category",
       "customer": "Customer",
@@ -2172,6 +2190,7 @@
       "SAMPLE_BACK": "Samples back from a shop"
     },
     "referenceType": {
+      "PROFIT_DRAW": "Profit taken",
       "PURCHASE_ORDER_ITEM": "Purchase order",
       "SALE_ORDER": "Sale order",
       "SALE_ORDER_CANCEL": "Cancelled sale",
@@ -2186,6 +2205,8 @@
       "SAMPLES_ORDER": "Samples order"
     },
     "auditAction": {
+      "PROFIT_DRAW": "Profit taken",
+      "PROFIT_DRAW_REVERSE": "Profit taken undone",
       "CREATE": "Created",
       "UPDATE": "Updated",
       "DELETE": "Deleted",
@@ -2218,6 +2239,7 @@
       "ASSISTANT_CHAT": "Asked the assistant"
     },
     "entityType": {
+      "ProfitDraw": "Profit taken",
       "Product": "Product",
       "Customer": "Customer",
       "SaleOrder": "Sale order",
@@ -2254,6 +2276,7 @@
       "PartnerAccountMovement": "Partner account entry"
     },
     "dateField": {
+      "PROFIT_DRAWN": "The date profit was taken",
       "CYCLE_START": "A cycle start date",
       "PAYMENT_RECEIVED": "The date a payment was received",
       "ORDER_PLACED": "The date an order was placed",
@@ -2288,6 +2311,7 @@
       "TH": "Thailand"
     },
     "ledgerCategory": {
+      "profit_draw": "Profit taken before settlement",
       "rent": "Rent",
       "salaries": "Salaries",
       "utilities": "Utilities",
@@ -2322,6 +2346,15 @@
     "ledgerDirection": {
       "INFLOW": "money in",
       "OUTFLOW": "money out"
+    },
+    "profitDrawLock": {
+      "SETTLEMENT_APPROVED": "its settlement is approved — reverse it first",
+      "SETTLEMENT_PAID": "its settlement is paid — reverse it first",
+      "APPROVED": "its settlement is approved — reverse it first",
+      "PAID": "its settlement is paid — reverse it first",
+      "SETTLEMENT": "the cycle is being settled",
+      "CLOSED": "the cycle is closed",
+      "CANCELLED": "the cycle is cancelled"
     },
     "fundingLock": {
       "SETTLEMENT_APPROVED": "the settlement is approved — reverse it to change the funding",
@@ -2737,6 +2770,7 @@
     "destination": "Jebel Ali, Dubai",
     "reverseReason": "Entered twice by mistake",
     "accountNote": "Paid the supplier's deposit by bank transfer",
+    "profitDrawNote": "Cash, for the house deposit",
     "purchaseRefundReason": "Supplier refunded 3 damaged cartons",
     "undoTransferReason": "Moved to the wrong cycle by mistake",
     "chooseCustomer": "Choose a customer",
@@ -2971,6 +3005,47 @@
     "retry": "Try again",
     "untiedPot": "Tied to no cycle",
     "cyclePot": "For {cycle}"
+  },
+  "profitDraws": {
+    "title": "Profit taken",
+    "collected": "Profit collected so far",
+    "collectedHint": "Profit so far less what customers still owe",
+    "profitSoFar": "Profit so far <amount></amount> · customers still owe <owed></owed>",
+    "colPartner": "Partner",
+    "colShare": "Share of collected",
+    "colTaken": "Taken",
+    "colOwes": "Owes",
+    "colAvailable": "Can take now",
+    "sharePct": "{pct}%",
+    "take": "Take profit",
+    "takeTitle": "Take profit",
+    "takeHint": "Cash leaves the business now; the cycle’s profit does not change. It comes off his payout at settlement.",
+    "partner": "Partner",
+    "amount": "Amount (EGP)",
+    "max": "Max <amount></amount>",
+    "takeAll": "Take all available",
+    "date": "Date taken",
+    "note": "Note",
+    "overAvailable": "{name} can take at most {max} now.",
+    "notPositive": "The amount must be more than zero.",
+    "nothingAvailable": "{name} has nothing to take now.",
+    "saved": "Profit taken recorded for {name}",
+    "failed": "Could not record the profit taken",
+    "historyHeading": "Taken so far",
+    "noDraws": "Nobody has taken profit from this cycle yet.",
+    "reversed": "Undone",
+    "reversedReason": "Undone: {reason}",
+    "settled": "Taken off the payout",
+    "undo": "Undo",
+    "undoTitle": "Undo profit taken",
+    "undoHint": "<amount></amount> taken by {name} on {day} goes back into the business’s cash. Say why.",
+    "reason": "Reason",
+    "undoSaved": "Profit taken undone",
+    "locked": "Nothing can be taken or undone: {reason}.",
+    "problem": "This cycle’s funding or profit split isn’t entered yet, so no profit can be taken.",
+    "loadFailed": "Could not load the profit taken",
+    "retry": "Try again",
+    "noPartners": "No core partner is on this cycle."
   },
   "fundingCard": {
     "putInSoFar": "<paid></paid> put in so far",

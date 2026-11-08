@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PROFIT_DRAW_CATEGORY } from '../../common/profit-draws';
 import { stockValueEgp } from '../../common/stock-value';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrderStatus, Prisma, type CycleStatus } from '@prisma/client';
@@ -1778,7 +1779,10 @@ export class AnalyticsService {
             // What the loan really cost is the exchange difference (§18).
             !isLenderCategory(t.category) &&
             // Leftovers moved between cycles (§8, L5): netted, signed, below.
-            t.category !== TRANSFER_CATEGORY,
+            t.category !== TRANSFER_CATEGORY &&
+            // Profit a partner took early (§8, 2026-11-08) is profit paid
+            // out, not what the cycle cost.
+            t.category !== PROFIT_DRAW_CATEGORY,
         )
         .reduce((sum, t) => sum.add(D(t.amount)), D(0))
         // Stock taken on from another cycle is part of what this cycle cost;

@@ -195,6 +195,39 @@ describe('each participant’s lines', () => {
   });
 });
 
+describe('profit taken before settlement (§8, 2026-11-08)', () => {
+  it('a "Profit taken" line comes off his payout, and the lines still add up to what he is paid', () => {
+    renderIn('en', {
+      ...BREAKDOWN,
+      participants: [{ ...BREAKDOWN.participants[0], profitDrawnEgp: '-20000.00', owedEgp: '0.00', paidEgp: '24189.00' }],
+    });
+    const a = screen.getByTestId('breakdown-p-a');
+    expect(labels(a)).toContain(en.settlementsPage.profitTakenLine);
+    expect(labels(a)).not.toContain(en.settlementsPage.owedLine);
+    expect(cents(amounts(a).reduce((s, x) => s + x, 0))).toBe(cents(total(a)));
+    expect(total(a)).toBe(24189);
+  });
+
+  it('took more than the payout: what he owes is its own line, the total is 0 and still adds up', () => {
+    renderIn('ar', {
+      ...BREAKDOWN,
+      participants: [{ ...BREAKDOWN.participants[0], profitDrawnEgp: '-50000.00', owedEgp: '5811.00', paidEgp: '0.00' }],
+    }, 'APPROVED');
+    const a = screen.getByTestId('breakdown-p-a');
+    expect(labels(a)).toContain(ar.settlementsPage.profitTakenLine);
+    expect(labels(a)).toContain(ar.settlementsPage.owedLine);
+    expect(cents(amounts(a).reduce((s, x) => s + x, 0))).toBe(cents(total(a)));
+    expect(total(a)).toBe(0);
+  });
+
+  it('none taken, or a breakdown from before draws existed: no such lines', () => {
+    renderIn('en');
+    const a = screen.getByTestId('breakdown-p-a');
+    expect(labels(a)).not.toContain(en.settlementsPage.profitTakenLine);
+    expect(labels(a)).not.toContain(en.settlementsPage.owedLine);
+  });
+});
+
 describe('the running-costs line', () => {
   it('costs all spent on one day name that day once, not "d – d"', () => {
     renderIn('en', {
