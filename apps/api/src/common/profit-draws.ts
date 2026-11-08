@@ -1,5 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; money must not become a float
 import { Prisma } from '@prisma/client';
+import { paidAndValueOf } from './profit-on-collected';
+import { REALISED_SALE_STATUSES } from './units-sold';
 
 /**
  * Profit taken before a cycle is settled (BUSINESS_LOGIC §8, owner
@@ -93,24 +95,25 @@ export function owedAfterPayout(
 }
 
 /**
- * The part of a cycle's revenue not yet paid by the customers, as an
- * allocation reads it: each realised order's part from this cycle's batches,
- * times the share of that order still outstanding.
- *
- * GUESS (2026-11-08): money owed is counted against profit first, and the
- * cycle's part of an order is read before returns — both make the figure
- * larger, never smaller, so what a partner may take can only err low.
+ * How much of a cycle's sales the customers have paid (owner 2026-11-08: "use
+ * the dashboard's proportional reading for profit draws"): each realised
+ * order's part from this cycle's batches, weighted by the share of that order
+ * paid — through `paidAndValueOf`, the dashboard's own reading (rule 11) —
+ * over that part in all. Every pound collected carries the same share of the
+ * cycle's profit. Zero when nothing is sold.
  */
-export async function uncollectedRevenueEgp(
+export async function cycleSalesPaid(
   db: Pick<Prisma.TransactionClient, 'saleItemAllocation'>,
   cycleId: string,
-): Promise<Prisma.Decimal> {
+): Promise<{
+  revenueEgp: Prisma.Decimal;
+  paidEgp: Prisma.Decimal;
+  share: Prisma.Decimal;
+}> {
   const allocations = await db.saleItemAllocation.findMany({
     where: {
       inventoryBatch: { cycleId },
-      saleItem: {
-        saleOrder: { status: { in: ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] } },
-      },
+      saleItem: { saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } } },
     },
     select: {
       qty: true,
@@ -118,36 +121,48 @@ export async function uncollectedRevenueEgp(
         select: {
           quantity: true,
           lineTotal: true,
-          saleOrder: { select: { total: true, outstanding: true } },
+          saleOrder: {
+            select: {
+              outstanding: true,
+              paymentAllocations: {
+                select: { amount: true, payment: { select: { status: true } } },
+              },
+              returns: { select: { refundMethod: true, refundEgp: true } },
+            },
+          },
         },
       },
     },
   });
-  let owed = ZERO;
+  let revenue = ZERO;
+  let paid = ZERO;
   for (const a of allocations) {
     const item = a.saleItem;
     const itemQty = new Prisma.Decimal(item.quantity);
-    const total = new Prisma.Decimal(item.saleOrder.total);
-    if (itemQty.lte(0) || total.lte(0)) continue;
-    const revenue = new Prisma.Decimal(a.qty).mul(item.lineTotal).div(itemQty);
-    const outstanding = Prisma.Decimal.min(
-      Prisma.Decimal.max(new Prisma.Decimal(item.saleOrder.outstanding), ZERO),
-      total,
-    );
-    owed = owed.add(revenue.mul(outstanding).div(total));
+    if (itemQty.lte(0)) continue;
+    const part = new Prisma.Decimal(a.qty).mul(item.lineTotal).div(itemQty);
+    const { paid: p, value } = paidAndValueOf(item.saleOrder);
+    revenue = revenue.add(part);
+    if (value.gt(0)) {
+      const f = Prisma.Decimal.min(Prisma.Decimal.max(p.div(value), ZERO), 1);
+      paid = paid.add(part.mul(f));
+    }
   }
-  return money(owed);
+  return {
+    revenueEgp: money(revenue),
+    paidEgp: money(paid),
+    share: revenue.gt(0) ? paid.div(revenue) : ZERO,
+  };
 }
 
 /**
- * The profit a cycle has actually collected: its profit so far less what the
- * customers still owe on its sales, never below zero (owner 2026-11-08: "up to
- * his share of profit already collected").
+ * The profit a cycle has collected: its profit so far times the share of its
+ * sales paid, never below zero (owner 2026-11-08). A loss collects nothing.
  */
 export function collectedProfit(
   profit: Prisma.Decimal,
-  uncollected: Prisma.Decimal,
+  sharePaid: Prisma.Decimal,
 ): Prisma.Decimal {
-  const left = money(profit.sub(uncollected));
-  return left.gt(0) ? left : ZERO;
+  const part = money(profit.mul(sharePaid));
+  return part.gt(0) ? part : ZERO;
 }

@@ -674,6 +674,11 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM running_cost_allocations a
    WHERE EXISTS (SELECT 1 FROM settlements s WHERE s.cycle_id = a.cycle_id
                     AND s.status IN ('APPROVED','PAID') AND s.approved_at < a.created_at)
+  -- Status history (BUSINESS_LOGIC §8, 2026-11-08): kept by a trigger.
+  UNION ALL SELECT 31, 'cycle whose last recorded status is not its status',
+         count(*) FROM import_cycles c
+   WHERE c.status IS DISTINCT FROM (SELECT h.to_status FROM cycle_status_changes h
+                                      WHERE h.cycle_id = c.id ORDER BY h.changed_at DESC, h.id DESC LIMIT 1)
 SQL
 )
 

@@ -61,22 +61,35 @@ export interface ProfitOnCollected {
 
 const REALISED: readonly string[] = REALISED_SALE_STATUSES;
 
+/**
+ * What a sale order has been paid, and what it is worth now (paid +
+ * outstanding) — the one reading of "the share of a sale paid" (rule 11): the
+ * dashboard's profit in the cash, and since 2026-11-08 what a partner may take
+ * from a cycle before settlement (owner: "use the dashboard's proportional
+ * reading for profit draws", `common/profit-draws.ts`).
+ */
+export function paidAndValueOf(
+  o: Pick<ProfitOrder, 'outstanding' | 'paymentAllocations' | 'returns'>,
+): { paid: Prisma.Decimal; value: Prisma.Decimal } {
+  // Cash refunded went back out of what was paid: without it a refunded
+  // sale's money still counted as collected profit (2026-11-06).
+  const cashRefunded = (o.returns ?? [])
+    .filter((r) => r.refundMethod === 'CASH')
+    .reduce((s, r) => s.add(D(r.refundEgp)), D(0));
+  const paid = o.paymentAllocations
+    .filter((a) => a.payment.status === 'RECORDED')
+    .reduce((s, a) => s.add(D(a.amount)), D(0))
+    .sub(cashRefunded);
+  return { paid, value: paid.add(D(o.outstanding)) };
+}
+
 /** The split over orders already loaded. Filters them itself, so any caller gets the same rule. */
 export function splitProfit(orders: readonly ProfitOrder[]): ProfitOnCollected {
   let total = D(0);
   let collected = D(0);
   for (const o of orders) {
     if (!REALISED.includes(o.status) || !D(o.total).gt(0)) continue;
-    // Cash refunded went back out of what was paid: without it a refunded
-    // sale's money still counted as collected profit (2026-11-06).
-    const cashRefunded = (o.returns ?? [])
-      .filter((r) => r.refundMethod === 'CASH')
-      .reduce((s, r) => s.add(D(r.refundEgp)), D(0));
-    const paid = o.paymentAllocations
-      .filter((a) => a.payment.status === 'RECORDED')
-      .reduce((s, a) => s.add(D(a.amount)), D(0))
-      .sub(cashRefunded);
-    const value = paid.add(D(o.outstanding));
+    const { paid, value } = paidAndValueOf(o);
     const cost = o.items.reduce(
       (s, i) =>
         i.returnItems.reduce(

@@ -339,6 +339,8 @@ model ImportCycle {
   profitDraws           ProfitDraw[]
   /// Its part of the running costs recorded while it was selling (§8, 2026-11-08).
   runningCostAllocations RunningCostAllocation[]
+  /// Every status it has had, and when (written by a database trigger).
+  statusChanges          CycleStatusChange[]
 
   /// An optional funding target ("1,600 of 2,000 funded so far"), in its own
   /// currency at the rate typed (§8, 2026-10-25). All three set, or none.
@@ -1538,6 +1540,25 @@ model Settlement {
 /// charged once in total across the rows that stand. Reversing the settlement
 /// releases them (`releasedAt`) -- the row stays, history is not rewritten --
 /// and the cost is waiting again.
+/// When a cycle's status changed (BUSINESS_LOGIC §8, owner 2026-11-08: a
+/// running cost goes "by day its dated, we need to know when statuses moved").
+/// Written by the `import_cycles_status_history` trigger on every insert and
+/// every status change — whatever path made it — never by the app. A cycle
+/// created before 2026-11-08 has its past filled in from the audit log.
+model CycleStatusChange {
+  id         String       @id @default(uuid()) @db.Uuid
+  cycleId    String       @map("cycle_id") @db.Uuid
+  /// Null for the row that records the cycle being created.
+  fromStatus CycleStatus? @map("from_status")
+  toStatus   CycleStatus  @map("to_status")
+  changedAt  DateTime     @default(now()) @map("changed_at") @db.Timestamptz()
+
+  cycle ImportCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, changedAt])
+  @@map("cycle_status_changes")
+}
+
 /// A running cost's part on one cycle (BUSINESS_LOGIC §8, owner 2026-11-08:
 /// "investor has to pay for everything as well, fuel, packaging etc... its all
 /// one process"). An expense with no cycle — rent, fuel, packaging — is shared

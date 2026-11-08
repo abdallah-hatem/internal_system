@@ -33,16 +33,16 @@ describe('owedAfterPayout — what a partner still owes after a payout', () => {
   });
 });
 
-describe('collectedProfit — profit so far less what customers still owe', () => {
+describe('collectedProfit — profit so far times the share of its sales paid', () => {
   it.each([
-    ['900', '0', '900.00'],
-    ['900', '500', '400.00'],
-    ['900', '900', '0.00'],
-    ['900', '2000', '0.00'], // owed more than the profit: nothing collected
-    ['-600', '0', '0.00'], // a loss: nothing to take
-    ['0.005', '0', '0.01'], // rounded to the piastre, half up
-  ])('profit %s, owed %s → %s', (profit, owed, out) => {
-    expect(collectedProfit(D(profit), D(owed)).toFixed(2)).toBe(out);
+    ['900', '1', '900.00'],
+    ['900', '0.5', '450.00'],
+    ['900', '0', '0.00'],
+    ['-600', '0.5', '0.00'], // a loss collects nothing
+    ['900', '0.166665', '150.00'], // 149.9985, to the piastre half up
+    ['0.01', '0.5', '0.01'],
+  ])('profit %s, share paid %s → %s', (profit, share, out) => {
+    expect(collectedProfit(D(profit), D(share)).toFixed(2)).toBe(out);
   });
 });
 

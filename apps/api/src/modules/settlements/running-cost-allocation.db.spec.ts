@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { HttpException } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- this suite talks to a real, throwaway Postgres; that is its point
 import { PrismaClient } from '@prisma/client';
@@ -17,6 +19,7 @@ import { ProfitDrawsService } from '../profit-draws/profit-draws.service';
 import { SettlementsService } from './settlements.service';
 import { quietRunningCosts } from '../../common/running-costs-quiet-spec';
 import { businessToday } from '../../common/dates';
+import { assignWaitingRunningCosts } from '../../common/running-cost-allocation';
 
 /**
  * Running costs shared to the selling cycles (BUSINESS_LOGIC §8, owner
@@ -331,7 +334,7 @@ suite('running costs shared to the running cycles (Postgres)', () => {
   });
 
   /** A cycle in `status` with one core partner who put in 1,000 — nothing bought yet. */
-  async function bareCycle(status: string) {
+  async function bareCycle(status: string, opts: { createdAt?: string } = {}) {
     const p = await partner('Bare');
     const c = await prisma.importCycle.create({
       data: {
@@ -340,6 +343,9 @@ suite('running costs shared to the running cycles (Postgres)', () => {
         currency: 'EGP',
         status: status as never,
         startedOn: new Date(`${daysAgo(40)}T00:00:00Z`),
+        ...(opts.createdAt
+          ? { createdAt: new Date(`${opts.createdAt}T09:00:00Z`) }
+          : {}),
       },
     });
     await prisma.cycleParticipant.create({
@@ -547,7 +553,8 @@ suite('running costs shared to the running cycles (Postgres)', () => {
     const before = (await analytics.getProfitAndLoss()).data.expensesEgp;
     await spend(1000);
     const after = (await analytics.getProfitAndLoss()).data.expensesEgp;
-    expect(after - before).toBe(1000);
+    // Analytics answers in plain numbers: compared to the piastre.
+    expect(after - before).toBeCloseTo(1000, 2);
   });
 
   // ─── Undo, and the second time ──────────────────────────────────────
@@ -641,5 +648,321 @@ suite('running costs shared to the running cycles (Postgres)', () => {
     const next = await sellingCycle();
     expect(await partsOf(data.id)).toEqual([]);
     expect(await profitOf(next.cycle.id)).toBe('900.00');
+  });
+  // ─── The day it is dated, from the cycles' status history ───────────
+
+  const historyOf = async (cycleId: string) =>
+    (
+      await prisma.cycleStatusChange.findMany({
+        where: { cycleId },
+        orderBy: [{ changedAt: 'asc' }, { id: 'asc' }],
+      })
+    ).map((h) => [h.fromStatus, h.toStatus]);
+
+  /** Move a cycle's last recorded change back `days` (test set-up: the past). */
+  const backdateLastChange = async (cycleId: string, days: number) => {
+    const last = await prisma.cycleStatusChange.findFirstOrThrow({
+      where: { cycleId },
+      orderBy: [{ changedAt: 'desc' }, { id: 'desc' }],
+    });
+    await prisma.cycleStatusChange.update({
+      where: { id: last.id },
+      data: {
+        changedAt: new Date(last.changedAt.getTime() - days * 86_400_000),
+      },
+    });
+  };
+
+  it('the database records every status a cycle has, in order, whatever path moved it', async () => {
+    const c = await bareCycle('PURCHASING');
+    await prisma.purchaseOrder.create({
+      data: {
+        cycleId: c.id,
+        supplierId: (
+          await prisma.supplier.create({
+            data: { name: `H ${randomUUID().slice(0, 8)}`, country: 'AE' },
+          })
+        ).id,
+        reference: `PO-H-${randomUUID().slice(0, 8)}`,
+        currency: 'EGP',
+        fxRateToEgp: 1,
+        orderedOn: new Date(`${daysAgo(5)}T00:00:00Z`),
+        status: 'DRAFT',
+        items: {
+          create: [
+            {
+              productId: (
+                await prisma.product.create({
+                  data: {
+                    sku: `H-${randomUUID().slice(0, 8)}`,
+                    name: 'History part',
+                  },
+                })
+              ).id,
+              orderedQty: 1,
+              unitPrice: 10,
+              lineTotal: 10,
+            },
+          ],
+        },
+      },
+    });
+    await cyclesService.transition(c.id, 'PREPARING', actor);
+    await cyclesService.transition(c.id, 'PURCHASING', actor);
+    await cyclesService.transition(c.id, 'PREPARING', actor);
+    // A write that does not change the status records nothing.
+    await prisma.importCycle.update({
+      where: { id: c.id },
+      data: { fundingTargetAmount: null },
+    });
+    expect(await historyOf(c.id)).toEqual([
+      [null, 'PURCHASING'],
+      ['PURCHASING', 'PREPARING'],
+      ['PREPARING', 'PURCHASING'],
+      ['PURCHASING', 'PREPARING'],
+    ]);
+  });
+
+  it('a settlement approved, paid and reversed is in the history too', async () => {
+    const { cycle: c } = await sellingCycle();
+    const id = (await settlements.calculate(c.id, actor)).data!.id;
+    await settlements.approve(id, actor);
+    await settlements.markPaid(id, actor, { acceptRemainingStock: true });
+    await settlements.reverse(id, 'recount', actor);
+    const h = await historyOf(c.id);
+    expect(h.slice(-3)).toEqual([
+      ['SELLING', 'SETTLEMENT'],
+      ['SETTLEMENT', 'CLOSED'],
+      ['CLOSED', 'SELLING'],
+    ]);
+  });
+
+  it('a cost dated in the past goes to the cycles running that day — not to one paid for since', async () => {
+    const old = await bareCycle('SELLING', { createdAt: daysAgo(30) });
+    const fresh = await bareCycle('PREPARING'); // paid for today
+    const { data: then } = await spend(300, { occurredOn: daysAgo(10) });
+    expect(await partsOf(then.id)).toEqual([[old.id, '300.00']]);
+    const { data: today } = await spend(300);
+    expect(await partsOf(today.id)).toEqual([
+      [old.id, '150.00'],
+      [fresh.id, '150.00'],
+    ]);
+  });
+
+  it('a cycle paid for after the day is not that day’s: its history, not its status now, decides', async () => {
+    // B has sold for a month. A was being bought for weeks and paid for 5 days ago.
+    const b = await bareCycle('SELLING', { createdAt: daysAgo(30) });
+    const a = await bareCycle('PURCHASING', { createdAt: daysAgo(20) });
+    await prisma.importCycle.update({
+      where: { id: a.id },
+      data: { status: 'PREPARING' },
+    });
+    await backdateLastChange(a.id, 5);
+    const { data: before } = await spend(120, { occurredOn: daysAgo(8) });
+    expect(await partsOf(before.id)).toEqual([[b.id, '120.00']]);
+    const { data: after } = await spend(120, { occurredOn: daysAgo(2) });
+    expect(await partsOf(after.id)).toEqual([
+      [b.id, '60.00'],
+      [a.id, '60.00'],
+    ]);
+  });
+
+  it('no cycle running on the day it is dated: the next one paid for after it, even if others run now', async () => {
+    // A: paid for 5 days ago. B: paid for today. Nothing ran 8 days ago.
+    const a = await bareCycle('PURCHASING', { createdAt: daysAgo(20) });
+    await prisma.importCycle.update({
+      where: { id: a.id },
+      data: { status: 'PREPARING' },
+    });
+    await backdateLastChange(a.id, 5);
+    await bareCycle('PREPARING');
+    const { data } = await spend(120, { occurredOn: daysAgo(8) });
+    expect(await partsOf(data.id)).toEqual([[a.id, '120.00']]);
+  });
+  it('a cycle that ran that day but is being settled now takes nothing: the others running that day do', async () => {
+    const settled = await bareCycle('SELLING', { createdAt: daysAgo(20) });
+    const running = await bareCycle('IN_TRANSIT', { createdAt: daysAgo(20) });
+    await prisma.importCycle.update({
+      where: { id: settled.id },
+      data: { status: 'SETTLEMENT' },
+    });
+    const { data } = await spend(80, { occurredOn: daysAgo(10) });
+    expect(await partsOf(data.id)).toEqual([[running.id, '80.00']]);
+  });
+
+  it('the only cycle that ran that day is settled since: the next one paid for after the day takes it', async () => {
+    const settled = await bareCycle('SELLING', { createdAt: daysAgo(20) });
+    await prisma.importCycle.update({
+      where: { id: settled.id },
+      data: { status: 'CLOSED' },
+    });
+    const later = await bareCycle('PREPARING', { createdAt: daysAgo(3) });
+    await bareCycle('PREPARING'); // paid for today: later than `later`
+    const { data } = await spend(80, { occurredOn: daysAgo(10) });
+    expect(await partsOf(data.id)).toEqual([[later.id, '80.00']]);
+  });
+
+  it('dated before any cycle ran, with none paid for since: waits — then goes to the first one paid for', async () => {
+    const planned = await bareCycle('PLANNING');
+    const { data } = await spend(55, { occurredOn: daysAgo(15) });
+    expect(await partsOf(data.id)).toEqual([]);
+    // Moved by any path — here a bare update — the trigger records it, and the
+    // next share-out (a transition, a calculation) picks it up.
+    await prisma.importCycle.update({
+      where: { id: planned.id },
+      data: { status: 'PREPARING' },
+    });
+    await prisma.$transaction((tx) => assignWaitingRunningCosts(tx));
+    expect(await partsOf(data.id)).toEqual([[planned.id, '55.00']]);
+  });
+
+  it('the past, filled in from the audit log: transitions and a settlement, in order, the cycle’s status last', async () => {
+    const c = await bareCycle('SELLING', { createdAt: daysAgo(40) });
+    // Another cycle that already has its history (the trigger's row) and an
+    // audited change: the backfill must not trip over it.
+    const other = await bareCycle('PREPARING', { createdAt: daysAgo(12) });
+    const settlement = await prisma.settlement.create({
+      data: { cycleId: c.id, status: 'REVERSED' },
+    });
+    const t = (d: number) => new Date(Date.now() - d * 86_400_000);
+    const audit = [
+      [
+        'TRANSITION',
+        'ImportCycle',
+        c.id,
+        { status: 'PURCHASING' },
+        { status: 'PREPARING' },
+        t(30),
+      ],
+      [
+        'TRANSITION',
+        'ImportCycle',
+        c.id,
+        { status: 'PREPARING' },
+        { status: 'IN_TRANSIT' },
+        t(25),
+      ],
+      [
+        'TRANSITION',
+        'ImportCycle',
+        c.id,
+        { status: 'IN_TRANSIT' },
+        { status: 'SELLING' },
+        t(20),
+      ],
+      [
+        'APPROVE',
+        'Settlement',
+        settlement.id,
+        { status: 'DRAFT' },
+        { status: 'APPROVED' },
+        t(10),
+      ],
+      [
+        'REVERSE',
+        'Settlement',
+        settlement.id,
+        { status: 'APPROVED' },
+        { status: 'REVERSED' },
+        t(9),
+      ],
+      [
+        'TRANSITION',
+        'ImportCycle',
+        other.id,
+        { status: 'PURCHASING' },
+        { status: 'PREPARING' },
+        t(11),
+      ],
+      // Junk the backfill must ignore: a status that is none, from or to.
+      [
+        'TRANSITION',
+        'ImportCycle',
+        c.id,
+        { status: 'SELLING' },
+        { status: 'NOT_A_STATUS' },
+        t(8),
+      ],
+      [
+        'TRANSITION',
+        'ImportCycle',
+        c.id,
+        { status: 'NOPE' },
+        { status: 'NOT_A_STATUS' },
+        t(8),
+      ],
+      [
+        'TRANSITION',
+        'ImportCycle',
+        randomUUID(),
+        { status: 'PLANNING' },
+        { status: 'FUNDING' },
+        t(8),
+      ],
+    ] as const;
+    const sql = readFileSync(
+      join(
+        __dirname,
+        '../../../prisma/migrations/20261108300000_cycle_status_history/migration.sql',
+      ),
+      'utf8',
+    );
+    const backfill = sql
+      .slice(
+        sql.indexOf('CREATE TEMP TABLE _cycle_events'),
+        sql.indexOf('DROP TABLE _cycle_events;') +
+          'DROP TABLE _cycle_events;'.length,
+      )
+      .split(/;\s*\n/)
+      .map((s) => s.replace(/^(\s*--[^\n]*\n)+/, '').trim())
+      .filter((s) => s.length > 0);
+    // In a transaction rolled back at the end: the backfill writes a creation
+    // row for every cycle in the database, and only this one is looked at.
+    let rows: [string | null, string][] = [];
+    await prisma
+      .$transaction(async (tx) => {
+        for (const [
+          action,
+          entityType,
+          entityId,
+          before,
+          after,
+          when,
+        ] of audit) {
+          await tx.auditLog.create({
+            data: {
+              action,
+              entityType,
+              entityId,
+              beforeJson: before,
+              afterJson: after,
+              occurredAt: when,
+            },
+          });
+        }
+        await tx.cycleStatusChange.deleteMany({ where: { cycleId: c.id } });
+        for (const statement of backfill) {
+          // eslint-disable-next-line no-restricted-properties -- the migration's own fixed SQL, read from its file; no value is built into it
+          await tx.$executeRawUnsafe(statement);
+        }
+        rows = (
+          await tx.cycleStatusChange.findMany({
+            where: { cycleId: c.id },
+            orderBy: [{ changedAt: 'asc' }, { id: 'asc' }],
+          })
+        ).map((h) => [h.fromStatus, h.toStatus]);
+        throw new Error('rollback');
+      })
+      .catch((e: Error) => {
+        if (e.message !== 'rollback') throw e;
+      });
+    expect(rows).toEqual([
+      [null, 'PURCHASING'],
+      ['PURCHASING', 'PREPARING'],
+      ['PREPARING', 'IN_TRANSIT'],
+      ['IN_TRANSIT', 'SELLING'],
+      ['SELLING', 'SETTLEMENT'],
+      ['SETTLEMENT', 'SELLING'],
+    ]);
   });
 });

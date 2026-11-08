@@ -83,13 +83,16 @@ function fakePrisma() {
       // The cycles taking running costs (§8, 2026-11-08), by status.
       findMany: ({ where }: Row = {}) =>
         Promise.resolve(
-          db.cycles.filter(
-            (c) =>
-              !where?.status ||
-              (typeof where.status === 'string'
-                ? c.status === where.status
-                : !where.status.in || where.status.in.includes(c.status)),
-          ),
+          db.cycles
+            .filter(
+              (c) =>
+                !where?.status ||
+                (typeof where.status === 'string'
+                  ? c.status === where.status
+                  : !where.status.in || where.status.in.includes(c.status)),
+            )
+            // No settlement and no status history in these worlds (§8).
+            .map((c) => ({ settlements: [], statusChanges: [], ...c })),
         ),
       findUnique: ({ where, include, select }: Row) => {
         const c = db.cycles.find((x) => x.id === where.id);
