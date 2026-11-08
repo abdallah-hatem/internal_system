@@ -126,6 +126,8 @@ payout took it; what a payout cannot cover carries to the next one; reversing th
 back to waiting. They live on the Partners page as **Running costs**: what was spent, what has been taken from
 payouts, what is still waiting.
 
+**DECIDED 2026-11-08 (owner) — investors pay for every cost too.** "No investor has to pay for everything as well, fuel, packaging etc... its all one process." So a running cost recorded with no cycle, shared by the core partners alone (the rule below), is not what the business does. Until the code changes: record every expense on the cycle it belongs to, so it comes off that cycle's profit and every participant, investors included, bears it by share. Production holds no standing no-cycle expense (checked 2026-11-08), so nothing was charged the old way. OPEN, recommended: make the cycle required on an expense, defaulting to the cycle being sold.
+
 **DECIDED 2026-10-11 (owner) — a payout explains itself.** *Built 2026-10-12 (L7), as above.* The settlement screen (before approving),
 and each partner's payout history, break the money down line by line: revenue; cost of the goods sold; each cycle
 cost by kind (extra freight, customs, goods lost on the way, exchange difference on repaying friends, other charges
