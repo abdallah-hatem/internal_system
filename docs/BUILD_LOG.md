@@ -75,6 +75,33 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **TODO (owner 2026-11-08, to build on the other PC) — running costs land on the selling cycle, so investors pay
+  their share.** Owner: "no investor has to pay for everything as well, fuel, packaging etc... its all one process" and
+  "there will be expenses not attached to a cycle lets say rent". Rule recorded in §8 (`docs/business/08-…md`,
+  "investors pay for every cost too"). Today a no-cycle expense is a *running cost* shared by the core partners alone
+  and taken from their payouts (§8 L7: `common/running-costs.ts`, `running_cost_charges`/`running_cost_shares`,
+  `RUNNING_COSTS` settlement line, `running_cost_share` ledger rows, Partners page section). Replace that with:
+  - A no-cycle expense stays recorded with no cycle (rent, salaries, fuel, packaging…) — the form does not change.
+  - It is **assigned to the cycle(s) selling on its day** (`occurred_on`, else the Cairo day entered). "Selling" =
+    cycle status in the selling stage (check `CycleStatus`; today CYC-2026-0001 is selling, 0002 is IN_TRANSIT).
+  - **One cycle selling:** all of it to that cycle. **Several:** split equally (GUESS; by that month's sales is the
+    fairer alternative — note it as OPEN). **None selling:** it waits and goes to the next cycle that starts selling.
+  - On that cycle it is an expense like any cycle-charged one: it lowers the cycle's profit, so every participant,
+    investors included, bears it by share. Show it in the settlement's cost breakdown as its own line
+    ("Rent (Nov) — shared to this cycle"), and in Analytics' cycle profitability and the cycle page the same way
+    (rule 11: one definition, read by settlement, cycle profit, Analytics and profit draws' "collected" figure).
+  - Assignment must be stable: compute it from the dates (or store it once, like running_cost_shares) so a cycle
+    settled earlier never has its costs change afterwards; a cost dated before a settled cycle's settlement stays with
+    it. A cost on a day whose only selling cycle is already settled → next selling cycle (GUESS).
+  - Remove the partners-only running-cost charging (charges, shares, `RUNNING_COSTS` line, `running_cost_share`
+    ledger rows, Partners page "Running costs" section) or keep it read-only for history. Production has **no**
+    standing no-cycle expense (checked 2026-11-08: the only one, fuel 600, was undone), so nothing to migrate.
+  - Interaction with profit draws (§8 2026-11-08): an assigned cost lowers the cycle's profit, so it lowers what a
+    partner may still take; a partner who took more than his final payout carries the rest (already built).
+  - Tests per CLAUDE.md §0/§1: zero / two / no selling cycles; a cost dated on a settlement day; reversing a cost
+    after its cycle settled (refuse, as today's RUNNING_COST_CHARGED); investor's payout lower by his share; a
+    non-zero profit split (rule 10); check-data row for a no-cycle expense not assigned anywhere.
+  - Docs: §8 and §9 rules (dated DECIDED/GUESS), 00-recent-changes line, this entry → done.
 - **On `dev` 2026-11-08 (`9f698a2`), not pushed, not shipped — profit taken before a cycle is settled**
   (owner 2026-11-08: "I am allowed to take some of my share profit any time mid cycle … the profit we made does not
   change", then: up to his share of profit collected; owed back off his next payout; any core partner records it).
