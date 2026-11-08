@@ -41,11 +41,14 @@ type Db = Pick<Prisma.TransactionClient, 'profitDraw'>;
 export const STANDING_DRAW = { reversedAt: null } as const;
 
 /**
- * What a settlement of `cycleId` takes off each of these partners' payouts:
+ * What a settlement of `cycleId` takes off each of these people's payouts:
  * his standing draws on that cycle, plus whatever he still owes from an
- * earlier payout (CARRIED, on any cycle) — none of them yet taken by a paid
- * settlement. Read again at approval and payment, so a draw or an undo after
- * the figures were worked out is never paid on stale lines.
+ * earlier payout (CARRIED, on any cycle) — `byPartner`, the PROFIT_DRAWN line
+ * — and the capital he took back early from that cycle (`capitalByUser`, the
+ * CAPITAL_TAKEN_EARLY line) — none of them yet taken by a paid settlement.
+ * Read again at approval and payment, so a draw or an undo after the figures
+ * were worked out is never paid on stale lines. Core partners and investors
+ * alike: an investor can take capital early, and so can owe.
  */
 export async function deductionsFor(
   db: Db,
@@ -53,27 +56,36 @@ export async function deductionsFor(
   partnerUserIds: string[],
 ): Promise<{
   byPartner: Map<string, Prisma.Decimal>;
+  capitalByUser: Map<string, Prisma.Decimal>;
   drawIds: string[];
 }> {
   const byPartner = new Map<string, Prisma.Decimal>();
-  if (partnerUserIds.length === 0) return { byPartner, drawIds: [] };
+  const capitalByUser = new Map<string, Prisma.Decimal>();
+  if (partnerUserIds.length === 0) {
+    return { byPartner, capitalByUser, drawIds: [] };
+  }
   const rows = await db.profitDraw.findMany({
     where: {
       ...STANDING_DRAW,
       settledById: null,
       partnerUserId: { in: partnerUserIds },
-      OR: [{ kind: 'DRAW', cycleId }, { kind: 'CARRIED' }],
+      OR: [
+        { kind: 'DRAW', cycleId },
+        { kind: 'CAPITAL', cycleId },
+        { kind: 'CARRIED' },
+      ],
     },
-    select: { id: true, partnerUserId: true, amountEgp: true },
+    select: { id: true, kind: true, partnerUserId: true, amountEgp: true },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   });
   for (const r of rows) {
-    byPartner.set(
+    const into = r.kind === 'CAPITAL' ? capitalByUser : byPartner;
+    into.set(
       r.partnerUserId,
-      (byPartner.get(r.partnerUserId) ?? ZERO).add(r.amountEgp),
+      (into.get(r.partnerUserId) ?? ZERO).add(r.amountEgp),
     );
   }
-  return { byPartner, drawIds: rows.map((r) => r.id) };
+  return { byPartner, capitalByUser, drawIds: rows.map((r) => r.id) };
 }
 
 /**

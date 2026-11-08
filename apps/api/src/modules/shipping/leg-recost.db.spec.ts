@@ -47,6 +47,9 @@ const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 suite(
   'correcting a leg cost after arrival re-costs the cycle (Postgres)',
   () => {
+    // The dashboard reads every cycle in the throwaway database; it grows run by run.
+    jest.setTimeout(60_000);
+
     let prisma: PrismaClient;
     let audit: { log: jest.Mock };
     let shipping: ShippingService;

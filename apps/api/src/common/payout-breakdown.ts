@@ -7,6 +7,7 @@ import {
   recoveredEgp,
 } from './ledger-categories';
 import { PROFIT_DRAWN_COMPONENT, owedAfterPayout } from './profit-draws';
+import { CAPITAL_TAKEN_EARLY_COMPONENT } from './capital-back-early';
 
 /**
  * A payout explains itself (§8, owner 2026-10-11; built L7).
@@ -161,6 +162,11 @@ export interface ParticipantPayout {
    */
   profitDrawnEgp: string;
   /**
+   * Capital he took back before settlement (§8, 2026-11-08), taken off his
+   * capital back (negative).
+   */
+  capitalTakenEarlyEgp: string;
+  /**
    * What his draws came to beyond this payout: owed, and taken off his next
    * payout instead (`owedAfterPayout`). Zero when the payout covers them.
    */
@@ -237,6 +243,7 @@ export function buildPayoutBreakdown(input: {
       const capital = pick('CAPITAL_RETURN');
       const stored = pick('RUNNING_COSTS');
       const drawn = pick(PROFIT_DRAWN_COMPONENT);
+      const capitalEarly = pick(CAPITAL_TAKEN_EARLY_COMPONENT);
       const rc = input.runningCosts.get(participantId);
 
       let running = stored;
@@ -254,8 +261,9 @@ export function buildPayoutBreakdown(input: {
         .add(received)
         .add(capital)
         .add(running)
-        .add(drawn);
-      const owed = owedAfterPayout(payable, drawn.neg());
+        .add(drawn)
+        .add(capitalEarly);
+      const owed = owedAfterPayout(payable, drawn.add(capitalEarly).neg());
 
       return {
         participantId,
@@ -272,6 +280,7 @@ export function buildPayoutBreakdown(input: {
         runningCostsTo: status === 'none' ? null : (rc?.to ?? null),
         runningCostsStatus: status,
         profitDrawnEgp: fixed(drawn),
+        capitalTakenEarlyEgp: fixed(capitalEarly),
         owedEgp: fixed(owed),
         paidEgp: fixed(payable.add(owed)),
       };

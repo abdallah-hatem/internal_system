@@ -53,6 +53,9 @@ const plus = (day: string, n: number) =>
 let used = new Set<string>();
 
 suite('what made a profit and loss bar (Postgres)', () => {
+  // The dashboard reads every cycle in the throwaway database; it grows run by run.
+  jest.setTimeout(60_000);
+
   let prisma: PrismaClient;
   let analytics: AnalyticsService;
   let deliveries: DeliveriesService;

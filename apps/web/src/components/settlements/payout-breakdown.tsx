@@ -58,6 +58,8 @@ export interface ParticipantPayout {
    * Absent on a breakdown read before draws existed.
    */
   profitDrawnEgp?: string;
+  /** Capital he took back before settlement (§8, 2026-11-08), negative. */
+  capitalTakenEarlyEgp?: string;
   /** What his draws came to beyond this payout: owed, taken off his next payout (positive). */
   owedEgp?: string;
   /** What he is paid: the lines above plus what is owed — never below zero because of draws. */
@@ -293,6 +295,9 @@ export function PayoutBreakdownView({
                 )}
                 {num(p.profitDrawnEgp ?? 0) !== 0 && (
                   <Line label={t('profitTakenLine')} amount={num(p.profitDrawnEgp ?? 0)} />
+                )}
+                {num(p.capitalTakenEarlyEgp ?? 0) !== 0 && (
+                  <Line label={t('capitalTakenBackLine')} amount={num(p.capitalTakenEarlyEgp ?? 0)} />
                 )}
                 {/* Beyond his payout: he owes it, and it comes off his next one —
                     so this payout is 0, not below it (owner 2026-11-08). */}

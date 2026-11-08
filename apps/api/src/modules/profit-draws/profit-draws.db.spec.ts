@@ -85,7 +85,7 @@ suite('profit taken before settlement (Postgres)', () => {
     settlements = new SettlementsService(db, audit, costing);
     analytics = new AnalyticsService(db);
     ledger = new LedgerService(db, audit);
-    draws = new ProfitDrawsService(db, audit, settlements);
+    draws = new ProfitDrawsService(db, audit, settlements, costing);
     actor = (await partner('Actor')).id;
   });
   afterAll(() => prisma.$disconnect());
@@ -420,6 +420,7 @@ suite('profit taken before settlement (Postgres)', () => {
         db,
         audit,
         new SettlementsService(db, audit, new CostingService(db)),
+        new CostingService(db),
       );
       await expect(
         single.create(

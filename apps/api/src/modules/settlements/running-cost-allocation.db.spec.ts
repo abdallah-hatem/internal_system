@@ -82,7 +82,7 @@ suite('running costs shared to the running cycles (Postgres)', () => {
     settlements = new SettlementsService(db, audit, costing);
     analytics = new AnalyticsService(db);
     ledger = new LedgerService(db, audit);
-    draws = new ProfitDrawsService(db, audit, settlements);
+    draws = new ProfitDrawsService(db, audit, settlements, costing);
     actor = (await partner('Actor')).id;
   });
   afterAll(async () => {

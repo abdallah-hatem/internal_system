@@ -102,6 +102,8 @@ const TYPE_KEYS: Record<string, string> = {
   STOCK_TRANSFER_REVERSAL: 'stockTransferReversal',
   PROFIT_DRAW: 'profitDraw',
   PROFIT_DRAW_REVERSAL: 'profitDrawReversal',
+  CAPITAL_RETURN_EARLY: 'capitalBackEarly',
+  CAPITAL_RETURN_EARLY_REVERSAL: 'capitalBackEarlyReversal',
 };
 
 const DIRECTION_COLORS: Record<string, string> = {

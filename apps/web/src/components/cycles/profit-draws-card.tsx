@@ -91,12 +91,16 @@ const primaryButton =
 const linkButton =
   'inline-flex min-h-11 cursor-pointer items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0';
 
-/** Everything a draw moves: this card, the cycle's money, cash, the ledger, a settlement being worked out. */
-function useRefreshDraws(cycleId: string) {
+/**
+ * Everything a draw or capital taken back moves: these cards, the cycle's
+ * money, cash, the ledger, a settlement being worked out.
+ */
+export function useRefreshDraws(cycleId: string) {
   const qc = useQueryClient();
   return () => {
     for (const queryKey of [
       ['profit-draws', cycleId],
+      ['capital-back', cycleId],
       ['cycle', cycleId],
       ['cycles'],
       ['landedCost', cycleId],
@@ -431,9 +435,22 @@ export function TakeProfitDialog({
   );
 }
 
-/** Undo one draw, once, with a reason (§8, 2026-11-08). */
-export function UndoDrawDialog({ cycleId, draw, onClose }: { cycleId: string; draw: ProfitDraw; onClose: () => void }) {
-  const t = useTranslations('profitDraws');
+/**
+ * Undo one draw — or capital taken back early, `ns="capitalBack"` — once,
+ * with a reason (§8, 2026-11-08). Both go through the same endpoint.
+ */
+export function UndoDrawDialog({
+  cycleId,
+  draw,
+  onClose,
+  ns = 'profitDraws',
+}: {
+  cycleId: string;
+  draw: Pick<ProfitDraw, 'id' | 'name' | 'amountEgp' | 'drawnOn'>;
+  onClose: () => void;
+  ns?: 'profitDraws' | 'capitalBack';
+}) {
+  const t = useTranslations(ns);
   const tc = useTranslations('common');
   const tph = useTranslations('placeholders');
   const apiError = useApiError();

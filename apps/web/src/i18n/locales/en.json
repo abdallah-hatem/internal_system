@@ -974,7 +974,9 @@
     "paidBy": "Paid by",
     "paidByBusiness": "The business",
     "paidByHint": "No business cash leaves: {partner}’s account is credited with it, and the business owes it back.",
-    "paidByTag": "Paid by {partner}"
+    "paidByTag": "Paid by {partner}",
+    "capitalBackEarly": "Capital taken back early",
+    "capitalBackEarlyReversal": "Capital taken back undone"
   },
   "settlements": {
     "title": "Settlements",
@@ -1568,7 +1570,9 @@
     "paidToHim": "Paid",
     "wouldBePaid": "To be paid",
     "runningCostsDay": "Share of running costs ({day})",
-    "costSamplesWrittenOff": "Samples written off"
+    "costSamplesWrittenOff": "Samples written off",
+    "capitalTakenBack": "Capital taken back",
+    "capitalTakenBackLine": "Capital taken back before settlement"
   },
   "contracts": {
     "title": "Contracts",
@@ -1971,17 +1975,15 @@
     "CONTRIBUTION_ALREADY_LOWERED": "The contribution to {cycle} is {contribution} EGP, less than the {amount} EGP this entry put in; it was lowered by hand.",
     "PAYOUT_LEFT_IN_TWICE": "Each partner can leave his payout in once.",
     "PAYOUT_LEFT_IN_NOT_A_PARTNER": "Only a core partner on the settlement of {cycle} can leave his payout in.",
-    "LIST_PAGE_INVALID": "That page number is not valid: {value}. Pages are whole numbers from 1 to {max}.",
-    "LIST_PAGE_SIZE_INVALID": "A page can show from 1 to {max} rows (asked for {value}).",
-    "LIST_SORT_UNKNOWN": "This list cannot be sorted by \"{sort}\".",
-    "LIST_FILTER_INVALID": "The filter {field} cannot be \"{value}\".",
-    "LIST_SEARCH_TOO_LONG": "A search can be at most {max} characters (this one has {length}).",
     "INVESTOR_NAME_REQUIRED": "An investor needs a name.",
     "INVESTOR_NAME_TOO_LONG": "An investor's name can be at most {max} characters.",
     "INVESTOR_NAME_TAKEN": "Someone called {name} already exists — choose him from the list.",
     "SPLIT_PARTICIPANT_NOT_ON_CYCLE": "That participant is not on this cycle.",
     "SPLIT_PARTICIPANT_TWICE": "A participant is named twice in the split.",
-    "SPLIT_PCT_INVALID": "A profit share must be a percentage from 0 to 100, with at most four decimals."
+    "SPLIT_PCT_INVALID": "A profit share must be a percentage from 0 to 100, with at most four decimals.",
+    "CAPITAL_BACK_NOT_ON_CYCLE": "{partner} has no capital in {cycle} to take back.",
+    "CAPITAL_BACK_OVER_AVAILABLE": "{partner} can take back at most {available} EGP from {cycle} now: paid sales have recovered {pct}% of its cost — {recovered} EGP of the {contribution} EGP he put in — and he has taken back {taken} EGP.",
+    "CONTRIBUTION_BELOW_CAPITAL_TAKEN_BACK": "{taken} EGP of this capital was already taken back early, so the contribution cannot go below it. Undo what was taken back first."
   },
   "requests": {
     "tabs": {
@@ -2239,7 +2241,9 @@
       "SAMPLES_RETURNED": "Samples returned",
       "SAMPLES_WRITTEN_OFF": "Samples written off",
       "PRICE_ADJUSTED": "Price lowered",
-      "ASSISTANT_CHAT": "Asked the assistant"
+      "ASSISTANT_CHAT": "Asked the assistant",
+      "CAPITAL_BACK_EARLY": "Capital taken back",
+      "CAPITAL_BACK_REVERSE": "Capital taken back undone"
     },
     "entityType": {
       "ProfitDraw": "Profit taken",
@@ -2296,7 +2300,8 @@
       "PRICE_ADJUSTED": "The date a price was lowered",
       "ADVANCE_PAID": "The date a partner paid a supplier",
       "ACCOUNT_WITHDRAWN": "The date money was taken out of an account",
-      "ACCOUNT_CONTRIBUTED": "The date of a contribution from an account"
+      "ACCOUNT_CONTRIBUTED": "The date of a contribution from an account",
+      "CAPITAL_TAKEN_BACK": "The date capital was taken back"
     },
     "country": {
       "CN": "China",
@@ -2340,7 +2345,8 @@
       "revenue": "Sales",
       "refund": "Refund to a customer",
       "cycle_transfer": "Leftovers moved between cycles",
-      "running_cost_share": "Partner’s share of running costs"
+      "running_cost_share": "Partner’s share of running costs",
+      "capital_back_early": "Capital taken back before settlement"
     },
     "ledgerKind": {
       "EXPENSE": "an expense",
@@ -3105,5 +3111,44 @@
     "newInvestor": "New investor",
     "investorName": "Name",
     "newInvestorHint": "Investors do not sign in, so a name is all that is needed."
+  },
+  "capitalBack": {
+    "title": "Capital back early",
+    "recovered": "Cost recovered so far",
+    "recoveredOf": "<amount></amount> of the <total></total> it cost to fund",
+    "recoveredHint": "The cost of the goods customers have paid for. Everyone — partners and investors — may take back that share of what he put in; the profit and everyone’s share of it do not change.",
+    "investor": "Investor",
+    "colPutIn": "Put in",
+    "colRecovered": "His part recovered",
+    "colTaken": "Taken back",
+    "colAvailable": "Can take now",
+    "take": "Take capital back",
+    "takeTitle": "Take capital back",
+    "takeHint": "Cash leaves the business now. The profit and the split do not change; at settlement he is paid the rest of his capital.",
+    "person": "Who",
+    "amount": "Amount (EGP)",
+    "max": "Max <amount></amount>",
+    "takeAll": "Take all available",
+    "date": "Date taken",
+    "note": "Note",
+    "overAvailable": "{name} can take back at most {max} now.",
+    "notPositive": "The amount must be more than zero.",
+    "nothingAvailable": "{name} has nothing to take back now.",
+    "saved": "Capital taken back recorded for {name}",
+    "failed": "Could not record the capital taken back",
+    "historyHeading": "Taken back so far",
+    "noneYet": "Nobody has taken capital back from this cycle yet.",
+    "reversed": "Undone",
+    "reversedReason": "Undone: {reason}",
+    "settled": "Taken off his capital back",
+    "undo": "Undo",
+    "undoTitle": "Undo capital taken back",
+    "undoHint": "<amount></amount> taken back by {name} on {day} goes back into the business’s cash. Say why.",
+    "reason": "Reason",
+    "undoSaved": "Capital taken back undone",
+    "locked": "Nothing can be taken back or undone: {reason}.",
+    "loadFailed": "Could not load the capital taken back",
+    "retry": "Try again",
+    "noPeople": "Nobody has put capital into this cycle."
   }
 }

@@ -83,7 +83,7 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
-- **TODO (owner 2026-11-08: "yes put todo") — capital back early, beside profit draws.** Owner: "why am i allowed to
+- **On `dev` 2026-11-08, not shipped (owner: "fetch and implement next", then "push dev") — capital back early, beside profit draws.** Migration `20261108400000_capital_back_early` (enum value `CAPITAL` on `ProfitDrawKind`, shape CHECK widened; additive). `GET/POST /cycles/:id/capital-back`, undo via `POST /profit-draws/:id/reverse`; ledger `capital_back_early`; settlement `CAPITAL_TAKEN_EARLY` line; investors can owe (CARRIED); contribution may not drop below what was taken back. Rules §8 "Capital taken back before a cycle is settled". Tests: unit 9 + breakdown 2, Postgres 21, web card 9 + settlement table 3. The original TODO, kept for the record: Owner: "why am i allowed to
   take from profit only i have money as well, the money i put to purchase goods … so that money + profit − expenses,
   right?" Yes at settlement (capital back + profit share, profit already net of expenses). Mid-cycle the capital is
   stock, customers' debt, or cash recovered from paid sales — and that recovered cash is everyone's capital, investors'

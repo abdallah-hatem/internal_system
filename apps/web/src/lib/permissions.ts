@@ -79,7 +79,10 @@ export const ACTION_ROLES = {
   // Profit a partner takes before settlement (§8, 2026-11-08) — CycleProfitDrawsController, ProfitDrawsController
   'profitDraw.read': PARTNERS, //        GET  /cycles/:id/profit-draws
   'profitDraw.take': PARTNERS, //        POST /cycles/:id/profit-draws
-  'profitDraw.reverse': PARTNERS, //     POST /profit-draws/:id/reverse
+  'profitDraw.reverse': PARTNERS, //     POST /profit-draws/:id/reverse (capital taken back too)
+  // Capital taken back before settlement (§8, 2026-11-08) — CycleProfitDrawsController
+  'capitalBack.read': PARTNERS, //       GET  /cycles/:id/capital-back
+  'capitalBack.take': PARTNERS, //       POST /cycles/:id/capital-back
   // Leftovers moved to another cycle at cost (§8, L5) — CycleTransfersController, StockTransfersController
   'stockTransfer.create': PARTNERS, //    POST /cycles/:id/transfers
   'stockTransfer.undo': PARTNERS, //      POST /stock-transfers/:id/undo

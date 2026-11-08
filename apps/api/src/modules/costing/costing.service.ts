@@ -75,8 +75,8 @@ export class CostingService {
    * payment's rate (§18). A loan to the partners: since 2026-10-19 it is not
    * taken off what they fund — they repay it.
    */
-  lenderFinancedEgp(cycleId: string) {
-    return cycleFinancedEgp(this.prisma, cycleId);
+  lenderFinancedEgp(cycleId: string, db?: Prisma.TransactionClient) {
+    return cycleFinancedEgp(db ?? this.prisma, cycleId);
   }
 
   /**
@@ -125,10 +125,15 @@ export class CostingService {
    * him. It is returned beside the figure (`financed`), because the cycle page
    * says who paid and that the partners repay him.
    */
-  async fundingFor(cycleId: string) {
-    const cost = await this.cycleCost(cycleId);
-    const financed = await this.lenderFinancedEgp(cycleId);
-    const transferredIn = await cycleTransfersInEgp(this.prisma, cycleId);
+  async fundingFor(
+    cycleId: string,
+    // A caller inside a transaction passes it: production has one connection
+    // per request, so a read through this.prisma there waits for ever (P2028).
+    db?: Prisma.TransactionClient,
+  ) {
+    const cost = await this.cycleCost(cycleId, { db });
+    const financed = await this.lenderFinancedEgp(cycleId, db);
+    const transferredIn = await cycleTransfersInEgp(db ?? this.prisma, cycleId);
     const { toFund } = toFundEgp({ landed: cost.totalEgp, transferredIn });
     return {
       landed: cost.landedEgp,
