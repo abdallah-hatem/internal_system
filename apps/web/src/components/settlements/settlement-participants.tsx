@@ -33,7 +33,11 @@ export interface ParticipantRow {
   share: number;
   feeCharged: number;
   fee: number;
-  /** His share of the running costs taken from this payout (L7), negative. */
+  /**
+   * His share of the running costs taken from this payout (L7), negative —
+   * only on a settlement paid before 2026-11-08. Since then running costs are
+   * shared to the selling cycles and sit inside the cycle's profit (§8).
+   */
   runningCosts: number;
   /** Profit he took before settlement, and anything owed from an earlier payout (§8, 2026-11-08), negative. */
   profitDrawn: number;
@@ -55,15 +59,7 @@ const nameOf = (l: SettlementLine) =>
   null;
 
 /** Group the lines by participant so each person reads as one row. */
-/**
- * `projected`: before a settlement is paid it has no RUNNING_COSTS line yet;
- * what paying today would take comes from its breakdown (participantId →
- * amount, negative), so the table and the breakdown under it agree (L7).
- */
-export function participantRows(
-  lines: SettlementLine[],
-  projected: Record<string, number> = {},
-): ParticipantRow[] {
+export function participantRows(lines: SettlementLine[]): ParticipantRow[] {
   const byParticipant = new Map<string, SettlementLine[]>();
   for (const l of lines) {
     const k = l.participant?.id ?? l.id;
@@ -80,9 +76,10 @@ export function participantRows(
     const share = pick('PROFIT_SHARE');
     const feeCharged = pick('INVESTOR_FEE');
     const feeReceived = pick('INVESTOR_FEE_RECEIVED');
-    // Running costs come out of a core partner's payout (§8, L7).
-    const hasLine = group.some((l) => l.component === 'RUNNING_COSTS');
-    const runningCosts = hasLine ? pick('RUNNING_COSTS') : (projected[key] ?? 0);
+    // Running costs came out of a core partner's payout until 2026-11-08 (§8,
+    // L7); a settlement paid that way keeps its stored line. None is projected
+    // any more: they are now a cost inside the cycle's profit.
+    const runningCosts = pick('RUNNING_COSTS');
     // Profit taken before settlement comes off the payout (§8, 2026-11-08).
     const profitDrawn = pick('PROFIT_DRAWN');
     const payable = capital + share + feeReceived + runningCosts + profitDrawn;
@@ -122,20 +119,20 @@ const feeTone = (fee: number) =>
 export function SettlementParticipants({
   lines,
   cycleCode,
-  projectedRunningCosts,
 }: {
   lines: SettlementLine[];
   cycleCode?: string;
-  /** Before it is paid: what paying today would take, per participant (L7). */
-  projectedRunningCosts?: Record<string, number>;
 }) {
   const t = useTranslations('settlementsPage');
-  const rows = participantRows(lines, projectedRunningCosts);
+  const rows = participantRows(lines);
   const name = (r: ParticipantRow) => r.name ?? t('unknownParticipant');
   const feeTitle = (r: ParticipantRow) =>
     r.feeCharged < 0 ? t('feeAlreadyDeducted') : undefined;
   const fee = (r: ParticipantRow) =>
     r.fee === 0 ? '—' : <Money value={r.fee} />;
+  // Running costs taken from payouts: only a settlement paid before
+  // 2026-11-08 has them (§8), so only then a column of their own.
+  const anyRunning = rows.some((r) => r.runningCosts !== 0);
   const running = (r: ParticipantRow) =>
     r.runningCosts === 0 ? '—' : <Money value={r.runningCosts} />;
   // Profit taken before settlement (§8, 2026-11-08): a column only when
@@ -176,7 +173,9 @@ export function SettlementParticipants({
       key: 'fee', header: t('fee'), width: '8.75rem', kind: 'value', align: 'end', className: (r) => feeTone(r.fee),
       cellProps: (r) => ({ title: feeTitle(r) }), cell: fee,
     },
-    { key: 'running', header: t('runningCosts'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: running },
+    ...(anyRunning
+      ? [{ key: 'running', header: t('runningCosts'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: running } satisfies Column<ParticipantRow>]
+      : []),
     ...(anyDrawn
       ? [{ key: 'drawn', header: t('profitTaken'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: drawn } satisfies Column<ParticipantRow>]
       : []),
@@ -214,10 +213,12 @@ export function SettlementParticipants({
                   {fee(r)}
                 </dd>
               </div>
-              <div className="min-w-0">
-                <dt className="text-xs text-muted-foreground">{t('runningCosts')}</dt>
-                <dd className="whitespace-nowrap tabular-nums text-muted-foreground">{running(r)}</dd>
-              </div>
+              {anyRunning && (
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">{t('runningCosts')}</dt>
+                  <dd className="whitespace-nowrap tabular-nums text-muted-foreground">{running(r)}</dd>
+                </div>
+              )}
               {anyDrawn && (
                 <div className="min-w-0">
                   <dt className="text-xs text-muted-foreground">{t('profitTaken')}</dt>

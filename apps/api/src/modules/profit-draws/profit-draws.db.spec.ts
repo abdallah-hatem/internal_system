@@ -17,6 +17,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { cashPosition } from '../../common/cash-position';
 import { businessToday } from '../../common/dates';
 import { ProfitDrawsService } from './profit-draws.service';
+import { quietRunningCosts } from '../../common/running-costs-quiet-spec';
 
 /**
  * Profit taken before a cycle is settled (BUSINESS_LOGIC §8, owner
@@ -88,6 +89,9 @@ suite('profit taken before settlement (Postgres)', () => {
     actor = (await partner('Actor')).id;
   });
   afterAll(() => prisma.$disconnect());
+  // A running cost another suite left waiting must not land on these cycles
+  // (§8, 2026-11-08: shared to whatever is selling).
+  beforeEach(() => quietRunningCosts(prisma));
 
   // ─── Fixtures ───────────────────────────────────────────────────────
 

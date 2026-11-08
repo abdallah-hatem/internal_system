@@ -74,7 +74,7 @@ profit or a settlement. Now "Record money in or out":
   - **Fuel** (added 2026-10-17, owner: fuelling the delivery car is a regular expense). A **Fuel** quick-action
     button (core partners, who alone may write the ledger) opens this same form in place already on Expense → Fuel,
     dated today, no cycle; only the amount (and a note, if wanted) is typed. No cycle means it is a running cost,
-    shared by the partners at settlement like rent (§8, L7); charge it to a cycle by picking one. Not automatic:
+    shared to the cycles running like rent (§8, 2026-11-08); charge it to a cycle by picking one. Not automatic:
     fuel is a different amount each time, so a schedule would record figures nobody paid.
     **It lives on the Ledger page only** (owner 2026-10-18: "remove fuel from dashboard"): a labelled "Quick
     actions" strip under the page title — set apart from Add entry and Export, which stay the page's toolbar —
@@ -230,7 +230,7 @@ Built (API, office screens, Postgres and unit tests; e2e written, not run — ow
 | Who can be the payer | **Active core partners only.** An investor never: he is not one of "the partners", and his money is his investment in one cycle, not a running account (§8: "who an account is"). A partner who has left: refused (GUESS). | Owner: "one of the partners". |
 | Recording for another partner | Any core partner may record an expense paid by any other; the named partner is credited, never the one typing it. | As for advances (§8: one person keeps the books). |
 | A cycle in Settlement, or Closed | As for any manual expense: a cycle in **Settlement** still takes the late cost, and his credit is written (it is untied, so the funding lock does not apply); **Closed or Cancelled** refuses it (`LEDGER_CYCLE_NOT_OPEN`), and reversing an expense on a cycle that has since closed is refused — his credit then stands. | §9 L6: only cancelled and closed are shut. |
-| A running cost paid by him | The same shares as if the business paid it (fixed over the partners of its day), taken from payouts as always. He is credited the whole amount and owes his own share through his payout, like the others. | "A running cost shared from payouts, as today." |
+| A running cost paid by him | **Since 2026-11-08 (§8):** shared to the running cycles like any running cost, off their profit; he is credited the whole amount. (Was: shares fixed over the partners of its day and taken from payouts.) | "A running cost shared from payouts, as today" — superseded by "investors pay for every cost too". |
 | Doing it twice | Two expenses are two credits. Reversing twice, or twice at once, undoes the credit once: the second is `ENTRY_ALREADY_REVERSED` (re-read under the account lock). | The second-time bug. |
 | The currency | The credit is the expense's pounds (`amount_egp`); what he paid, if not pounds, is kept beside it as on the ledger row. | One figure for the balance. |
 | Arabic | The new strings ("دفعه", "النشاط", the hint and the refusals) are the agent's wording, for the owner to correct. | — |

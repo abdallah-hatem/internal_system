@@ -7,27 +7,19 @@ import {
 } from './ledger-categories';
 
 /**
- * General running costs come out of the core partners' payouts (§8, owner
- * 2026-10-11; built L7).
+ * Which ledger rows are running costs, and each one net of any undone (§8).
  *
  * A running cost is an operating expense recorded with no cycle — rent,
- * salaries, power. It is the core partners', equally; a temporary investor
- * never shares it. It does not touch any cycle's profit. When a settlement is
- * paid out, each core partner on it has his share of the costs still waiting
- * taken from his payout, oldest first, as far as the payout covers; the rest
- * waits for his next payout, from whichever cycle.
+ * salaries, fuel, packaging. Since 2026-11-08 (owner: "investor has to pay
+ * for everything as well") it is shared to the cycles selling when it is
+ * recorded and comes off their profit, borne by every participant
+ * (`running-cost-allocation.ts`).
  *
- * **Each cost's shares are fixed once** (alignment review, 2026-10-12), over
- * the core partners active on the cost's own day, and never change: a partner
- * who leaves keeps owing his share (it waits, shown as his), and one who joins
- * after the day owes nothing of it. Re-splitting over whoever is active at
- * each payout — the first build — quietly moved a leaving partner's part onto
- * the others. The shares are stored (`running_cost_shares`) the first time a
- * cost is seen with write access: recording it, or a Mark paid.
- *
- * Everything else here is arithmetic over rows already read, so the settlement
- * screen's "if paid now", Mark paid itself and the Partners page cannot
- * disagree (rule 11).
+ * Before then (L7, 2026-10-11) it was the core partners' alone, each one's
+ * share fixed on the cost's day (`running_cost_shares`) and taken from his
+ * payouts (`running_cost_charges`, a RUNNING_COSTS settlement line). Nothing
+ * writes those any more; this file still reads them so a settlement paid that
+ * way explains itself, and a cost taken that way is never shared again.
  */
 
 const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
@@ -58,8 +50,6 @@ export interface StandingCharge {
   partnerUserId: string;
   amount: Prisma.Decimal;
 }
-
-export type PlannedCharge = StandingCharge;
 
 /** A share to store: cost, partner, amount. */
 export type FixedShare = StandingCharge;
@@ -115,69 +105,6 @@ function oldestFirst<T extends { day: string; id: string }>(costs: T[]): T[] {
   return [...costs].sort((a, b) =>
     a.day === b.day ? a.id.localeCompare(b.id) : a.day.localeCompare(b.day),
   );
-}
-
-function chargedBy(charges: StandingCharge[]) {
-  const byCost = new Map<string, Prisma.Decimal>();
-  const byCostPartner = new Map<string, Prisma.Decimal>();
-  for (const c of charges) {
-    byCost.set(
-      c.costEntryId,
-      (byCost.get(c.costEntryId) ?? ZERO).add(c.amount),
-    );
-    const key = `${c.costEntryId}|${c.partnerUserId}`;
-    byCostPartner.set(key, (byCostPartner.get(key) ?? ZERO).add(c.amount));
-  }
-  return {
-    cost: (id: string) => byCost.get(id) ?? ZERO,
-    partner: (id: string, userId: string) =>
-      byCostPartner.get(`${id}|${userId}`) ?? ZERO,
-  };
-}
-
-/**
- * What one payout takes: for each core partner with a payout on it
- * (`capacities`: user id → what the settlement pays him), his fixed share of
- * every waiting cost, oldest first, until his payout is used up.
- *
- * - A partner not in `partners` (a temporary investor; a core partner no longer
- *   active) is never charged — his share waits.
- * - A payout of nothing or less (a loss) takes nothing.
- * - Never more than his own share, never more than the cost has left: across
- *   every payout a cost's charges add up to it at most — charged once in total.
- */
-export function planRunningCostCharges(input: {
-  costs: RunningCost[];
-  partners: RunningCostPartner[];
-  charges: StandingCharge[];
-  capacities: Map<string, Prisma.Decimal>;
-}): PlannedCharge[] {
-  const costs = oldestFirst(input.costs).filter((c) => c.amount.gt(0));
-  const planned: PlannedCharge[] = [];
-
-  for (const partner of input.partners) {
-    const capacity = input.capacities.get(partner.userId);
-    if (!capacity) continue;
-    let left = capacity;
-    for (const cost of costs) {
-      if (left.lte(0)) break;
-      const charged = chargedBy([...input.charges, ...planned]);
-      const share = cost.shares.get(partner.userId) ?? ZERO;
-      const owed = Prisma.Decimal.min(
-        share.sub(charged.partner(cost.id, partner.userId)),
-        cost.amount.sub(charged.cost(cost.id)),
-      );
-      if (owed.lte(0)) continue;
-      const take = Prisma.Decimal.min(owed, left);
-      planned.push({
-        costEntryId: cost.id,
-        partnerUserId: partner.userId,
-        amount: take,
-      });
-      left = left.sub(take);
-    }
-  }
-  return planned;
 }
 
 /** A ledger row as `isRunningCostEntry` reads it. */
@@ -254,95 +181,6 @@ export function runningCostsFromRows(
     };
   });
   return { costs: oldestFirst(costs), unfixed };
-}
-
-export interface RunningCostsSummary {
-  byCategory: { category: string; spentEgp: Prisma.Decimal }[];
-  spentEgp: Prisma.Decimal;
-  chargedEgp: Prisma.Decimal;
-  waitingEgp: Prisma.Decimal;
-  partners: {
-    userId: string;
-    name: string | null;
-    shareEgp: Prisma.Decimal;
-    chargedEgp: Prisma.Decimal;
-    waitingEgp: Prisma.Decimal;
-    /** Takes the odd piastre on a cost spent today (§10). */
-    takesResidual: boolean;
-    /** Still a core partner — one who left keeps owing his share. */
-    active: boolean;
-  }[];
-}
-
-/**
- * What was spent, what payouts have taken and what is still waiting — for a
- * set of costs (the Partners page passes a period's). Each partner's share is
- * his fixed share of those costs; a partner who has left is listed while he
- * owes any of them.
- */
-export function summariseRunningCosts(input: {
-  costs: RunningCost[];
-  partners: RunningCostPartner[];
-  charges: StandingCharge[];
-  /** Everyone who may hold a share: the active partners and those who left. */
-  people?: RunningCostPartner[];
-}): RunningCostsSummary {
-  const ids = new Set(input.costs.map((c) => c.id));
-  const charges = input.charges.filter((c) => ids.has(c.costEntryId));
-  const categories = new Map<string, Prisma.Decimal>();
-  for (const c of input.costs) {
-    categories.set(
-      c.category,
-      (categories.get(c.category) ?? ZERO).add(c.amount),
-    );
-  }
-  const spent = input.costs.reduce((s, c) => s.add(c.amount), ZERO);
-  const charged = charges.reduce((s, c) => s.add(c.amount), ZERO);
-
-  const active = new Set(input.partners.map((p) => p.userId));
-  const holders = new Set(
-    input.costs.flatMap((c) =>
-      [...c.shares.entries()].filter(([, v]) => v.gt(0)).map(([k]) => k),
-    ),
-  );
-  const people = [
-    ...input.partners,
-    ...(input.people ?? []).filter(
-      (p) => !active.has(p.userId) && holders.has(p.userId),
-    ),
-  ];
-  const last = input.partners[input.partners.length - 1]?.userId;
-
-  return {
-    byCategory: [...categories.entries()]
-      .map(([category, spentEgp]) => ({ category, spentEgp }))
-      .sort(
-        (a, b) =>
-          b.spentEgp.cmp(a.spentEgp) || a.category.localeCompare(b.category),
-      ),
-    spentEgp: spent,
-    chargedEgp: charged,
-    waitingEgp: spent.sub(charged),
-    partners: people.map((p) => {
-      const share = input.costs.reduce(
-        (s, c) => s.add(c.shares.get(p.userId) ?? ZERO),
-        ZERO,
-      );
-      const his = charges
-        .filter((c) => c.partnerUserId === p.userId)
-        .reduce((s, c) => s.add(c.amount), ZERO);
-      const waiting = share.sub(his);
-      return {
-        userId: p.userId,
-        name: p.name,
-        shareEgp: share,
-        chargedEgp: his,
-        waitingEgp: waiting.gt(0) ? waiting : ZERO,
-        takesResidual: p.userId === last,
-        active: active.has(p.userId),
-      };
-    }),
-  };
 }
 
 type Db = {
@@ -459,30 +297,6 @@ export async function loadRunningCosts(db: Db): Promise<RunningCostsState> {
   };
 }
 
-/**
- * `loadRunningCosts`, storing the shares of any cost that had none — so they
- * are fixed from now on, whoever joins or leaves. Called where writing is
- * already happening: recording a cost, and Mark paid (inside its transaction,
- * with `tx`).
- */
-export async function fixRunningCostShares(
-  db: Db & {
-    runningCostShare: Pick<
-      Prisma.TransactionClient['runningCostShare'],
-      'findMany' | 'createMany'
-    >;
-  },
-): Promise<RunningCostsState> {
-  const state = await loadRunningCosts(db);
-  if (state.unfixed.length > 0) {
-    await db.runningCostShare.createMany({
-      data: state.unfixed.map((s) => ({ ...s, amount: s.amount })),
-      skipDuplicates: true,
-    });
-  }
-  return { ...state, unfixed: [] };
-}
-
 const ROW_SELECT = {
   id: true,
   direction: true,
@@ -494,7 +308,6 @@ const ROW_SELECT = {
   createdAt: true,
 } as const;
 
-/** The calendar quarter a day falls in: 2026-10-12 → 2026-10-01 … 2026-12-31. */
 export function thisQuarter(day: string): { from: string; to: string } {
   const [y, m] = day.split('-').map(Number);
   const first = Math.floor((m - 1) / 3) * 3 + 1;

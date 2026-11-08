@@ -63,14 +63,12 @@ describe('participantRows', () => {
     expect(p2.payout).toBe(50000 + 20000);
   });
 
-  it('before it is paid, what paying today would take comes off the payout shown — the table agrees with the breakdown', () => {
-    const [p1, p2] = participantRows(LINES, { p1: -10000 });
-    expect(p1.runningCosts).toBe(-10000);
-    expect(p1.payout).toBe(100000 + 45000 + 2500 - 10000);
-    expect(p2.payout).toBe(50000 + 20000);
-    // Once paid, the settlement's own line wins over any projection.
-    const [paid] = participantRows([...LINES, line('9', 'p1', 'RUNNING_COSTS', -4000, partner)], { p1: -10000 });
-    expect(paid.runningCosts).toBe(-4000);
+  it('no RUNNING_COSTS line (every settlement since 2026-11-08): nothing comes off the payout for running costs', () => {
+    // They are a cost inside the cycle's profit now (§8), already in PROFIT_SHARE.
+    const [p1, p2] = participantRows(LINES);
+    expect(p1.runningCosts).toBe(0);
+    expect(p1.payout).toBe(100000 + 45000 + 2500);
+    expect(p2.runningCosts).toBe(0);
   });
 
   it('profit he took before settlement comes off his payout (§8, 2026-11-08), and only his', () => {
@@ -119,7 +117,7 @@ describe('participantRows', () => {
 });
 
 describe('SettlementParticipants on a phone (UI audit 2026-10-10 #1)', () => {
-  it('gives each participant a card with every amount labelled, Fee and running costs included', () => {
+  it('gives each participant a card with every amount labelled, Fee included — no running-costs line on a settlement without one', () => {
     renderIn('ar');
     const cards = within(screen.getByTestId('settlement-participants-cards')).getAllByRole('listitem');
     expect(cards).toHaveLength(3);
@@ -128,7 +126,6 @@ describe('SettlementParticipants on a phone (UI audit 2026-10-10 #1)', () => {
       ar.settlementsPage.capital,
       ar.settlementsPage.netProfit,
       ar.settlementsPage.fee,
-      ar.settlementsPage.runningCosts,
       ar.settlementsPage.payout,
     ]);
     // Amount and currency stay on one line.
@@ -149,6 +146,21 @@ describe('SettlementParticipants on a phone (UI audit 2026-10-10 #1)', () => {
     renderIn('en');
     const cards = within(screen.getByTestId('settlement-participants-cards')).getAllByRole('listitem');
     expect(cards[2].querySelectorAll('dd')[2].textContent).toBe('—');
+  });
+
+  it('a settlement paid before 2026-11-08 keeps its running-costs column and card line, a dash for whoever had none', () => {
+    const { container } = renderIn('ar', [...LINES, line('8', 'p1', 'RUNNING_COSTS', -10000, partner)]);
+    expect([...container.querySelectorAll('th')].map((th) => th.textContent)).toContain(ar.settlementsPage.runningCosts);
+    const cards = within(screen.getByTestId('settlement-participants-cards')).getAllByRole('listitem');
+    const labels = [...cards[0].querySelectorAll('dt')].map((d) => d.textContent);
+    expect(labels).toContain(ar.settlementsPage.runningCosts);
+    expect(cards[0].querySelectorAll('dd')[3].textContent).toContain('10,000.00');
+    expect(cards[1].querySelectorAll('dd')[3].textContent).toBe('—');
+  });
+
+  it('no running costs taken: no running-costs column', () => {
+    const { container } = renderIn('en');
+    expect([...container.querySelectorAll('th')].map((th) => th.textContent)).not.toContain(en.settlementsPage.runningCosts);
   });
 
   it('no profit taken: no "Profit taken" column or label, so existing settlements read as before', () => {

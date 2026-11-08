@@ -18,7 +18,10 @@ import { businessToday } from '../../common/dates';
 import { CLOSED_CYCLE_STATUSES } from '../../common/manual-ledger-categories';
 import { CreateLedgerEntryDto } from './dto/ledger.dto';
 import { checkManualEntry } from './manual-entry';
-import { fixRunningCostShares } from '../../common/running-costs';
+import {
+  assignWaitingRunningCosts,
+  releaseRunningCost,
+} from '../../common/running-cost-allocation';
 import {
   creditExpensePaid,
   expensePayer,
@@ -234,15 +237,15 @@ export class LedgerService {
         },
       });
       if (payer) await creditExpensePaid(tx, row, payer.id, userId);
+      // A running cost (an expense with no cycle — rent, fuel, packaging):
+      // shared now to the cycles running, or waiting for the next one (§8,
+      // owner 2026-11-08: investors pay for every cost too). In the same
+      // transaction, so a cost is never recorded without its parts.
+      if (!cycleId && entry.direction === 'OUTFLOW') {
+        await assignWaitingRunningCosts(tx);
+      }
       return row;
     });
-
-    // A running cost (an expense with no cycle, §8 L7): its shares are fixed
-    // now, over the core partners of its own day — whoever joins or leaves
-    // later, they never move.
-    if (!cycleId && entry.direction === 'OUTFLOW') {
-      await fixRunningCostShares(this.prisma);
-    }
 
     // After the write, never inside a transaction (LEARNINGS: deployment).
     await this.audit.log({
@@ -374,6 +377,9 @@ export class LedgerService {
     // comes out with it, in the same transaction — refused while his account
     // no longer holds it. The undo names him too, so it is not cash either.
     const reversal = await this.prisma.$transaction(async (tx) => {
+      // A running cost comes off the cycles it was shared to — refused while
+      // one of them is being settled or settled (§8, 2026-11-08).
+      if (!original.cycleId) await releaseRunningCost(tx, id);
       const uncredited = original.paidByUserId
         ? await undoExpenseCredit(tx, id, reason, userId)
         : null;

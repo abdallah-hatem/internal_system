@@ -221,6 +221,37 @@ describe('extra freight and the cycle', () => {
   });
 });
 
+describe('an expense with no cycle says it is a running cost (§8, 2026-11-08)', () => {
+  const hint = () => screen.queryByTestId('ledger-no-cycle-hint');
+
+  it('rent with no cycle: shared to the cycles running, borne by everyone — no word of partners’ payouts', async () => {
+    renderDialog();
+    fireEvent.click(card(L.kindExpense));
+    await pick('ledger-category', re(en.codes.ledgerCategory.rent));
+    expect(hint()?.textContent).toBe(L.noCycleExpenseHint);
+    expect(L.noCycleExpenseHint).toMatch(/cycles running/);
+    expect(L.noCycleExpenseHint).toMatch(/investors too/);
+    expect(L.noCycleExpenseHint).not.toMatch(/payout/);
+  });
+
+  it('charged to a cycle, it is that cycle’s cost: the hint goes', async () => {
+    renderDialog();
+    fireEvent.click(card(L.kindExpense));
+    await pick('ledger-category', re(en.codes.ledgerCategory.rent));
+    await pick('ledger-cycle', /CYC-2026-001/);
+    expect(hint()).toBeNull();
+  });
+
+  it('other income, or a category that needs its cycle: no running-cost hint', async () => {
+    renderDialog();
+    fireEvent.click(card(L.kindExpense));
+    await pick('ledger-category', re(en.codes.ledgerCategory.extra_freight));
+    expect(hint()).toBeNull();
+    fireEvent.click(card(L.kindIncome));
+    expect(hint()).toBeNull();
+  });
+});
+
 describe('currency, rate and date', () => {
   it('the rate field is hidden for EGP and appears, prefilled and editable, for a foreign currency', async () => {
     renderDialog();

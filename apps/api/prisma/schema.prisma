@@ -337,6 +337,8 @@ model ImportCycle {
   accountMovements      PartnerAccountMovement[]
   /// Profit taken from it before its settlement (§8, 2026-11-08).
   profitDraws           ProfitDraw[]
+  /// Its part of the running costs recorded while it was selling (§8, 2026-11-08).
+  runningCostAllocations RunningCostAllocation[]
 
   /// An optional funding target ("1,600 of 2,000 funded so far"), in its own
   /// currency at the rate typed (§8, 2026-10-25). All three set, or none.
@@ -1344,6 +1346,8 @@ model FinancialTransaction {
   paidByCredit       PartnerAccountMovement?
   /// The profit draw this row took out of cash (§8, 2026-11-08).
   profitDraw         ProfitDraw?         @relation("ProfitDrawLedger")
+  /// A running cost: the selling cycles it was shared to (§8, 2026-11-08).
+  runningCostAllocations RunningCostAllocation[]
   /// The supplier refund this row undid, when it is a refund's reversal.
   reversedRefund     SupplierRefund?     @relation("SupplierRefundReversal")
   /// A general running cost: which payouts took it, and how much (§8, L7).
@@ -1534,6 +1538,32 @@ model Settlement {
 /// charged once in total across the rows that stand. Reversing the settlement
 /// releases them (`releasedAt`) -- the row stays, history is not rewritten --
 /// and the cost is waiting again.
+/// A running cost's part on one cycle (BUSINESS_LOGIC §8, owner 2026-11-08:
+/// "investor has to pay for everything as well, fuel, packaging etc... its all
+/// one process"). An expense with no cycle — rent, fuel, packaging — is shared
+/// equally to the cycles selling when it is recorded, or waits for the next one
+/// that starts selling; on each it is a cost like any charged to the cycle, so
+/// every participant, investors included, bears it by share. Written once and
+/// never moved: a cycle being settled or settled takes no new ones.
+model RunningCostAllocation {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// The ledger row of the cost: an operating expense with no cycle.
+  costEntryId String   @map("cost_entry_id") @db.Uuid
+  cycleId     String   @map("cycle_id") @db.Uuid
+  /// Its part, in pounds; the parts add up to the cost.
+  amountEgp   Decimal  @map("amount_egp") @db.Decimal(18, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  costEntry FinancialTransaction @relation(fields: [costEntryId], references: [id])
+  cycle     ImportCycle          @relation(fields: [cycleId], references: [id])
+
+  @@unique([costEntryId, cycleId])
+  @@index([cycleId])
+  @@map("running_cost_allocations")
+}
+
+/// Before 2026-11-08: a running cost was taken from the core partners' payouts
+/// alone. Kept for the settlements paid that way; nothing writes it now.
 model RunningCostCharge {
   id            String    @id @default(uuid()) @db.Uuid
   /// The ledger row of the cost: an operating expense with no cycle.
