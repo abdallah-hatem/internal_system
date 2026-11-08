@@ -42,7 +42,8 @@ export interface ToolSpec {
 const PROVIDERS: Record<string, { baseUrl: string; model: string }> = {
   gemini: {
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    model: 'gemini-2.5-flash',
+    // gemini-2.5-flash closed to new keys by 2026-11-08 (Google: use gemini-3.8-flash).
+    model: 'gemini-3.8-flash',
   },
   groq: {
     baseUrl: 'https://api.groq.com/openai/v1',
