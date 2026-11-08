@@ -307,6 +307,10 @@ runs the tool server in process (the MCP client over an in-memory transport), so
   cut to 6,000 characters, tool descriptions to their first sentences — every question carries every tool.
 - **Found 2026-10-25: Groq's free tier is too small** — 8,000 tokens a minute, and one question with the tools is
   ~8,300 before its second turn; the chat then says so (`AI_PROVIDER_TOO_SMALL`). Gemini's free tier fits.
+- **2026-11-08: production moved to Gemini.** Groq's free tier refused every question (413: 8,000 tokens a minute against
+  ~9,900 for one question; every model on the key is capped at 8,000 or less). `AI_PROVIDER=gemini` with the owner's
+  key; `gemini-2.5-flash` is closed to new keys (404 "no longer available to new users"), so the default is now
+  `gemini-3.8-flash` (also set as `AI_MODEL` on Vercel).
 - GUESS: the previews are the tools' own English summaries (as for Claude); the chat's answers follow the partner's
   language. Previews read left to right on an Arabic screen.
 
