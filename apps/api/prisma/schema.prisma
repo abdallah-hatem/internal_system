@@ -36,8 +36,8 @@ model User {
   partner               Partner?
   auditLogs             AuditLog[]
   notifications         Notification[]
-  cyclePartnerEntries   CycleParticipant[]     @relation("CyclePartnerUser")
-  cycleInvestorEntries  CycleParticipant[]     @relation("CycleInvestorUser")
+  cyclePartnerEntries   CycleParticipant[]       @relation("CyclePartnerUser")
+  cycleInvestorEntries  CycleParticipant[]       @relation("CycleInvestorUser")
   /// What this core partner's payouts were charged for running costs (§8, L7).
   runningCostCharges    RunningCostCharge[]
   /// His fixed share of each running cost of his time (§8, L7).
@@ -45,16 +45,16 @@ model User {
   /// His running account (§8, 2026-10-25).
   accountMovements      PartnerAccountMovement[] @relation("PartnerAccountMovements")
   /// Profit he took before his cycles were settled (§8, 2026-11-08).
-  profitDraws           ProfitDraw[]           @relation("ProfitDrawPartner")
-  saleOrders            SaleOrder[]            @relation("CreatedSaleOrderUser")
-  payments              Payment[]              @relation("CreatedPaymentUser")
-  productRequests       ProductRequest[]       @relation("CreatedProductRequestUser")
-  financialTransactions FinancialTransaction[] @relation("LedgerActor")
+  profitDraws           ProfitDraw[]             @relation("ProfitDrawPartner")
+  saleOrders            SaleOrder[]              @relation("CreatedSaleOrderUser")
+  payments              Payment[]                @relation("CreatedPaymentUser")
+  productRequests       ProductRequest[]         @relation("CreatedProductRequestUser")
+  financialTransactions FinancialTransaction[]   @relation("LedgerActor")
   /// Expenses he paid from his own pocket (§9, 2026-10-27): credited to his account.
-  expensesPaid          FinancialTransaction[] @relation("ExpensePaidBy")
+  expensesPaid          FinancialTransaction[]   @relation("ExpensePaidBy")
   inventoryMovements    InventoryMovement[]
-  stockTransfers        StockTransfer[]        @relation("StockTransferCreatedBy")
-  stockTransfersUndone  StockTransfer[]        @relation("StockTransferReversedBy")
+  stockTransfers        StockTransfer[]          @relation("StockTransferCreatedBy")
+  stockTransfersUndone  StockTransfer[]          @relation("StockTransferReversedBy")
 
   createdSaleReturns          SaleReturn[]          @relation("CreatedSaleReturnUser")
   createdSalePriceAdjustments SalePriceAdjustment[] @relation("CreatedSalePriceAdjustmentUser")
@@ -323,20 +323,20 @@ model ImportCycle {
   updatedAt  DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
   version    Int             @default(1)
 
-  participants          CycleParticipant[]
-  purchaseOrders        PurchaseOrder[]
-  shippingLegs          ShippingLeg[]
-  inventoryBatches      InventoryBatch[]
-  financialTransactions FinancialTransaction[]
-  settlements           Settlement[]
-  lenderFinancings      LenderFinancing[]
+  participants           CycleParticipant[]
+  purchaseOrders         PurchaseOrder[]
+  shippingLegs           ShippingLeg[]
+  inventoryBatches       InventoryBatch[]
+  financialTransactions  FinancialTransaction[]
+  settlements            Settlement[]
+  lenderFinancings       LenderFinancing[]
   /// Leftover stock moved out of this cycle, and into it (§8, L5).
-  transfersOut          StockTransfer[]        @relation("TransferFromCycle")
-  transfersIn           StockTransfer[]        @relation("TransferToCycle")
+  transfersOut           StockTransfer[]          @relation("TransferFromCycle")
+  transfersIn            StockTransfer[]          @relation("TransferToCycle")
   /// Partners' advances and contributions from their accounts on this cycle (§8, 2026-10-25).
-  accountMovements      PartnerAccountMovement[]
+  accountMovements       PartnerAccountMovement[]
   /// Profit taken from it before its settlement (§8, 2026-11-08).
-  profitDraws           ProfitDraw[]
+  profitDraws            ProfitDraw[]
   /// Its part of the running costs recorded while it was selling (§8, 2026-11-08).
   runningCostAllocations RunningCostAllocation[]
   /// Every status it has had, and when (written by a database trigger).
@@ -360,6 +360,11 @@ enum ProfitDrawKind {
   /// He took more than his payout came to: what is left over, carried to his
   /// next payout on any cycle. No cash moved — it left with the draw.
   CARRIED
+  /// A participant — core partner or investor — took part of his capital back
+  /// before settlement, out of what paid sales recovered (§8, 2026-11-08):
+  /// cash goes down, the profit and the split do not; his capital back at
+  /// settlement is less by it. `partnerUserId` is his user, whichever kind.
+  CAPITAL
 }
 
 /// Profit taken before a cycle is settled (§8, owner 2026-11-08: "I am allowed
@@ -448,10 +453,10 @@ model PartnerAccountMovement {
   reversedBy     String?                    @map("reversed_by") @db.Uuid
   reversalReason String?                    @map("reversal_reason")
 
-  partner     User              @relation("PartnerAccountMovements", fields: [partnerUserId], references: [id])
-  cycle       ImportCycle?      @relation(fields: [cycleId], references: [id])
-  participant CycleParticipant? @relation(fields: [participantId], references: [id])
-  settlement  Settlement?       @relation(fields: [settlementId], references: [id])
+  partner      User                  @relation("PartnerAccountMovements", fields: [partnerUserId], references: [id])
+  cycle        ImportCycle?          @relation(fields: [cycleId], references: [id])
+  participant  CycleParticipant?     @relation(fields: [participantId], references: [id])
+  settlement   Settlement?           @relation(fields: [settlementId], references: [id])
   expenseEntry FinancialTransaction? @relation(fields: [expenseEntryId], references: [id])
 
   @@index([partnerUserId])
@@ -473,9 +478,9 @@ model CycleParticipant {
   updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
   version            Int             @default(1)
 
-  cycle              ImportCycle         @relation(fields: [cycleId], references: [id])
-  partner            User?               @relation("CyclePartnerUser", fields: [partnerUserId], references: [id])
-  investor           User?               @relation("CycleInvestorUser", fields: [investorUserId], references: [id])
+  cycle              ImportCycle              @relation(fields: [cycleId], references: [id])
+  partner            User?                    @relation("CyclePartnerUser", fields: [partnerUserId], references: [id])
+  investor           User?                    @relation("CycleInvestorUser", fields: [investorUserId], references: [id])
   settlementLines    SettlementLine[]
   runningCostCharges RunningCostCharge[]
   accountMovements   PartnerAccountMovement[]
@@ -1186,19 +1191,19 @@ model SaleOrder {
 }
 
 model SaleItem {
-  id          String   @id @default(uuid()) @db.Uuid
-  saleOrderId String   @map("sale_order_id") @db.Uuid
-  productId   String   @map("product_id") @db.Uuid
-  quantity    Decimal  @db.Decimal(18, 3)
-  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 2)
-  discount    Decimal  @default(0) @db.Decimal(18, 2)
-  lineTotal   Decimal  @map("line_total") @db.Decimal(18, 2)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id                 String   @id @default(uuid()) @db.Uuid
+  saleOrderId        String   @map("sale_order_id") @db.Uuid
+  productId          String   @map("product_id") @db.Uuid
+  quantity           Decimal  @db.Decimal(18, 3)
+  unitPrice          Decimal  @map("unit_price") @db.Decimal(18, 2)
+  discount           Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal          Decimal  @map("line_total") @db.Decimal(18, 2)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
   /// The samples order at the same shop this line is bought from (§4,
   /// "Samples into the current order", owner 2026-10-27): on confirm its
   /// units — and their allocations, at the cost they left at — move into this
   /// line; anything more is drawn from the shelf. Null for an ordinary line.
-  fromSamplesOrderId String? @map("from_samples_order_id") @db.Uuid
+  fromSamplesOrderId String?  @map("from_samples_order_id") @db.Uuid
 
   saleOrder        SaleOrder             @relation("SaleOrderItems", fields: [saleOrderId], references: [id])
   fromSamplesOrder SaleOrder?            @relation("SaleItemFromSamples", fields: [fromSamplesOrderId], references: [id], onDelete: Restrict)
@@ -1341,21 +1346,21 @@ model FinancialTransaction {
   /// paid. Its undo carries the same payer.
   paidByUserId     String?              @map("paid_by_user_id") @db.Uuid
 
-  cycle              ImportCycle?        @relation(fields: [cycleId], references: [id])
-  actor              User?               @relation("LedgerActor", fields: [createdBy], references: [id])
-  paidBy             User?               @relation("ExpensePaidBy", fields: [paidByUserId], references: [id])
+  cycle                  ImportCycle?            @relation(fields: [cycleId], references: [id])
+  actor                  User?                   @relation("LedgerActor", fields: [createdBy], references: [id])
+  paidBy                 User?                   @relation("ExpensePaidBy", fields: [paidByUserId], references: [id])
   /// The credit in his account, when a partner paid it.
-  paidByCredit       PartnerAccountMovement?
+  paidByCredit           PartnerAccountMovement?
   /// The profit draw this row took out of cash (§8, 2026-11-08).
-  profitDraw         ProfitDraw?         @relation("ProfitDrawLedger")
+  profitDraw             ProfitDraw?             @relation("ProfitDrawLedger")
   /// A running cost: the selling cycles it was shared to (§8, 2026-11-08).
   runningCostAllocations RunningCostAllocation[]
   /// The supplier refund this row undid, when it is a refund's reversal.
-  reversedRefund     SupplierRefund?     @relation("SupplierRefundReversal")
+  reversedRefund         SupplierRefund?         @relation("SupplierRefundReversal")
   /// A general running cost: which payouts took it, and how much (§8, L7).
-  runningCostCharges RunningCostCharge[]
+  runningCostCharges     RunningCostCharge[]
   /// Who owes it, fixed once over the core partners of its day (§8, L7).
-  runningCostShares  RunningCostShare[]
+  runningCostShares      RunningCostShare[]
 
   @@map("financial_transactions")
 }
@@ -1521,7 +1526,7 @@ model Settlement {
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz()
   version        Int              @default(1)
 
-  cycle              ImportCycle         @relation(fields: [cycleId], references: [id])
+  cycle              ImportCycle              @relation(fields: [cycleId], references: [id])
   lines              SettlementLine[]
   /// Running costs this settlement's payouts took (§8, L7).
   runningCostCharges RunningCostCharge[]

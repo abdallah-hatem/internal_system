@@ -7,6 +7,7 @@ import type { Viewer } from '../../common/investor-scope';
 import { ProfitDrawsService } from './profit-draws.service';
 import { PROFIT_DRAW_ROLES } from './profit-draw-roles';
 import {
+  CreateCapitalBackDto,
   CreateProfitDrawDto,
   ReverseProfitDrawDto,
 } from './dto/profit-draw.dto';
@@ -41,6 +42,30 @@ export class CycleProfitDrawsController {
   ) {
     return this.draws.create(id, body, user.id);
   }
+
+  @Get(':id/capital-back')
+  @Roles(...PROFIT_DRAW_ROLES)
+  @ApiOperation({
+    summary:
+      "A cycle's capital taken back early, and what each participant may take now",
+  })
+  capital(@Param('id') id: string) {
+    return this.draws.capitalForCycle(id);
+  }
+
+  @Post(':id/capital-back')
+  @Roles(...PROFIT_DRAW_ROLES)
+  @ApiOperation({
+    summary:
+      'A participant takes part of his capital back, out of what paid sales recovered',
+  })
+  takeCapital(
+    @Param('id') id: string,
+    @Body() body: CreateCapitalBackDto,
+    @CurrentUser() user: Viewer,
+  ) {
+    return this.draws.takeCapital(id, body, user.id);
+  }
 }
 
 @ApiTags('Profit draws')
@@ -53,7 +78,9 @@ export class ProfitDrawsController {
 
   @Post(':id/reverse')
   @Roles(...PROFIT_DRAW_ROLES)
-  @ApiOperation({ summary: 'Undo profit taken, once, with a reason' })
+  @ApiOperation({
+    summary: 'Undo profit or capital taken early, once, with a reason',
+  })
   reverse(
     @Param('id') id: string,
     @Body() body: ReverseProfitDrawDto,

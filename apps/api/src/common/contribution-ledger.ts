@@ -1,5 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; money in EGP must not become a float
 import { Prisma } from '@prisma/client';
+import { badRequest } from './api-error';
+import { formatMoney } from './money';
 
 /**
  * Post the money a participant put in, or took back out.
@@ -40,6 +42,7 @@ export async function recordContributionChange(
   const after = new Prisma.Decimal(args.after ?? 0);
   const delta = after.sub(before);
   if (delta.isZero()) return;
+  if (delta.lt(0)) await assertNotBelowTakenBack(tx, args.participantId, after);
 
   const who = args.isInvestor ? 'investor' : 'partner';
   await tx.financialTransaction.create({
@@ -59,4 +62,41 @@ export async function recordContributionChange(
       createdBy: args.actorId,
     },
   });
+}
+
+/**
+ * A contribution cannot drop below the capital its holder already took back
+ * early and still stands (§8, 2026-11-08): he would have taken back more than
+ * he put in, and his capital back at settlement would go below nothing.
+ * Undo what he took back first.
+ */
+async function assertNotBelowTakenBack(
+  tx: Prisma.TransactionClient,
+  participantId: string,
+  after: Prisma.Decimal,
+) {
+  const p = await tx.cycleParticipant.findUnique({
+    where: { id: participantId },
+    select: { cycleId: true, partnerUserId: true, investorUserId: true },
+  });
+  const userId = p?.partnerUserId ?? p?.investorUserId;
+  if (!p || !userId) return;
+  const { _sum } = await tx.profitDraw.aggregate({
+    where: {
+      kind: 'CAPITAL',
+      cycleId: p.cycleId,
+      partnerUserId: userId,
+      reversedAt: null,
+      settledById: null,
+    },
+    _sum: { amountEgp: true },
+  });
+  const taken = new Prisma.Decimal(_sum.amountEgp ?? 0);
+  if (after.lt(taken)) {
+    throw badRequest(
+      'CONTRIBUTION_BELOW_CAPITAL_TAKEN_BACK',
+      `${formatMoney(taken)} EGP of this capital was already taken back early, so the contribution cannot go below it. Undo what was taken back first.`,
+      { taken: formatMoney(taken) },
+    );
+  }
 }

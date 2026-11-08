@@ -110,6 +110,33 @@ describe('participantRows', () => {
     expect(p.owed).toBe(0);
   });
 
+  it('capital the investor took back early comes off his payout, the split untouched (§8, 2026-11-08)', () => {
+    const [p1, p2] = participantRows([...LINES, line('9', 'p2', 'CAPITAL_TAKEN_EARLY', -14000, investor)]);
+    expect(p2.capitalTakenEarly).toBe(-14000);
+    expect(p2.share).toBe(20000);
+    expect(p2.payout).toBe(50000 + 20000 - 14000);
+    expect(p1.capitalTakenEarly).toBe(0);
+  });
+
+  it('a loss below the capital he took back early: what that capital accounts for is owed, the rest is the loss', () => {
+    // 20,000 capital, −25,000 loss share, 8,000 taken back: short 13,000, 8,000 of it owed.
+    const [p] = participantRows([
+      line('1', 'p2', 'CAPITAL_RETURN', 20000, investor),
+      line('2', 'p2', 'PROFIT_SHARE', -25000, investor),
+      line('3', 'p2', 'CAPITAL_TAKEN_EARLY', -8000, investor),
+    ]);
+    expect(p.owed).toBe(8000);
+    expect(p.payout).toBe(-5000);
+  });
+
+  it('capital taken back: its own column and card line only when someone took some', () => {
+    const { container } = renderIn('en', [...LINES, line('9', 'p2', 'CAPITAL_TAKEN_EARLY', -14000, investor)]);
+    expect([...container.querySelectorAll('th')].map((th) => th.textContent)).toContain(en.settlementsPage.capitalTakenBack);
+    cleanup();
+    const plain = renderIn('en');
+    expect(plain.container.textContent).not.toContain(en.settlementsPage.capitalTakenBack);
+  });
+
   it('a participant with no name or email has none, and no lines means no rows', () => {
     expect(participantRows(LINES)[2].name).toBeNull();
     expect(participantRows([])).toEqual([]);

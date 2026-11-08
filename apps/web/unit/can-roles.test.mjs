@@ -144,6 +144,8 @@ const ENDPOINTS = {
   'profitDraw.read': ['profit-draws/profit-draws.controller.ts', 'CycleProfitDrawsController', 'Get', ':id/profit-draws'],
   'profitDraw.take': ['profit-draws/profit-draws.controller.ts', 'CycleProfitDrawsController', 'Post', ':id/profit-draws'],
   'profitDraw.reverse': ['profit-draws/profit-draws.controller.ts', 'ProfitDrawsController', 'Post', ':id/reverse'],
+  'capitalBack.read': ['profit-draws/profit-draws.controller.ts', 'CycleProfitDrawsController', 'Get', ':id/capital-back'],
+  'capitalBack.take': ['profit-draws/profit-draws.controller.ts', 'CycleProfitDrawsController', 'Post', ':id/capital-back'],
 };
 
 test('every action names the endpoint it calls', () => {

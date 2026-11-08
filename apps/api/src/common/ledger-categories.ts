@@ -48,6 +48,11 @@ export * from './manual-ledger-categories';
  *   cycle was settled. Cash leaves, the cycle's profit does not change, and
  *   the settlement takes it off his payout — so like `settlement` it is
  *   neither an expense nor income.
+ * - `capital_back_early` (§8, 2026-11-08) is capital a participant took back
+ *   before his cycle was settled, out of what paid sales recovered. Cash
+ *   leaves; it is his own money coming back, not a cost — and not
+ *   `contribution`, whose rows must keep summing to what he put in, the
+ *   figure the profit split reads.
  * - `running_cost_share` (§8, L7) records a core partner's share of the
  *   general running costs being taken from his payout. The cost itself was an
  *   operating expense the day it was recorded; counting the deduction as well
@@ -69,6 +74,8 @@ export const CAPITALISED_CATEGORIES = [
   // common/profit-draws.ts): his profit paid early, as `settlement` is his
   // profit paid late — cash, but never a cost of the cycle.
   'profit_draw',
+  // Capital a participant took back before settlement (§8, 2026-11-08).
+  'capital_back_early',
 ] as const;
 
 /** A partner's share of running costs taken from his payout (§8, L7). */

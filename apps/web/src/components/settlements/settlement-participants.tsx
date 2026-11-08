@@ -41,6 +41,8 @@ export interface ParticipantRow {
   runningCosts: number;
   /** Profit he took before settlement, and anything owed from an earlier payout (§8, 2026-11-08), negative. */
   profitDrawn: number;
+  /** Capital he took back before settlement (§8, 2026-11-08), negative. */
+  capitalTakenEarly: number;
   /**
    * What his draws came to beyond this payout: owed, and taken off his next
    * payout — the payout shows 0, never below zero because of draws.
@@ -82,8 +84,11 @@ export function participantRows(lines: SettlementLine[]): ParticipantRow[] {
     const runningCosts = pick('RUNNING_COSTS');
     // Profit taken before settlement comes off the payout (§8, 2026-11-08).
     const profitDrawn = pick('PROFIT_DRAWN');
-    const payable = capital + share + feeReceived + runningCosts + profitDrawn;
-    const owed = owedAfterPayout(payable, -profitDrawn);
+    // Capital taken back early comes off his capital back, the split untouched.
+    const capitalTakenEarly = pick('CAPITAL_TAKEN_EARLY');
+    const payable =
+      capital + share + feeReceived + runningCosts + profitDrawn + capitalTakenEarly;
+    const owed = owedAfterPayout(payable, -(profitDrawn + capitalTakenEarly));
     return {
       key,
       name: nameOf(group[0]),
@@ -94,6 +99,7 @@ export function participantRows(lines: SettlementLine[]): ParticipantRow[] {
       fee: feeCharged + feeReceived,
       runningCosts,
       profitDrawn,
+      capitalTakenEarly,
       owed,
       // To the piastre: -3,000.10 + 3,000.10 must read 0, not -0.00.
       payout: Math.round((payable + owed) * 100) / 100 || 0,
@@ -140,6 +146,10 @@ export function SettlementParticipants({
   const anyDrawn = rows.some((r) => r.profitDrawn !== 0);
   const drawn = (r: ParticipantRow) =>
     r.profitDrawn === 0 ? '—' : <Money value={r.profitDrawn} />;
+  // Capital taken back before settlement: the same, a column only when any.
+  const anyCapitalEarly = rows.some((r) => r.capitalTakenEarly !== 0);
+  const capitalEarly = (r: ParticipantRow) =>
+    r.capitalTakenEarly === 0 ? '—' : <Money value={r.capitalTakenEarly} />;
   const payout = (r: ParticipantRow) => (
     <>
       <Money value={r.payout} />
@@ -178,6 +188,9 @@ export function SettlementParticipants({
       : []),
     ...(anyDrawn
       ? [{ key: 'drawn', header: t('profitTaken'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: drawn } satisfies Column<ParticipantRow>]
+      : []),
+    ...(anyCapitalEarly
+      ? [{ key: 'capitalEarly', header: t('capitalTakenBack'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: capitalEarly } satisfies Column<ParticipantRow>]
       : []),
     { key: 'payout', header: t('payout'), width: '9.25rem', kind: 'value', align: 'end', className: 'font-semibold text-foreground', cell: payout },
   ];
@@ -223,6 +236,12 @@ export function SettlementParticipants({
                 <div className="min-w-0">
                   <dt className="text-xs text-muted-foreground">{t('profitTaken')}</dt>
                   <dd className="whitespace-nowrap tabular-nums text-muted-foreground">{drawn(r)}</dd>
+                </div>
+              )}
+              {anyCapitalEarly && (
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">{t('capitalTakenBack')}</dt>
+                  <dd className="whitespace-nowrap tabular-nums text-muted-foreground">{capitalEarly(r)}</dd>
                 </div>
               )}
               <div className="min-w-0">

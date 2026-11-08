@@ -491,3 +491,46 @@ the options put to him: up to his **share of the profit already collected**; if 
 | Undo | Once, with a reason (`PROFIT_DRAW_REASON_REQUIRED`, `PROFIT_DRAW_ALREADY_REVERSED`); an INFLOW pointing at the original puts the cash back. Not once a paid settlement took it (`PROFIT_DRAW_SETTLED`); something owed is undone with its settlement only (`PROFIT_DRAW_CARRIED_NOT_REVERSIBLE`). | History is not rewritten (BRD 10). |
 | Reversing a settlement | Frees the draws it took (they stand again, to come off the next settlement) and undoes what it left owing — refused while a later paid settlement holds that (`SETTLEMENT_OWED_TAKEN_LATER`): reverse that one first. | Never a debt taken twice or lost. |
 | Two at once | The cycle, then the partner's account, locked for each draw; two draws against the same room cannot both pass. | Doubles are the second-time bug. |
+
+### Capital taken back before a cycle is settled — DECIDED 2026-11-08 (owner), on `dev` 2026-11-08, not shipped, details GUESSED where marked
+
+Owner 2026-11-08: "why am i allowed to take from profit only i have money as well, the money i put to purchase goods …
+so that money + profit − expenses, right?" — yes at settlement (capital back plus his share of a profit already net of
+expenses). Mid-cycle his capital is stock, customers' debt, or cash that paid sales brought back, and that cash is
+everyone's capital, investors' included, so no one takes his ahead of the others. Owner: "yes put todo", then "fetch and
+implement next".
+
+- **The recovered share** of a cycle = the cost of the goods customers have paid for ÷ the cycle's cost to fund
+  (`CostingService.fundingFor`, the Funding card's figure), never above 1. The cost paid for is each realised order's cost
+  from this cycle's batches, less cost given back by returns, times the share of that order paid — the dashboard's and
+  profit draws' own reading of "the share paid" (`paidAndValueOf`, rule 11; `common/capital-back-early.ts`).
+- **Each participant — core partners and temporary investors alike —** may take back up to the recovered share × what he
+  put in (rounded down to the piastre), less the capital he already took back early from that cycle and that stands.
+  DECIDED (owner's TODO) that investors take theirs too; GUESS: a partner records it for an investor, as for anyone
+  (any core partner records it for anyone on the cycle, the rule for profit draws).
+- **Cash, not profit:** one ledger row, category `capital_back_early` (OUTFLOW on the cycle, type
+  `CAPITAL_RETURN_EARLY`): cash on hand goes down; it is in CAPITALISED_CATEGORIES, so no profit, P&L or cycle profit
+  moves, and Analytics' cycle "investment" leaves it out. Not `contribution`: the contribution rows must keep summing to
+  what each put in (check-data 14.1).
+- **The split does not move.** Profit is split by contribution, so the contribution the split reads is never lowered by
+  an early return (otherwise the person who took his early would lose profit share). At settlement CAPITAL_RETURN is
+  still his whole contribution and a new negative line, **CAPITAL_TAKEN_EARLY**, takes off what he already has.
+- **A loss:** if his payout comes to less than the capital he took early (plus any profit drawn), the part those account
+  for is owed and carried to his next payout on any cycle (a `CARRIED` row, as for profit draws) — an investor too;
+  a loss beyond that is a negative payout, as it always was.
+- **The rules shared with profit draws:** amount above zero, two decimals, not dated forward (`DATE_IN_FUTURE`, field
+  `CAPITAL_TAKEN_BACK`); under the cycle's lock and the person's account lock; locked from the settlement's approval
+  (`PROFIT_DRAW_CYCLE_LOCKED`); undone once, with a reason, from the same endpoint (`POST /profit-draws/:id/reverse`),
+  never from the ledger; settled with the payout and freed when that settlement is reversed. A draft settlement whose
+  CAPITAL_TAKEN_EARLY lines no longer match is refused at approval and payment (`SETTLEMENT_STALE_DRAWS`).
+- **A contribution cannot drop below the capital taken back of it** that stands (`CONTRIBUTION_BELOW_CAPITAL_TAKEN_BACK`);
+  undo what was taken back first.
+- Refusals: `CAPITAL_BACK_NOT_ON_CYCLE` (not on the cycle), `CAPITAL_BACK_OVER_AVAILABLE` (with the share, his part, what
+  he took).
+- **Screens:** a "Capital back early" card on the cycle page under Profit taken — the share recovered, then per person
+  put in, his part recovered, taken back, can take now (investors tagged); Take capital back / Undo dialogs. The settlement
+  table gets a "Capital taken back" column and each payout's breakdown a line, only when someone took some.
+- GUESS: the cost to fund includes the expenses charged to the cycle, but the cost paid for counts only the goods' landed
+  cost — so even fully sold and paid the share is a little under 100% until settlement; the rest comes back then.
+- Check-data: 29/29.1 read capital rows as they read draws; 29.5 capital taken back above what he put in; 29.6 cash taken
+  back early with no capital row behind it.

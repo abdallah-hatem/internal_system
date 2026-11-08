@@ -73,12 +73,14 @@ import {
   deductionsFor,
   owedAfterPayout,
 } from '../../common/profit-draws';
+import { CAPITAL_TAKEN_EARLY_COMPONENT } from '../../common/capital-back-early';
 
 /**
  * What a participant is actually handed: capital back, their profit share
  * (already net of any fee charged to them), any fee they receive, and — since
  * L7 — less the running costs his payout took (RUNNING_COSTS, negative), and
- * since 2026-11-08 less the profit he already took (PROFIT_DRAWN, negative).
+ * since 2026-11-08 less the profit he already took (PROFIT_DRAWN, negative)
+ * and the capital he already took back (CAPITAL_TAKEN_EARLY, negative).
  *
  * The INVESTOR_FEE line is a memo of what was deducted — the deduction is
  * already inside that participant's PROFIT_SHARE. Counting it again makes the
@@ -91,6 +93,7 @@ const PAYABLE_COMPONENTS = [
   'INVESTOR_FEE_RECEIVED',
   'RUNNING_COSTS',
   PROFIT_DRAWN_COMPONENT,
+  CAPITAL_TAKEN_EARLY_COMPONENT,
 ];
 
 /**
@@ -798,24 +801,30 @@ export class SettlementsService {
         }
       }
 
-      // Profit each core partner already took (§8, 2026-11-08): off his
-      // payout, not off the cycle's profit — and anything he still owes from
-      // an earlier payout with it. Read under the cycle's lock, which a draw
-      // takes too.
-      const coreOf = coreParticipantByUser(participants);
-      const { byPartner } = await deductionsFor(tx, cycleId, [
-        ...coreOf.keys(),
+      // Profit each partner already took (§8, 2026-11-08): off his payout,
+      // not off the cycle's profit — and anything he still owes from an
+      // earlier payout with it; and the capital anyone took back early, off
+      // his capital back, the split untouched. Read under the cycle's lock,
+      // which a draw takes too.
+      const rowOf = participantByUser(participants);
+      const { byPartner, capitalByUser } = await deductionsFor(tx, cycleId, [
+        ...rowOf.keys(),
       ]);
-      for (const [userId, drawn] of byPartner) {
-        if (drawn.lte(0)) continue;
-        await tx.settlementLine.create({
-          data: {
-            settlementId: created.id,
-            participantId: coreOf.get(userId)!,
-            component: PROFIT_DRAWN_COMPONENT,
-            amount: drawn.neg(),
-          },
-        });
+      for (const [map, component] of [
+        [byPartner, PROFIT_DRAWN_COMPONENT],
+        [capitalByUser, CAPITAL_TAKEN_EARLY_COMPONENT],
+      ] as const) {
+        for (const [userId, taken] of map) {
+          if (taken.lte(0)) continue;
+          await tx.settlementLine.create({
+            data: {
+              settlementId: created.id,
+              participantId: rowOf.get(userId)!,
+              component,
+              amount: taken.neg(),
+            },
+          });
+        }
       }
 
       return tx.settlement.findUnique({
@@ -1081,8 +1090,7 @@ export class SettlementsService {
       const coreUsers = [
         ...new Set(
           settlement.lines
-            .filter((l) => l.participant.participantType === 'CORE_PARTNER')
-            .map((l) => l.participant.partnerUserId)
+            .map((l) => userOfParticipant(l.participant))
             .filter((u): u is string => !!u),
         ),
       ];
@@ -1110,23 +1118,26 @@ export class SettlementsService {
         )?.participant;
 
         // He took more than this payout comes to (§8, 2026-11-08: "they owe
-        // it back"): no cash comes in — it left with the draw — and what is
-        // left over comes off his next payout, on whichever cycle.
+        // it back"): no cash comes in — it left with the draw or the capital
+        // taken early — and what is left over comes off his next payout, on
+        // whichever cycle. An investor too.
         const drawn = settlement.lines
           .filter(
             (l) =>
               l.participantId === participantId &&
-              l.component === PROFIT_DRAWN_COMPONENT,
+              (l.component === PROFIT_DRAWN_COMPONENT ||
+                l.component === CAPITAL_TAKEN_EARLY_COMPONENT),
           )
           .reduce((s, l) => s.add(l.amount), new Prisma.Decimal(0))
           .neg();
         const owed = owedAfterPayout(net, drawn);
-        if (owed.gt(0) && participant?.partnerUserId) {
+        const owes = participant ? userOfParticipant(participant) : null;
+        if (owed.gt(0) && owes) {
           await tx.profitDraw.create({
             data: {
               kind: 'CARRIED',
               cycleId: null,
-              partnerUserId: participant.partnerUserId,
+              partnerUserId: owes,
               amountEgp: owed,
               drawnOn: new Date(`${businessToday()}T00:00:00Z`),
               carriedFromSettlementId: settlement.id,
@@ -1135,7 +1146,7 @@ export class SettlementsService {
             },
           });
           carried.push({
-            partnerUserId: participant.partnerUserId,
+            partnerUserId: owes,
             amount: owed.toFixed(2),
           });
           net = net.add(owed);
@@ -1631,28 +1642,41 @@ export class SettlementsService {
   }
 }
 
-/** Each core partner's row on the cycle, by user — where his draws are written. */
-function coreParticipantByUser(
+/** A participant's user: the partner's, or the investor's. */
+function userOfParticipant(p: {
+  partnerUserId: string | null;
+  investorUserId?: string | null;
+}): string | null {
+  return p.partnerUserId ?? p.investorUserId ?? null;
+}
+
+/**
+ * Each participant's row on the cycle, by user — where what he took early is
+ * written: profit drawn (core partners), capital taken back and anything owed
+ * (anyone).
+ */
+function participantByUser(
   participants: {
     id: string;
-    participantType: string;
     partnerUserId: string | null;
+    investorUserId?: string | null;
   }[],
 ): Map<string, string> {
   const out = new Map<string, string>();
   for (const p of participants) {
-    if (p.participantType !== 'CORE_PARTNER' || !p.partnerUserId) continue;
-    if (!out.has(p.partnerUserId)) out.set(p.partnerUserId, p.id);
+    const userId = userOfParticipant(p);
+    if (!userId) continue;
+    if (!out.has(userId)) out.set(userId, p.id);
   }
   return out;
 }
 
 /**
- * Refuse a settlement whose PROFIT_DRAWN lines no longer match the draws as
- * they stand (§8, 2026-11-08): profit taken or undone after it was
- * calculated, or something owed from another payout carried over or undone
- * since. Calculating again writes the lines afresh. Returns the draws it
- * takes off, for paying.
+ * Refuse a settlement whose PROFIT_DRAWN or CAPITAL_TAKEN_EARLY lines no
+ * longer match what was taken as it stands (§8, 2026-11-08): profit or capital
+ * taken or undone after it was calculated, or something owed from another
+ * payout carried over or undone since. Calculating again writes the lines
+ * afresh. Returns the rows it takes off, for paying.
  */
 async function assertDrawsCurrent(
   tx: Prisma.TransactionClient,
@@ -1664,31 +1688,46 @@ async function assertDrawsCurrent(
     select: {
       component: true,
       amount: true,
-      participant: { select: { participantType: true, partnerUserId: true } },
+      participant: { select: { partnerUserId: true, investorUserId: true } },
     },
   });
   const written = new Map<string, Prisma.Decimal>();
+  const writtenCapital = new Map<string, Prisma.Decimal>();
   const users = new Set<string>();
   for (const l of lines) {
-    const userId = l.participant.partnerUserId;
-    if (l.participant.participantType !== 'CORE_PARTNER' || !userId) continue;
+    const userId = userOfParticipant(l.participant);
+    if (!userId) continue;
     users.add(userId);
-    if (l.component !== PROFIT_DRAWN_COMPONENT) continue;
-    written.set(
+    const into =
+      l.component === PROFIT_DRAWN_COMPONENT
+        ? written
+        : l.component === CAPITAL_TAKEN_EARLY_COMPONENT
+          ? writtenCapital
+          : null;
+    if (!into) continue;
+    into.set(
       userId,
-      (written.get(userId) ?? new Prisma.Decimal(0)).add(
+      (into.get(userId) ?? new Prisma.Decimal(0)).add(
         new Prisma.Decimal(l.amount).neg(),
       ),
     );
   }
-  const { byPartner, drawIds } = await deductionsFor(tx, cycleId, [...users]);
+  const { byPartner, capitalByUser, drawIds } = await deductionsFor(
+    tx,
+    cycleId,
+    [...users],
+  );
+  const zero = new Prisma.Decimal(0);
   for (const userId of users) {
-    const now = byPartner.get(userId) ?? new Prisma.Decimal(0);
-    const then = written.get(userId) ?? new Prisma.Decimal(0);
-    if (!now.eq(then)) {
+    if (
+      !(byPartner.get(userId) ?? zero).eq(written.get(userId) ?? zero) ||
+      !(capitalByUser.get(userId) ?? zero).eq(
+        writtenCapital.get(userId) ?? zero,
+      )
+    ) {
       throw badRequest(
         'SETTLEMENT_STALE_DRAWS',
-        'Profit taken by a partner changed after this settlement was calculated. Calculate it again.',
+        'Profit or capital taken early changed after this settlement was calculated. Calculate it again.',
       );
     }
   }

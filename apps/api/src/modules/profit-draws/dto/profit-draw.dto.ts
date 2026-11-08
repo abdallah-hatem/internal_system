@@ -34,6 +34,29 @@ export class CreateProfitDrawDto {
   note?: string;
 }
 
+/**
+ * POST /cycles/:id/capital-back — a participant, partner or investor, takes
+ * part of his capital back before settlement.
+ */
+export class CreateCapitalBackDto {
+  @IsUUID('all')
+  userId: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Type(() => Number)
+  amountEgp: number;
+
+  /** The Cairo day he took it; today when left out. */
+  @IsOptional()
+  @IsDateString()
+  takenOn?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
 /** POST /profit-draws/:id/reverse — a reason travels with every undo (§9). */
 export class ReverseProfitDrawDto {
   @IsString()

@@ -149,6 +149,22 @@ function world() {
         rows.forEach((r) => Object.assign(r, data));
         return { count: rows.length };
       },
+      // Capital taken back early, read when a contribution is lowered (§8,
+      // 2026-11-08): a sum over the matching rows, null over none.
+      aggregate: async (args: Row) => {
+        const rows = all(args);
+        const fields = Object.keys((args._sum ?? {}) as Row);
+        return {
+          _sum: Object.fromEntries(
+            fields.map((f) => [
+              f,
+              rows.length === 0
+                ? null
+                : rows.reduce((s, r) => s + Number(r[f] ?? 0), 0),
+            ]),
+          ),
+        };
+      },
     };
   };
   const prisma: any = Object.fromEntries(

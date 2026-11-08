@@ -974,7 +974,9 @@
     "paidBy": "دفعه",
     "paidByBusiness": "النشاط",
     "paidByHint": "لا يخرج نقد من النشاط: يُضاف المبلغ إلى حساب {partner}، والنشاط مدين له به.",
-    "paidByTag": "دفعه {partner}"
+    "paidByTag": "دفعه {partner}",
+    "capitalBackEarly": "استرداد رأس مال مبكر",
+    "capitalBackEarlyReversal": "إلغاء استرداد رأس مال"
   },
   "settlements": {
     "title": "التسويات",
@@ -1420,7 +1422,9 @@
     "paidToHim": "المدفوع",
     "wouldBePaid": "المستحق",
     "runningCostsDay": "حصته من المصروفات العامة ({day})",
-    "costSamplesWrittenOff": "عينات مشطوبة"
+    "costSamplesWrittenOff": "عينات مشطوبة",
+    "capitalTakenBack": "رأس مال مسترد",
+    "capitalTakenBackLine": "رأس مال استُرد قبل التسوية"
   },
   "providers": {
     "title": "شركات الشحن",
@@ -1971,17 +1975,15 @@
     "CONTRIBUTION_ALREADY_LOWERED": "مساهمته في {cycle} هي {contribution} جنيه، أقل من {amount} جنيه التي أدخلها هذا القيد؛ خُفّضت يدوياً.",
     "PAYOUT_LEFT_IN_TWICE": "يترك كل شريك أرباحه مرة واحدة.",
     "PAYOUT_LEFT_IN_NOT_A_PARTNER": "فقط الشريك الأساسي في تسوية {cycle} يمكنه ترك أرباحه.",
-    "LIST_PAGE_INVALID": "رقم الصفحة غير صالح: {value}. أرقام الصفحات أعداد صحيحة من 1 إلى {max}.",
-    "LIST_PAGE_SIZE_INVALID": "يمكن أن تعرض الصفحة من 1 إلى {max} صفًا (المطلوب {value}).",
-    "LIST_SORT_UNKNOWN": "لا يمكن ترتيب هذه القائمة حسب \"{sort}\".",
-    "LIST_FILTER_INVALID": "لا يمكن أن يكون عامل التصفية {field} \"{value}\".",
-    "LIST_SEARCH_TOO_LONG": "يمكن أن يكون البحث {max} حرفًا على الأكثر (هذا البحث {length} حرفًا).",
     "INVESTOR_NAME_REQUIRED": "المستثمر يحتاج إلى اسم.",
     "INVESTOR_NAME_TOO_LONG": "اسم المستثمر لا يزيد عن {max} حرفاً.",
     "INVESTOR_NAME_TAKEN": "يوجد بالفعل شخص باسم {name} — اختره من القائمة.",
     "SPLIT_PARTICIPANT_NOT_ON_CYCLE": "هذا المشارك ليس في هذه الدورة.",
     "SPLIT_PARTICIPANT_TWICE": "تكرر أحد المشاركين في التقسيم.",
-    "SPLIT_PCT_INVALID": "يجب أن تكون حصة الربح نسبة من 0 إلى 100، بأربعة أرقام عشرية على الأكثر."
+    "SPLIT_PCT_INVALID": "يجب أن تكون حصة الربح نسبة من 0 إلى 100، بأربعة أرقام عشرية على الأكثر.",
+    "CAPITAL_BACK_NOT_ON_CYCLE": "ليس لـ {partner} رأس مال في {cycle} ليسترده.",
+    "CAPITAL_BACK_OVER_AVAILABLE": "أقصى ما يمكن أن يسترده {partner} من {cycle} الآن هو {available} ج.م: استردت المبيعات المدفوعة {pct}% من تكلفتها — {recovered} ج.م من {contribution} ج.م وضعها — وقد استرد {taken} ج.م.",
+    "CONTRIBUTION_BELOW_CAPITAL_TAKEN_BACK": "استُرد {taken} ج.م من رأس المال هذا مبكرًا، فلا يمكن أن تقل المساهمة عنه. ألغِ الاسترداد أولًا."
   },
   "requests": {
     "tabs": {
@@ -2239,7 +2241,9 @@
       "SAMPLES_RETURNED": "رجعت العينات",
       "SAMPLES_WRITTEN_OFF": "شُطبت العينات",
       "PRICE_ADJUSTED": "تخفيض السعر",
-      "ASSISTANT_CHAT": "سؤال للمساعد"
+      "ASSISTANT_CHAT": "سؤال للمساعد",
+      "CAPITAL_BACK_EARLY": "استرداد رأس مال",
+      "CAPITAL_BACK_REVERSE": "إلغاء استرداد رأس مال"
     },
     "entityType": {
       "ProfitDraw": "أرباح مسحوبة",
@@ -2296,7 +2300,8 @@
       "PRICE_ADJUSTED": "تاريخ تخفيض السعر",
       "ADVANCE_PAID": "تاريخ دفع الشريك للمورد",
       "ACCOUNT_WITHDRAWN": "تاريخ السحب من الحساب",
-      "ACCOUNT_CONTRIBUTED": "تاريخ المساهمة من الحساب"
+      "ACCOUNT_CONTRIBUTED": "تاريخ المساهمة من الحساب",
+      "CAPITAL_TAKEN_BACK": "تاريخ استرداد رأس المال"
     },
     "country": {
       "CN": "الصين",
@@ -2340,7 +2345,8 @@
       "revenue": "مبيعات",
       "refund": "رد مبلغ لعميل",
       "cycle_transfer": "بضاعة متبقية نُقلت بين الدورات",
-      "running_cost_share": "حصة الشريك من المصروفات العامة"
+      "running_cost_share": "حصة الشريك من المصروفات العامة",
+      "capital_back_early": "رأس مال استُرد قبل التسوية"
     },
     "ledgerKind": {
       "EXPENSE": "مصروفًا",
@@ -3105,5 +3111,44 @@
     "newInvestor": "مستثمر جديد",
     "investorName": "الاسم",
     "newInvestorHint": "المستثمرون لا يسجّلون الدخول، فالاسم وحده يكفي."
+  },
+  "capitalBack": {
+    "title": "استرداد رأس المال مبكرًا",
+    "recovered": "ما استُرد من التكلفة حتى الآن",
+    "recoveredOf": "<amount></amount> من <total></total> تكلفة تمويلها",
+    "recoveredHint": "تكلفة البضاعة التي دفع العملاء ثمنها. يحق لكل مشارك — شريكًا كان أو مستثمرًا — أن يسترد هذه النسبة مما وضعه؛ ولا يتغير الربح ولا نصيب أحد منه.",
+    "investor": "مستثمر",
+    "colPutIn": "ما وضعه",
+    "colRecovered": "نصيبه المسترد",
+    "colTaken": "استرده",
+    "colAvailable": "يمكنه استرداده الآن",
+    "take": "استرداد رأس المال",
+    "takeTitle": "استرداد رأس المال",
+    "takeHint": "يخرج النقد من الشركة الآن. لا يتغير الربح ولا التقسيم؛ وعند التسوية يُدفع له باقي رأس ماله.",
+    "person": "من",
+    "amount": "المبلغ (ج.م)",
+    "max": "الحد الأقصى <amount></amount>",
+    "takeAll": "استرداد كل المتاح",
+    "date": "تاريخ الاسترداد",
+    "note": "ملاحظة",
+    "overAvailable": "أقصى ما يمكن أن يسترده {name} الآن هو {max}.",
+    "notPositive": "يجب أن يكون المبلغ أكبر من صفر.",
+    "nothingAvailable": "لا يوجد ما يسترده {name} الآن.",
+    "saved": "تم تسجيل استرداد رأس المال لـ {name}",
+    "failed": "تعذر تسجيل استرداد رأس المال",
+    "historyHeading": "ما استُرد حتى الآن",
+    "noneYet": "لم يسترد أحد رأس مال من هذه الدورة بعد.",
+    "reversed": "أُلغي",
+    "reversedReason": "أُلغي: {reason}",
+    "settled": "خُصم من رأس ماله المرتجع",
+    "undo": "إلغاء",
+    "undoTitle": "إلغاء استرداد رأس المال",
+    "undoHint": "<amount></amount> استردها {name} في {day} تعود إلى نقدية الشركة. اذكر السبب.",
+    "reason": "السبب",
+    "undoSaved": "أُلغي استرداد رأس المال",
+    "locked": "لا يمكن الاسترداد أو الإلغاء: {reason}.",
+    "loadFailed": "تعذر تحميل استرداد رأس المال",
+    "retry": "حاول مرة أخرى",
+    "noPeople": "لم يضع أحد رأس مال في هذه الدورة."
   }
 }

@@ -641,16 +641,18 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          JOIN financial_transactions f ON f.id = r.reversal_of_id
    WHERE r.paid_by_user_id IS DISTINCT FROM f.paid_by_user_id
   -- Profit taken before settlement (BUSINESS_LOGIC §8, 2026-11-08).
-  UNION ALL SELECT 29, 'profit draw whose cash row is missing, another amount, or on another cycle',
+  -- Capital taken back early (same day) is a CAPITAL row, read alike.
+  UNION ALL SELECT 29, 'profit or capital taken early whose cash row is missing, another amount, or on another cycle',
          count(*) FROM profit_draws d
-   WHERE d.kind='DRAW'
+   WHERE d.kind IN ('DRAW','CAPITAL')
      AND NOT EXISTS (SELECT 1 FROM financial_transactions f
-                      WHERE f.id=d.ledger_entry_id AND f.category='profit_draw'
+                      WHERE f.id=d.ledger_entry_id
+                        AND f.category=CASE d.kind WHEN 'DRAW' THEN 'profit_draw' ELSE 'capital_back_early' END
                         AND f.direction='OUTFLOW' AND f.amount=d.amount_egp
                         AND f.cycle_id=d.cycle_id AND f.related_id=d.id)
-  UNION ALL SELECT 29.1, 'undone profit draw whose cash was not put back, or put back twice',
+  UNION ALL SELECT 29.1, 'undone profit or capital taken early whose cash was not put back, or put back twice',
          count(*) FROM profit_draws d
-   WHERE d.kind='DRAW' AND d.reversed_at IS NOT NULL
+   WHERE d.kind IN ('DRAW','CAPITAL') AND d.reversed_at IS NOT NULL
      AND (SELECT count(*) FROM financial_transactions f
            WHERE f.reversal_of_id=d.ledger_entry_id AND f.direction='INFLOW') <> 1
   UNION ALL SELECT 29.2, 'profit draw settled by a settlement that is not paid',
@@ -661,6 +663,20 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
    WHERE d.kind='CARRIED' AND d.reversed_at IS NULL AND s.status <> 'PAID'
   UNION ALL SELECT 29.4, 'profit draw both undone and taken off a payout',
          count(*) FROM profit_draws WHERE reversed_at IS NOT NULL AND settled_by_id IS NOT NULL
+  UNION ALL SELECT 29.5, 'capital taken back early above what he put in',
+         count(*) FROM (
+           SELECT d.cycle_id, d.partner_user_id, sum(d.amount_egp) AS taken
+             FROM profit_draws d
+            WHERE d.kind='CAPITAL' AND d.reversed_at IS NULL
+            GROUP BY d.cycle_id, d.partner_user_id) t
+         LEFT JOIN cycle_participants p ON p.cycle_id = t.cycle_id
+              AND t.partner_user_id IN (p.partner_user_id, p.investor_user_id)
+   WHERE p.id IS NULL OR t.taken > p.contribution_amount
+  UNION ALL SELECT 29.6, 'cash taken back early with no capital row behind it',
+         count(*) FROM financial_transactions f
+   WHERE f.category='capital_back_early' AND f.reversal_of_id IS NULL
+     AND NOT EXISTS (SELECT 1 FROM profit_draws d
+                      WHERE d.ledger_entry_id=f.id AND d.kind='CAPITAL')
   -- Running costs shared to the selling cycles (BUSINESS_LOGIC §8, 2026-11-08).
   UNION ALL SELECT 30, 'running cost whose shared parts do not add up to it',
          count(*) FROM financial_transactions f

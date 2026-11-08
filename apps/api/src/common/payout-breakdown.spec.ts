@@ -191,6 +191,45 @@ describe('buildPayoutBreakdown — every figure from the settlement itself', () 
     }
   });
 
+  it('capital taken back early: its own line off what he is paid, the split untouched (§8, 2026-11-08)', () => {
+    const lines = [
+      ...LINES,
+      line('i', 'TEMP_INVESTOR', 'CAPITAL_TAKEN_EARLY', -5000),
+    ];
+    const i = build({ lines }).participants.find(
+      (p) => p.participantId === 'i',
+    )!;
+    expect(i).toMatchObject({
+      sharePct: '40.00',
+      capitalBackEgp: '20000.00',
+      capitalTakenEarlyEgp: '-5000.00',
+      owedEgp: '0.00',
+      paidEgp: '27240.00',
+    });
+    const a = build({ lines }).participants.find(
+      (p) => p.participantId === 'a',
+    )!;
+    expect(a.capitalTakenEarlyEgp).toBe('0.00');
+  });
+
+  it('a loss below what he took back early: the part his capital taken accounts for is owed', () => {
+    const lines: Line[] = [
+      line('j', 'TEMP_INVESTOR', 'CAPITAL_RETURN', 20000),
+      line('j', 'TEMP_INVESTOR', 'PROFIT_SHARE', -25000),
+      line('j', 'TEMP_INVESTOR', 'CAPITAL_TAKEN_EARLY', -8000),
+    ];
+    const j = build({
+      settlement: { ...SETTLEMENT, grossProfitEgp: D(-50000) },
+      lines,
+    }).participants[0];
+    // 20,000 − 25,000 − 8,000 = −13,000: 8,000 of it owed, 5,000 the loss.
+    expect(j).toMatchObject({
+      capitalTakenEarlyEgp: '-8000.00',
+      owedEgp: '8000.00',
+      paidEgp: '-5000.00',
+    });
+  });
+
   it('the partners’ shares add up to the cycle’s profit', () => {
     const total = build().participants.reduce(
       (s, p) => s.add(p.profitShareEgp),
