@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { sharedRunningCosts } from '../../common/running-cost-allocation';
 import { PROFIT_DRAW_CATEGORY } from '../../common/profit-draws';
 import { stockValueEgp } from '../../common/stock-value';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -1708,6 +1709,11 @@ export class AnalyticsService {
       string,
       { units: Prisma.Decimal; value: Prisma.Decimal }
     >();
+    // Each cycle's part of the running costs (§8, 2026-11-08).
+    const sharedByCycle = await sharedRunningCosts(
+      this.prisma,
+      cycles.map((c) => c.id),
+    );
     const exchangeByCycle = new Map<string, Prisma.Decimal>();
     for (const c of withStock) {
       lossesByCycle.set(
@@ -1803,7 +1809,11 @@ export class AnalyticsService {
       // as settlement reads them (L6, rule 11). This figure used to leave
       // them out, so a cycle's page and its settlement disagreed by exactly
       // the cycle's expenses.
-      const expenses = netOperatingExpenseEgp(cycle.financialTransactions);
+      // And its part of the running costs (§8, 2026-11-08), as settlement
+      // reads it.
+      const expenses = netOperatingExpenseEgp(cycle.financialTransactions).add(
+        sharedByCycle.get(cycle.id)?.totalEgp ?? 0,
+      );
       const otherIncome = netOtherIncomeEgp(cycle.financialTransactions);
       const profit = revenue
         .sub(cogs)

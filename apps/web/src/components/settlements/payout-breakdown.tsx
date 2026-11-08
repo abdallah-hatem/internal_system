@@ -12,9 +12,10 @@ import { ExchangeAccountLine } from '@/components/lenders/exchange-result';
  *
  * The settlement card used to show one "Expenses" figure. This lays the same
  * money out line by line — the cycle's revenue, the cost of the goods, each
- * cost by kind, its profit; then for each participant his share, the
- * investor's fee, capital back, his share of the running costs and what he is
- * paid. Every figure comes from the API (`breakdown` on a settlement, read from
+ * cost by kind (running costs shared to the cycle among them), its profit;
+ * then for each participant his share, the investor's fee, capital back, his
+ * share of the running costs on a payout that took them before 2026-11-08,
+ * and what he is paid. Every figure comes from the API (`breakdown` on a settlement, read from
  * the settlement's own projection); nothing is worked out here, so it cannot
  * disagree with what was paid.
  *
@@ -24,7 +25,12 @@ import { ExchangeAccountLine } from '@/components/lenders/exchange-result';
  */
 
 export interface CycleCostLine {
-  kind: 'charge' | 'loss' | 'exchange' | 'recovery' | 'otherIncome';
+  /**
+   * `shared`: the cycle's part of the running costs recorded with no cycle
+   * while it was selling (§8, 2026-11-08), by ledger category — a cost like
+   * `charge`.
+   */
+  kind: 'charge' | 'loss' | 'exchange' | 'recovery' | 'otherIncome' | 'shared';
   category: string | null;
   amountEgp: string;
 }
@@ -40,6 +46,11 @@ export interface ParticipantPayout {
   runningCostsEgp: string;
   runningCostsFrom: string | null;
   runningCostsTo: string | null;
+  /**
+   * Running costs left partners' payouts until 2026-11-08 (§8): `charged` and
+   * `released` are those old payouts' stored lines. `projected` is no longer
+   * sent — they are now a cost inside the cycle — and is not shown.
+   */
   runningCostsStatus: 'charged' | 'projected' | 'released' | 'none';
   /**
    * Profit he took before settlement, and anything he still owed from an
@@ -191,6 +202,8 @@ export function PayoutBreakdownView({
         return t('costRecovery', { category });
       case 'otherIncome':
         return t('costOtherIncome', { category });
+      case 'shared':
+        return t('costShared', { category });
       default:
         return category;
     }
@@ -263,7 +276,9 @@ export function PayoutBreakdownView({
                   <Line label={t('investorFeeReceived')} amount={num(p.feeReceivedEgp)} />
                 )}
                 <Line label={t('capitalBack')} amount={num(p.capitalBackEgp)} />
-                {p.runningCostsStatus !== 'none' && (
+                {/* Only a payout that took them (before 2026-11-08) has this line;
+                    an open settlement no longer promises a deduction (§8). */}
+                {(p.runningCostsStatus === 'charged' || p.runningCostsStatus === 'released') && (
                   <Line
                     label={
                       p.runningCostsFrom && p.runningCostsTo
@@ -273,13 +288,7 @@ export function PayoutBreakdownView({
                         : t('runningCostsLine')
                     }
                     amount={running}
-                    note={
-                      p.runningCostsStatus === 'projected'
-                        ? t('runningCostsProjected')
-                        : p.runningCostsStatus === 'released'
-                          ? t('runningCostsReleased')
-                          : undefined
-                    }
+                    note={p.runningCostsStatus === 'released' ? t('runningCostsReleased') : undefined}
                   />
                 )}
                 {num(p.profitDrawnEgp ?? 0) !== 0 && (

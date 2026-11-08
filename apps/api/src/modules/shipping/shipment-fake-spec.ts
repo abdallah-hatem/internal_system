@@ -333,26 +333,37 @@ export function fakePrisma(db: Store) {
           if (v !== undefined) c[k] = v;
         return after(c);
       },
-      // Analytics' cycle profitability: the shape it selects, no more.
-      findMany: () =>
+      // Analytics' cycle profitability: the shape it selects, no more. A
+      // status asked for (the cycles taking running costs, §8) is honoured.
+      findMany: ({ where }: Row = {}) =>
         after(
-          db.cycles.map((c) => ({
-            ...c,
-            financialTransactions: db.ledger.filter((t) => t.cycleId === c.id),
-            inventoryBatches: db.batches
-              .filter((b) => b.cycleId === c.id)
-              .map((b) => ({
-                ...b,
-                saleItemAllocations: db.allocations
-                  .filter((a) => a.inventoryBatchId === b.id && realised(a))
-                  .map((a) => ({
-                    ...a,
-                    saleItem: db.saleItems.find((i) => i.id === a.saleItemId),
-                  })),
-                returnItems: [],
-                priceAdjustmentItems: [],
-              })),
-          })),
+          db.cycles
+            .filter(
+              (c) =>
+                !where?.status ||
+                (typeof where.status === 'string'
+                  ? c.status === where.status
+                  : !where.status.in || where.status.in.includes(c.status)),
+            )
+            .map((c) => ({
+              ...c,
+              financialTransactions: db.ledger.filter(
+                (t) => t.cycleId === c.id,
+              ),
+              inventoryBatches: db.batches
+                .filter((b) => b.cycleId === c.id)
+                .map((b) => ({
+                  ...b,
+                  saleItemAllocations: db.allocations
+                    .filter((a) => a.inventoryBatchId === b.id && realised(a))
+                    .map((a) => ({
+                      ...a,
+                      saleItem: db.saleItems.find((i) => i.id === a.saleItemId),
+                    })),
+                  returnItems: [],
+                  priceAdjustmentItems: [],
+                })),
+            })),
         ),
     },
     purchaseOrderItem: {
@@ -904,6 +915,12 @@ export function fakePrisma(db: Store) {
       create: ({ data }: Row) => after(data),
       deleteMany: () => after({ count: 0 }),
       findMany: () => after([]),
+    },
+    // Running costs shared to selling cycles (§8, 2026-11-08): none here.
+    runningCostAllocation: {
+      findMany: () => after([]),
+      create: ({ data }: Row) => after(data),
+      deleteMany: () => after({ count: 0 }),
     },
     // Profit taken before settlement (§8, 2026-11-08): none in these worlds.
     profitDraw: {

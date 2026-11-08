@@ -9,39 +9,37 @@ import { businessToday } from '@/lib/dates';
 import { useCodeLabel } from '@/lib/labels';
 import { useNumberFormat } from '@/lib/numbers';
 import { Money } from '@/components/ui/money';
-import { DataTable } from '@/components/ui/data-table';
+import { LatinText } from '@/components/ui/latin-text';
+import { Link } from '@/i18n/navigation';
 import { Select } from '@/components/ui/select';
 
 /**
  * Running costs on the Partners page (BUSINESS_LOGIC §8, owner 2026-10-11;
- * built L7).
+ * built L7; reworked 2026-11-08).
  *
- * Costs with no cycle — rent, salaries, power — are the active core partners',
- * equally, and come out of their payouts. For the period chosen this shows what
- * was spent by category, what payouts have taken, what is still waiting, and
- * each core partner's share. Every figure is the API's
- * (`GET /settlements/running-costs`), worked out by the same arithmetic Mark
- * paid runs; nothing is added up here.
+ * Costs with no cycle — rent, fuel, packaging — are shared equally to the
+ * cycles running when each is recorded — goods paid for, not yet settled (or
+ * wait for the next cycle whose goods are paid for). On that cycle they are a cost inside its profit, so everyone in it
+ * bears them by share, investors too. For the period chosen this shows what
+ * was spent by category, what went to which cycle, what still waits for a
+ * running cycle and, as history, what partners' payouts took before the
+ * change. Every figure is the API's (`GET /settlements/running-costs`);
+ * nothing is added up here.
  */
 
 export interface RunningCostsSummary {
   from: string | null;
   to: string | null;
   spentEgp: string;
+  /** Shared to cycles: a cost inside their profit. */
+  sharedEgp: string;
+  /** Taken from partners' payouts before 2026-11-08 — history only. */
   chargedEgp: string;
+  /** No cycle running yet: goes to the next one whose goods are paid for. */
   waitingEgp: string;
   waitingAllTimeEgp: string;
   byCategory: { category: string; spentEgp: string }[];
-  partners: {
-    userId: string;
-    name: string | null;
-    shareEgp: string;
-    chargedEgp: string;
-    waitingEgp: string;
-    takesResidual: boolean;
-    /** False for a partner who left and still owes his fixed share (§8, review 2026-10-12). */
-    active?: boolean;
-  }[];
+  cycles: { cycleId: string; code: string; status: string; sharedEgp: string }[];
 }
 
 export type PeriodKey = 'month' | 'quarter' | 'lastQuarter' | 'year' | 'all';
@@ -98,8 +96,9 @@ export function RunningCostsSection() {
         .then((r) => r.data.data ?? r.data),
   });
 
-  const residual = data?.partners.find((p) => p.takesResidual);
   const nothingSpent = data && Number(data.spentEgp) === 0;
+  const waiting = data ? Number(data.waitingEgp) : 0;
+  const charged = data ? Number(data.chargedEgp) : 0;
 
   return (
     <section data-testid="running-costs" className="rounded-xl border border-border bg-card p-5">
@@ -123,8 +122,8 @@ export function RunningCostsSection() {
 
       {isLoading || !data ? (
         <SkeletonRegion className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {repeat(3, (i) => <FigureSkeleton key={i} />)}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {repeat(2, (i) => <FigureSkeleton key={i} />)}
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             {repeat(2, (i) => (
@@ -144,10 +143,27 @@ export function RunningCostsSection() {
         </SkeletonRegion>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {/* Waiting, and what payouts took before 2026-11-08, only when there
+              is any: most periods have neither, and a zero reads as a figure. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
             <Figure testId="running-costs-spent" label={t('spent')} value={data.spentEgp} />
-            <Figure testId="running-costs-taken" label={t('taken')} value={data.chargedEgp} />
-            <Figure testId="running-costs-waiting" label={t('waiting')} value={data.waitingEgp} tone="text-foreground" />
+            <Figure testId="running-costs-shared" label={t('sharedToCycles')} value={data.sharedEgp} />
+            {waiting > 0 && (
+              <Figure
+                testId="running-costs-waiting"
+                label={t('waitingForCycle')}
+                value={data.waitingEgp}
+                hint={t('waitingForCycleHint')}
+              />
+            )}
+            {charged > 0 && (
+              <Figure
+                testId="running-costs-charged"
+                label={t('chargedBefore')}
+                value={data.chargedEgp}
+                tone="text-muted-foreground"
+              />
+            )}
           </div>
 
           {nothingSpent ? (
@@ -167,80 +183,45 @@ export function RunningCostsSection() {
                   ))}
                 </dl>
               </div>
-              {/* Phone: a card per partner, every amount labelled — four columns of
-                  money do not fit 390px (UI review, L7). */}
-              <ul data-testid="running-costs-partner-cards" className="divide-y divide-border text-sm sm:hidden">
-                {data.partners.map((p) => (
-                  <li key={p.userId} className="py-2">
-                    <p className="font-medium text-foreground">
-                      <bdi>{p.name ?? '—'}</bdi>
-                      {p.active === false && <Left label={t('leftPartner')} />}
-                    </p>
-                    <dl className="mt-1 grid grid-cols-3 gap-2">
-                      {[
-                        [t('share'), p.shareEgp],
-                        [t('taken'), p.chargedEgp],
-                        [t('waiting'), p.waitingEgp],
-                      ].map(([label, value]) => (
-                        <div key={label} className="min-w-0">
-                          <dt className="text-[11px] text-muted-foreground">{label}</dt>
-                          <dd className="whitespace-nowrap text-xs tabular-nums text-foreground"><Money value={value} /></dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </li>
-                ))}
-              </ul>
-              {/* The shared table (components/ui/data-table.tsx): the name takes
-                  what is left; the amounts fit "123,456.00 EGP" and never cut. */}
-              <DataTable
-                className="hidden sm:block"
-                frame="none"
-                density="compact"
-                autoMin="8rem"
-                tableTestId="running-costs-partners"
-                rows={data.partners}
-                rowKey={(p) => p.userId}
-                columns={[
-                  {
-                    key: 'name', header: t('name'), width: 'auto', kind: 'name', className: 'text-foreground',
-                    title: (p) => p.name,
-                    cell: (p) => (
-                      <>
-                        <bdi>{p.name ?? '—'}</bdi>
-                        {p.active === false && <Left label={t('leftPartner')} />}
-                      </>
-                    ),
-                  },
-                  { key: 'share', header: t('share'), width: '7.5rem', kind: 'value', align: 'end', cell: (p) => <Money value={p.shareEgp} /> },
-                  { key: 'taken', header: t('taken'), width: '8.5rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: (p) => <Money value={p.chargedEgp} /> },
-                  { key: 'waiting', header: t('waiting'), width: '8rem', kind: 'value', align: 'end', className: 'text-foreground', cell: (p) => <Money value={p.waitingEgp} /> },
-                ]}
-              />
+              <div>
+                <h3 className="mb-2 text-xs font-medium text-muted-foreground">{t('sharedToCycles')}</h3>
+                {data.cycles.length === 0 ? (
+                  <p data-testid="running-costs-no-cycles" className="py-1.5 text-sm text-muted-foreground">
+                    {t('noCyclesShared')}
+                  </p>
+                ) : (
+                  <dl data-testid="running-costs-cycles" className="divide-y divide-border text-sm">
+                    {data.cycles.map((c) => (
+                      <div key={c.cycleId} className="flex items-baseline justify-between gap-3 py-1.5">
+                        <dt className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                          <Link
+                            href={`/cycles/${c.cycleId}/details`}
+                            className="cursor-pointer font-mono font-medium text-primary underline-offset-2 hover:underline"
+                          >
+                            <LatinText>{c.code}</LatinText>
+                          </Link>
+                          <span className="text-xs text-muted-foreground">{codeLabel('cycleStatus', c.status)}</span>
+                        </dt>
+                        <dd className="whitespace-nowrap tabular-nums text-foreground">
+                          <Money value={c.sharedEgp} />
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </div>
             </div>
           )}
 
-          {residual?.name && (
-            <p data-testid="running-costs-residual" className="text-xs text-muted-foreground">
-              {t('residualNote', { name: residual.name })}
+          {Number(data.waitingAllTimeEgp) > 0 && (
+            <p data-testid="running-costs-all-waiting" className="text-xs text-muted-foreground">
+              {/* Isolated left-to-right inside the sentence, as <Money> does (§11). */}
+              {t('waitingAllTime', { amount: `⁦${formatMoney(data.waitingAllTimeEgp)}⁩` })}
             </p>
           )}
-          <p data-testid="running-costs-all-waiting" className="text-xs text-muted-foreground">
-            {/* Isolated left-to-right inside the sentence, as <Money> does (§11). */}
-            {t('waitingAllTime', { amount: `\u2066${formatMoney(data.waitingAllTimeEgp)}\u2069` })}
-          </p>
         </div>
       )}
     </section>
-  );
-}
-
-/** A partner who left keeps owing his share; it is still his (§8). */
-function Left({ label }: { label: string }) {
-  return (
-    <span data-testid="running-costs-left" className="ms-2 text-[11px] font-normal text-muted-foreground">
-      {label}
-    </span>
   );
 }
 
@@ -258,11 +239,13 @@ function Figure({
   label,
   value,
   tone = 'text-foreground',
+  hint,
   testId,
 }: {
   label: string;
   value: string;
   tone?: string;
+  hint?: string;
   testId: string;
 }) {
   return (
@@ -271,6 +254,7 @@ function Figure({
       <p className={`mt-0.5 text-lg font-semibold tabular-nums ${tone}`}>
         <Money value={value} />
       </p>
+      {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

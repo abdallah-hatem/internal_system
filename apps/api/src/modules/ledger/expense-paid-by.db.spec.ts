@@ -17,6 +17,7 @@ import { cashPosition } from '../../common/cash-position';
 import { loadRunningCosts } from '../../common/running-costs';
 import { businessToday } from '../../common/dates';
 import { LedgerService } from './ledger.service';
+import { quietRunningCosts } from '../../common/running-costs-quiet-spec';
 
 /**
  * "Paid by" on an expense (BUSINESS_LOGIC §9, owner 2026-10-26, built
@@ -45,6 +46,9 @@ const daysAhead = (n: number) =>
   new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 
 suite('"Paid by" on an expense (Postgres)', () => {
+  // Analytics reads every cycle in the throwaway database; it grows run by run.
+  jest.setTimeout(60_000);
+
   let prisma: PrismaClient;
   let ledger: LedgerService;
   let accounts: PartnerAccountsService;
@@ -80,7 +84,12 @@ suite('"Paid by" on an expense (Postgres)', () => {
     ledger = new LedgerService(db, audit);
     actor = (await partner('Actor')).id;
   });
-  afterAll(() => prisma.$disconnect());
+  // Its costs with no cycle wait for a selling cycle (§8, 2026-11-08): park
+  // them, so the next suite's cycles do not take them.
+  afterAll(async () => {
+    await quietRunningCosts(prisma);
+    await prisma.$disconnect();
+  });
 
   // ─── Fixtures ───────────────────────────────────────────────────────
 
@@ -357,7 +366,7 @@ suite('"Paid by" on an expense (Postgres)', () => {
     expect(await balanceOf(shady)).toBe('250.00');
   });
 
-  it('the Fuel quick action’s entry (fuel, no cycle): a running cost with the same shares as the business paying it, his account credited, no cash', async () => {
+  it('the Fuel quick action’s entry (fuel, no cycle): a running cost shared like the business paying it, his account credited, no cash', async () => {
     const { people } = await cycleWithPartners();
     const shady = people[1].id;
     const cash0 = await cashPosition(prisma);
@@ -369,15 +378,21 @@ suite('"Paid by" on an expense (Postgres)', () => {
     const cash1 = await cashPosition(prisma);
     expect(cash1.cashOnHand.sub(cash0.cashOnHand).toString()).toBe('-300');
 
-    const shares = async (id: string) =>
+    // Shared to the cycles selling, or waiting, exactly as the business's own
+    // fuel is (§8, 2026-11-08) — never the old partners-only shares.
+    const parts = async (id: string) =>
       (
-        await prisma.runningCostShare.findMany({
+        await prisma.runningCostAllocation.findMany({
           where: { costEntryId: id },
-          orderBy: { partnerUserId: 'asc' },
+          orderBy: { cycleId: 'asc' },
         })
-      ).map((s) => [s.partnerUserId, s.amount.toFixed(2)]);
-    expect((await shares(mine.id)).length).toBeGreaterThan(0);
-    expect(await shares(mine.id)).toEqual(await shares(theirs.id));
+      ).map((s) => [s.cycleId, s.amountEgp.toFixed(2)]);
+    expect(await parts(mine.id)).toEqual(await parts(theirs.id));
+    expect(
+      await prisma.runningCostShare.count({
+        where: { costEntryId: { in: [mine.id, theirs.id] } },
+      }),
+    ).toBe(0);
     const { costs } = await loadRunningCosts(prisma);
     const cost = costs.find((c) => c.id === mine.id)!;
     expect(cost.amount.toFixed(2)).toBe('300.00');

@@ -117,7 +117,7 @@ Settled while building it (L5, autonomous run 2026-10-11) — **guesses, each OP
 | "Start a new cycle for them" | Opens the cycle wizard (`?leftoversFrom=`); once the new cycle exists, a link goes back to the giving cycle's page with Move leftovers open and the new cycle chosen. There is one Move form. | A cycle has no honest minimal form (CLAUDE.md §13). |
 | The dialog's default | Every product starts at all of it on the shelf; a number typed is never overwritten. | The usual case is moving everything. |
 
-**DECIDED 2026-10-11 (owner) — general running costs are the three core partners', equally, and come out of
+**SUPERSEDED 2026-11-08 (see "investors pay for every cost too" below) — was DECIDED 2026-10-11 (owner): general running costs are the three core partners', equally, and come out of
 their payouts.** *Built 2026-10-12 (L7): API, screens, unit, component and browser tests (99-running-costs, 34 TC-INV-59..64, 79 TC-RP-10).* An expense recorded with no cycle (rent, salaries, utilities…) is shared equally by
 the active core partners; temporary investors never share it. It does **not** change any cycle's profit — that stays
 the shipment's own. Instead, when a settlement is paid out, each core partner's third of the running costs recorded
@@ -126,7 +126,20 @@ payout took it; what a payout cannot cover carries to the next one; reversing th
 back to waiting. They live on the Partners page as **Running costs**: what was spent, what has been taken from
 payouts, what is still waiting.
 
-**DECIDED 2026-11-08 (owner) — investors pay for every cost too.** "No investor has to pay for everything as well, fuel, packaging etc... its all one process." So a running cost recorded with no cycle, shared by the core partners alone (the rule below), is not what the business does. Until the code changes: record every expense on the cycle it belongs to, so it comes off that cycle's profit and every participant, investors included, bears it by share. Production holds no standing no-cycle expense (checked 2026-11-08), so nothing was charged the old way. OPEN, recommended: make the cycle required on an expense, defaulting to the cycle being sold.
+**DECIDED 2026-11-08 (owner) — investors pay for every cost too; built 2026-11-08 on `feature/costs-to-selling-cycle`, details GUESSED where marked.** "No investor has to pay for everything as well, fuel, packaging etc... its all one process" and "there will be expenses not attached to a cycle lets say rent". **This replaces the 2026-10-11 rule above** (partners-only, from payouts): nothing is taken from a payout for running costs any more; settlements paid that way keep their `RUNNING_COSTS` lines as history.
+
+| Question | Rule | Why |
+|---|---|---|
+| What a running cost is | Unchanged: an operating expense recorded with **no cycle** (rent, salaries, fuel, packaging…), not itself a reversal (`isRunningCostEntry`). The expense form does not change. | Owner: some expenses are not attached to a cycle. |
+| Where it goes | **Shared to the cycles running when it is recorded** — every cycle **from the moment its goods are paid for** (its order confirmed: Preparing) through shipping, arrival and selling, until its settlement is approved — in equal parts to the piastre, the odd piastres on the last cycle (oldest started first). Stored once (`running_cost_allocations`), never moved. A part of nothing is no part (a piastre over two cycles goes whole to the last). | Owner 2026-11-08: "a cost is shared the moment we pay for the goods from china or uae, not when we start selling". "Paid for" read as the order confirmed (leaving Purchasing): **GUESS**. Equal split: **GUESS** (by sales is the alternative — OPEN). |
+| Recorded on which day | When it is **recorded**, whatever day it is dated: there is no record of which cycles were running on a past day. **GUESS.** | No status history exists to read it. |
+| None running | It **waits**, and goes whole to the cycles running when the next one's goods are paid for (a cycle moving into Preparing or later — or selling again after a settlement is reversed). Calculating any settlement shares what is waiting first. | |
+| On the cycle | A cost like one charged to it: inside its expenses and profit, a `shared` line by category in the settlement's cost breakdown, in Analytics' cycle profitability and in what a partner may take early (profit draws read the settlement's projection). Every participant, investors included, bears it by share. Not part of the cycle's cost to fund (§18: goods, shipping, charges). | Rule 11: one reading for settlement, Analytics and profit draws. |
+| The business's profit | Counted once, as the operating expense it always was (dashboard, P&L). | It is one expense. |
+| A cycle being settled | Takes no new cost from approval on. A draft calculated before a cost was shared to it — or before one was undone — is refused at approval (`SETTLEMENT_STALE_COSTS`): calculate again. | The split is agreed at approval (§8 funding lock). |
+| Undoing a cost | Takes its parts off the cycles — refused while any of them is being settled, settled, closed or cancelled (`RUNNING_COST_SETTLED`, naming the cycles): reverse that settlement first. An undone cost is never shared again. | History is not rewritten. |
+| Taken the old way | A cost a payout already took (a standing `running_cost_charges` row, before 2026-11-08) is never shared again. Production had none standing (checked 2026-11-08). | Never charged twice. |
+| The Partners page | **Running costs**: spent by category, shared to which cycles (each one's part), what waits for a selling cycle, and what payouts took the old way (history). No per-partner shares. | |
 
 **DECIDED 2026-10-11 (owner) — a payout explains itself.** *Built 2026-10-12 (L7), as above.* The settlement screen (before approving),
 and each partner's payout history, break the money down line by line: revenue; cost of the goods sold; each cycle

@@ -661,6 +661,19 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
    WHERE d.kind='CARRIED' AND d.reversed_at IS NULL AND s.status <> 'PAID'
   UNION ALL SELECT 29.4, 'profit draw both undone and taken off a payout',
          count(*) FROM profit_draws WHERE reversed_at IS NOT NULL AND settled_by_id IS NOT NULL
+  -- Running costs shared to the selling cycles (BUSINESS_LOGIC §8, 2026-11-08).
+  UNION ALL SELECT 30, 'running cost whose shared parts do not add up to it',
+         count(*) FROM financial_transactions f
+         JOIN (SELECT cost_entry_id, sum(amount_egp) AS total FROM running_cost_allocations GROUP BY cost_entry_id) a
+           ON a.cost_entry_id = f.id
+   WHERE a.total <> f.amount
+  UNION ALL SELECT 30.1, 'undone running cost still shared to a cycle',
+         count(DISTINCT a.cost_entry_id) FROM running_cost_allocations a
+   WHERE EXISTS (SELECT 1 FROM financial_transactions r WHERE r.reversal_of_id = a.cost_entry_id)
+  UNION ALL SELECT 30.2, 'running cost shared to a cycle that does not take them, after its settlement was approved',
+         count(*) FROM running_cost_allocations a
+   WHERE EXISTS (SELECT 1 FROM settlements s WHERE s.cycle_id = a.cycle_id
+                    AND s.status IN ('APPROVED','PAID') AND s.approved_at < a.created_at)
 SQL
 )
 

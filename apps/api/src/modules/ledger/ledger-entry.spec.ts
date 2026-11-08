@@ -52,7 +52,16 @@ function setup() {
       findUnique: jest.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(CYCLES[where.id] ?? null),
       ),
+      // No cycle selling: a running cost recorded here waits (§8, 2026-11-08;
+      // the sharing itself is running-cost-allocation.db.spec.ts).
+      findMany: jest.fn().mockResolvedValue([]),
     },
+    runningCostAllocation: {
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      create: jest.fn(),
+    },
+    $executeRaw: jest.fn().mockResolvedValue(0),
     financialTransaction: {
       create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
         created.push(data);
@@ -341,37 +350,6 @@ describe('a partner’s running-cost share is the payout’s, never typed (§8, 
     );
     expect(r.code).toBe('ENTRY_OWNED_ELSEWHERE');
     expect(created).toHaveLength(0);
-  });
-});
-
-describe('recording a running cost fixes its shares (§8, L7 review 2026-10-12)', () => {
-  it('rent with no cycle: shared by the partners who were partners on its day, stored once', async () => {
-    const { ledger, prisma } = setup();
-    await ledger.create(
-      expense({ amount: 1500, occurredOn: '2026-10-01' }),
-      'u-1',
-    );
-    const calls = prisma.runningCostShare.createMany.mock.calls as unknown[][];
-    const call = calls[0][0] as {
-      data: { partnerUserId: string; amount: { toFixed(n: number): string } }[];
-    };
-    // C joined on 5 October: he owes nothing of rent spent on the 1st.
-    expect(
-      call.data.map((d) => [d.partnerUserId, d.amount.toFixed(2)]),
-    ).toEqual([
-      ['p-1', '750.00'],
-      ['p-2', '750.00'],
-    ]);
-  });
-
-  it('a cost charged to a cycle, or income, fixes no running-cost shares', async () => {
-    const { ledger, prisma } = setup();
-    await ledger.create(
-      expense({ category: 'extra_freight', cycleId: CYCLE_ID }),
-      'u-1',
-    );
-    await ledger.create(income(), 'u-1');
-    expect(prisma.runningCostShare.createMany).not.toHaveBeenCalled();
   });
 });
 

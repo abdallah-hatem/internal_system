@@ -23,7 +23,7 @@
  *    no column is scrolled out of sight at 1440.
  *
  *  The tables that are not lists (an order's lines, an invoice, a statement,
- *  a cycle's goods and shipment, a settlement, the running costs, a lender's
+ *  a cycle's goods and shipment, a settlement, a lender's
  *  repayments, a plan's instalments, a product's batches) get TC-COL-02 and
  *  TC-COL-03 the same way (TC-COL-04); the invoice and the statement also fit
  *  A4 on paper with every column shown (TC-COL-05). The sales list,
@@ -578,13 +578,6 @@ const DETAILS: { name: string; open: (page: Page, locale: Locale) => Promise<voi
       await openView(page, 'settlements', locale);
       const card = page.locator(`[data-testid="settlement-card"][data-cycle="${settledCode}"]`);
       await expect(card.locator('table')).toBeVisible();
-    },
-  },
-  {
-    name: 'the running costs',
-    open: async (page, locale) => {
-      await openNav(page, messages(locale).nav.partners);
-      await expect(page.getByTestId('running-costs-partners')).toBeVisible();
     },
   },
   {
