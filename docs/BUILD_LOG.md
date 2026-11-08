@@ -75,7 +75,7 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
-- **On `dev` 2026-11-08, not shipped — running costs by the day they are dated; profit
+- **On `dev` 2026-11-08, **live 2026-11-08** (`1daf16d5`; backup `prod-20261108-173340.sql`, migrations rehearsed on a production copy, check-data 0) — running costs by the day they are dated; profit
   draws read "collected" as the dashboard does** (owner 2026-11-08: "1 equally", "yes by day its dated, we need to
   know when statuses moved", "use the dashboard's proportional reading for profit draws"). Migration
   `20261108300000_cycle_status_history`: table `cycle_status_changes`, a trigger on `import_cycles` (insert and every
@@ -86,7 +86,7 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   `paidAndValueOf`). check-data row 31. Tests: `running-cost-allocation.spec.ts` 32 (midnight, UTC vs Cairo, summer
   time, back and forth, same-instant changes, locked, ties), DB +9 (trigger, settlement rows, past-dated, next paid
   for, settled since, waiting, backfill from audit with junk); 11 rules each seen to fail when broken.
-- **On `dev` 2026-11-08, not shipped — running costs shared to the running cycles, so investors bear them too**
+- **On `dev` 2026-11-08, **live 2026-11-08** (`1daf16d5`; backup `prod-20261108-173340.sql`, migrations rehearsed on a production copy, check-data 0) — running costs shared to the running cycles, so investors bear them too**
   (owner 2026-11-08: "investor has to pay for everything as well, fuel, packaging etc... its all one process", then
   "a cost is shared the moment we pay for the goods from china or uae, not when we start selling"). Rules: §8
   "investors pay for every cost too". Migration `20261108200000_running_cost_allocations` (one table, CHECK amount > 0;
@@ -104,7 +104,7 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   **Decided since:** equal split, by the day dated (entry above). **Not done:** e2e `34-business-invariants` TC-INV-59/60/61/63 and `tests/support/running-costs.ts`
   still assert the old model (e2e paused). **Found:** profit draws read "collected" strictly while the dashboard's profit
   in the cash (`profit-on-collected.ts`, owner-accepted 2026-11-06) reads it proportionally — owner to choose.
-- **On `dev` 2026-11-08 (`9f698a2`), pushed, not shipped — profit taken before a cycle is settled**
+- **On `dev` 2026-11-08 (`9f698a2`), **live 2026-11-08** (`1daf16d5`; backup `prod-20261108-173340.sql`, migrations rehearsed on a production copy, check-data 0) — profit taken before a cycle is settled**
   (owner 2026-11-08: "I am allowed to take some of my share profit any time mid cycle … the profit we made does not
   change", then: up to his share of profit collected; owed back off his next payout; any core partner records it).
   Rules: BUSINESS_LOGIC §8 "Profit taken before a cycle is settled". Migration `20261108100000_profit_draws` (one
