@@ -160,7 +160,7 @@ export class ProfitDrawsService {
     const shares = new Map<string, Prisma.Decimal>();
     const pcts = new Map<string, Prisma.Decimal>();
     try {
-      const projected = await this.settlements.project(cycleId);
+      const projected = await this.settlements.project(cycleId, db);
       if (projected) profit = projected.pnl.grossProfit;
     } catch (e) {
       if (!(e instanceof BadRequestException)) throw e;

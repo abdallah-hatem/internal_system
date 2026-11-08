@@ -90,6 +90,10 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   customers owe counts against profit first) — on the seeded history both selling cycles read 0 to take; the
   proportional reading would give H26-02 ~84,945. Found in passing: Analytics' cycle "investment" counts settlement
   payouts as cost (existing, not changed).
+  **Review 2026-11-08 (`fix/profit-draw-one-connection`):** recording a draw read the cycle's profit through
+  `SettlementsService.project()` on `this.prisma` inside the draw's transaction — on production's one connection it
+  would hang until the pool gave up (P2028 shape). `project()` now takes the transaction; a single-connection test
+  failed before ("Timed out fetching a new connection") and passes after.
 - **Live 2026-11-07 (was `fix/ci-round-2`) — CI run 42257729297 (master) made green** (2026-11-07): the dashboard's first
   tile on a phone matches its skeleton whatever the profit (the pill and its (i) on their own line under the icon,
   type fitted to the line; §12; new TC-SKEL-21 at 320/375/390/430 en+ar with the figure rewritten short to 8
