@@ -75,7 +75,7 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
-- **On `feature/profit-advance` 2026-11-08, NOT committed, NOT merged — profit taken before a cycle is settled**
+- **On `dev` 2026-11-08 (`9f698a2`), not pushed, not shipped — profit taken before a cycle is settled**
   (owner 2026-11-08: "I am allowed to take some of my share profit any time mid cycle … the profit we made does not
   change", then: up to his share of profit collected; owed back off his next payout; any core partner records it).
   Rules: BUSINESS_LOGIC §8 "Profit taken before a cycle is settled". Migration `20261108100000_profit_draws` (one

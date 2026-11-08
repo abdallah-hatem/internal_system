@@ -454,7 +454,7 @@ stays open with what was typed.
 | The participant PUT | `PUT /cycles/participants/:id` still accepts one participant's `customProfitPct` (an e2e invariant and older callers use it); settling still refuses what it leaves partial. The office no longer calls it for the split. | OPEN — narrow it once nothing else sends a % |
 
 
-### Profit taken before a cycle is settled — DECIDED 2026-11-08 (owner), built on `feature/profit-advance`, NOT merged, details GUESSED where marked
+### Profit taken before a cycle is settled — DECIDED 2026-11-08 (owner), on `dev` 2026-11-08, not shipped, details GUESSED where marked
 
 Raised 2026-11-07 ("not now but keep in mind"), decided 2026-11-08: "I think its a normal thing I am allowed to take some
 of my share profit any time mid cycle and its recorded of course, and the profit we made does not change". Then, from
