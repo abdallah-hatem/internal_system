@@ -42,8 +42,9 @@ export interface ToolSpec {
 const PROVIDERS: Record<string, { baseUrl: string; model: string }> = {
   gemini: {
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    // gemini-2.5-flash closed to new keys by 2026-11-08 (Google: use gemini-3.8-flash).
-    model: 'gemini-3.8-flash',
+    // 2026-11-08: gemini-2.5-flash is closed to new keys; gemini-3.8-flash was
+    // overloaded (503) and too slow with every tool on the free tier. Lite answers.
+    model: 'gemini-flash-lite-latest',
   },
   groq: {
     baseUrl: 'https://api.groq.com/openai/v1',

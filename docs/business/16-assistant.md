@@ -309,8 +309,10 @@ runs the tool server in process (the MCP client over an in-memory transport), so
   ~8,300 before its second turn; the chat then says so (`AI_PROVIDER_TOO_SMALL`). Gemini's free tier fits.
 - **2026-11-08: production moved to Gemini.** Groq's free tier refused every question (413: 8,000 tokens a minute against
   ~9,900 for one question; every model on the key is capped at 8,000 or less). `AI_PROVIDER=gemini` with the owner's
-  key; `gemini-2.5-flash` is closed to new keys (404 "no longer available to new users"), so the default is now
-  `gemini-3.8-flash` (also set as `AI_MODEL` on Vercel).
+  key; `gemini-2.5-flash` is closed to new keys (404 "no longer available to new users"), and `gemini-3.8-flash`
+  on the free tier answered 503 "high demand" or ran past the timeout with every tool. **The model is
+  `gemini-flash-lite-latest`** (default in code and `AI_MODEL` on Vercel), with `reasoning_effort: low` for Gemini and a
+  50 s call limit — answered "how much do customers owe" correctly in ~15 s (checked in production 2026-11-08).
 - GUESS: the previews are the tools' own English summaries (as for Claude); the chat's answers follow the partner's
   language. Previews read left to right on an Arabic screen.
 
