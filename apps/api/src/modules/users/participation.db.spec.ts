@@ -28,6 +28,9 @@ const url = process.env.INTEGRATION_DATABASE_URL;
 const suite = url ? describe : describe.skip;
 
 suite('Partners page: put in so far (Postgres)', () => {
+  // Reads every cycle in the throwaway database; it grows run by run.
+  jest.setTimeout(60_000);
+
   let prisma: PrismaClient;
   let users: UsersService;
   let accounts: PartnerAccountsService;

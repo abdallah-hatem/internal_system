@@ -4,11 +4,11 @@ Last updated 2026-11-08 (§8: running costs shared to the selling cycles — inv
 
 ---
 
-**Running costs shared to the selling cycles** — 2026-11-08, owner ("investor has to pay for everything as well, fuel, packaging etc... its all one process"), on `feature/costs-to-selling-cycle`. An expense with no cycle is split equally over the cycles running when it is recorded — from the moment their goods are paid for until their settlement is approved — or waits for the next one paid for and comes off their profit, so investors bear it by share; payouts are no longer charged running costs. "Paid for" = order confirmed, Preparing (owner: "preparing is correct"). Guesses: equal split, the day recorded. Details in §8.
+**Running costs shared to the selling cycles** — 2026-11-08, owner ("investor has to pay for everything as well, fuel, packaging etc... its all one process"), on `feature/costs-to-selling-cycle`. An expense with no cycle is split equally over the cycles running when it is recorded — from the moment their goods are paid for until their settlement is approved — or waits for the next one paid for and comes off their profit, so investors bear it by share; payouts are no longer charged running costs. "Paid for" = order confirmed, Preparing; split equally; by the day the cost is dated, read from a status history the database now keeps (owner, all 2026-11-08). Details in §8.
 
 ---
 
-**Profit taken before a cycle is settled** — 2026-11-08, owner, on `dev`. A core partner takes part of his share of the profit collected; cash goes down, profit does not; taken off his payout, owed beyond it. Details in §8.
+**Profit taken before a cycle is settled** — 2026-11-08, owner, on `dev`. A core partner takes part of his share of the profit collected (the cycle's profit times the share of its sales paid — the dashboard's reading, owner 2026-11-08); cash goes down, profit does not; taken off his payout, owed beyond it. Details in §8.
 
 ---
 

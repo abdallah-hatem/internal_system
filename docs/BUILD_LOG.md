@@ -75,6 +75,17 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **On `dev` 2026-11-08, not shipped — running costs by the day they are dated; profit
+  draws read "collected" as the dashboard does** (owner 2026-11-08: "1 equally", "yes by day its dated, we need to
+  know when statuses moved", "use the dashboard's proportional reading for profit draws"). Migration
+  `20261108300000_cycle_status_history`: table `cycle_status_changes`, a trigger on `import_cycles` (insert and every
+  status change, clock_timestamp), the past filled from the audit log (TRANSITION; settlement APPROVE/PAY/REVERSE),
+  the cycle's status now where nothing was recorded. A cost dated D goes to the cycles running at any moment of Cairo
+  day D and not settled now (`cyclesForCost`, pure); none → the next paid for after D (soonest day, all that day);
+  none → waits. Profit draws: profit × the share of the cycle's sales paid (`cycleSalesPaid`, through the dashboard's
+  `paidAndValueOf`). check-data row 31. Tests: `running-cost-allocation.spec.ts` 32 (midnight, UTC vs Cairo, summer
+  time, back and forth, same-instant changes, locked, ties), DB +9 (trigger, settlement rows, past-dated, next paid
+  for, settled since, waiting, backfill from audit with junk); 11 rules each seen to fail when broken.
 - **On `dev` 2026-11-08, not shipped — running costs shared to the running cycles, so investors bear them too**
   (owner 2026-11-08: "investor has to pay for everything as well, fuel, packaging etc... its all one process", then
   "a cost is shared the moment we pay for the goods from china or uae, not when we start selling"). Rules: §8
@@ -90,8 +101,7 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   old charged as history. Web: section, `shared` breakdown line, ledger hint, codes en+ar. check-data rows 30–30.2.
   Tests: `running-cost-allocation.db.spec.ts` 15 (13 rules seen to fail when broken; the settled-cycle filter and the
   lock are belt-and-braces no test reaches); suites that leave costs waiting park them (`running-costs-quiet-spec.ts`).
-  **Guesses for the owner:** equal split (not by sales); the day recorded,
-  not the day dated. **Not done:** e2e `34-business-invariants` TC-INV-59/60/61/63 and `tests/support/running-costs.ts`
+  **Decided since:** equal split, by the day dated (entry above). **Not done:** e2e `34-business-invariants` TC-INV-59/60/61/63 and `tests/support/running-costs.ts`
   still assert the old model (e2e paused). **Found:** profit draws read "collected" strictly while the dashboard's profit
   in the cash (`profit-on-collected.ts`, owner-accepted 2026-11-06) reads it proportionally — owner to choose.
 - **On `dev` 2026-11-08 (`9f698a2`), pushed, not shipped — profit taken before a cycle is settled**

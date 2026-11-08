@@ -69,6 +69,10 @@ export interface ProfitDrawsView {
   locked: string | null;
   profitEgp: string | null;
   uncollectedEgp: string;
+  /** The share of its sales paid, in percent (the share of its profit collected). */
+  sharePaidPct: string;
+  salesEgp: string;
+  salesPaidEgp: string;
   collectedProfitEgp: string;
   /** No split to take a share of: CYCLE_NOT_FUNDED, PARTIAL_CUSTOM_SPLIT, SPLIT_NOT_100. */
   problem: string | null;
@@ -182,7 +186,11 @@ export function ProfitDrawsCard({ cycleId }: { cycleId: string }) {
           <p className="mt-0.5 text-xs text-muted-foreground">
             {t.rich('profitSoFar', {
               amount: () => <Money value={data.profitEgp} />,
-              owed: () => <Money value={data.uncollectedEgp} />,
+              pct: () => (
+                <bdi dir="ltr">
+                  {formatNumber(num(data.sharePaidPct), { maximumFractionDigits: 2 })}
+                </bdi>
+              ),
             })}
           </p>
         )}

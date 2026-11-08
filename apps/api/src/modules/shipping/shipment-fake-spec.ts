@@ -346,6 +346,9 @@ export function fakePrisma(db: Store) {
                   : !where.status.in || where.status.in.includes(c.status)),
             )
             .map((c) => ({
+              // No settlement and no status history in these worlds (§8).
+              settlements: [],
+              statusChanges: [],
               ...c,
               financialTransactions: db.ledger.filter(
                 (t) => t.cycleId === c.id,

@@ -300,6 +300,19 @@ suite('"Paid by" on an expense (Postgres)', () => {
       if (typeof v === 'number') flat.set(prefix, v);
       else if (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v))
         flat.set(prefix, Number(v));
+      // A list sorted by amount (expenses by category) is keyed by its
+      // category, not its place: another test's costs can reorder it.
+      else if (Array.isArray(v))
+        v.forEach((x, i) =>
+          walk(
+            `${prefix}.${
+              x && typeof x === 'object' && 'category' in x
+                ? String((x as { category: unknown }).category)
+                : i
+            }`,
+            x,
+          ),
+        );
       else if (v && typeof v === 'object')
         for (const [k, x] of Object.entries(v)) walk(`${prefix}.${k}`, x);
     };
