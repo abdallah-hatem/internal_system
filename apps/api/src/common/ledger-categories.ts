@@ -44,6 +44,10 @@ export * from './manual-ledger-categories';
  *   the receiving cycle takes it on (OUTFLOW). The goods were already paid for
  *   once, so neither side is income or an expense — and no money moved at all,
  *   which is why it is in NOT_CASH_CATEGORIES too.
+ * - `profit_draw` (§8, 2026-11-08) is profit a core partner took before his
+ *   cycle was settled. Cash leaves, the cycle's profit does not change, and
+ *   the settlement takes it off his payout — so like `settlement` it is
+ *   neither an expense nor income.
  * - `running_cost_share` (§8, L7) records a core partner's share of the
  *   general running costs being taken from his payout. The cost itself was an
  *   operating expense the day it was recorded; counting the deduction as well
@@ -61,6 +65,10 @@ export const CAPITALISED_CATEGORIES = [
   'lender_repayment',
   'cycle_transfer',
   'running_cost_share',
+  // Profit a partner took before settlement (§8, 2026-11-08,
+  // common/profit-draws.ts): his profit paid early, as `settlement` is his
+  // profit paid late — cash, but never a cost of the cycle.
+  'profit_draw',
 ] as const;
 
 /** A partner's share of running costs taken from his payout (§8, L7). */

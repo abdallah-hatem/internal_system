@@ -53,6 +53,15 @@ describe('refusal params that are codes', () => {
     expect(said).not.toContain('PAYMENT_RECEIVED');
   });
 
+  it('profit taken locked (2026-11-08): a settlement’s or a cycle’s status, in words, never the code', () => {
+    for (const status of ['APPROVED', 'PAID', 'SETTLEMENT', 'CLOSED', 'CANCELLED']) {
+      const said = inArabic('PROFIT_DRAW_CYCLE_LOCKED', { cycle: 'CYC-2026-0001', status });
+      expect(said, status).not.toContain(status);
+      expect(said, status).toContain((ar.codes.profitDrawLock as Record<string, string>)[status]);
+    }
+    expect(inEnglish('DATE_IN_FUTURE', { label: 'PROFIT_DRAWN', day: '2026-12-01' })).toContain(en.codes.dateField.PROFIT_DRAWN);
+  });
+
   it('a status transition names every status, the allowed list each one on its own', () => {
     const said = inArabic('BAD_STATUS_TRANSITION', { from: 'SELLING', to: 'PLANNING', allowed: 'SETTLEMENT, CLOSED' });
     expect(said).not.toMatch(/[A-Z]{3,}/);

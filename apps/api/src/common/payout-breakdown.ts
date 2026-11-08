@@ -6,6 +6,7 @@ import {
   otherIncomeEgp,
   recoveredEgp,
 } from './ledger-categories';
+import { PROFIT_DRAWN_COMPONENT, owedAfterPayout } from './profit-draws';
 
 /**
  * A payout explains itself (§8, owner 2026-10-11; built L7).
@@ -146,7 +147,17 @@ export interface ParticipantPayout {
    * `none`.
    */
   runningCostsStatus: 'charged' | 'projected' | 'released' | 'none';
-  /** What he is (or was, or would be) paid: the sum of the lines above. */
+  /**
+   * Profit he took before settlement, and anything he still owed from an
+   * earlier payout (§8, 2026-11-08), taken off this payout (negative).
+   */
+  profitDrawnEgp: string;
+  /**
+   * What his draws came to beyond this payout: owed, and taken off his next
+   * payout instead (`owedAfterPayout`). Zero when the payout covers them.
+   */
+  owedEgp: string;
+  /** What he is (or was, or would be) paid: the sum of the lines above, plus what is owed. */
   paidEgp: string;
 }
 
@@ -217,6 +228,7 @@ export function buildPayoutBreakdown(input: {
       const received = pick('INVESTOR_FEE_RECEIVED');
       const capital = pick('CAPITAL_RETURN');
       const stored = pick('RUNNING_COSTS');
+      const drawn = pick(PROFIT_DRAWN_COMPONENT);
       const rc = input.runningCosts.get(participantId);
 
       let running = stored;
@@ -227,6 +239,15 @@ export function buildPayoutBreakdown(input: {
       } else if (!stored.isZero()) {
         status = s.status === 'REVERSED' ? 'released' : 'charged';
       }
+
+      // The same reading Mark paid makes of a payout his draws exceed.
+      const payable = gross
+        .add(fee)
+        .add(received)
+        .add(capital)
+        .add(running)
+        .add(drawn);
+      const owed = owedAfterPayout(payable, drawn.neg());
 
       return {
         participantId,
@@ -242,7 +263,9 @@ export function buildPayoutBreakdown(input: {
         runningCostsFrom: status === 'none' ? null : (rc?.from ?? null),
         runningCostsTo: status === 'none' ? null : (rc?.to ?? null),
         runningCostsStatus: status,
-        paidEgp: fixed(gross.add(fee).add(received).add(capital).add(running)),
+        profitDrawnEgp: fixed(drawn),
+        owedEgp: fixed(owed),
+        paidEgp: fixed(payable.add(owed)),
       };
     },
   );

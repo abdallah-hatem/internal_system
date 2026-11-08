@@ -898,6 +898,8 @@
     }
   },
   "ledger": {
+    "profitDraw": "أرباح مسحوبة",
+    "profitDrawReversal": "إلغاء سحب أرباح",
     "title": "سِجِلّ الحسابات",
     "entryNo": "رقم القيد",
     "type": "النوع",
@@ -1350,6 +1352,10 @@
     "passwordChanged": "تم تغيير كلمة المرور"
   },
   "settlementsPage": {
+    "profitTaken": "أرباح مسحوبة",
+    "profitTakenLine": "أرباح مسحوبة قبل التسوية",
+    "owedLine": "عليه — يُخصم من توزيعه القادم",
+    "owesNote": "عليه <amount></amount>، يُخصم من توزيعه القادم",
     "title": "التسويات",
     "selectCycle": "اختر دورة لتسويتها",
     "calculate": "احتساب",
@@ -1587,11 +1593,23 @@
     "cancelFailed": "تعذر إلغاء خطة التقسيط"
   },
   "errors": {
+    "PROFIT_DRAW_NOT_ON_CYCLE": "{partner} ليس شريكًا أساسيًا في الدورة {cycle}، فليس له نصيب من أرباحها ليسحبه.",
+    "PROFIT_DRAW_OVER_AVAILABLE": "أقصى ما يمكن لـ {partner} سحبه من الدورة {cycle} الآن {available} جنيه: نصيبه من الأرباح المحصّلة {share} جنيه، وسحب منها {drawn} جنيه، وعليه {owed} جنيه.",
+    "PROFIT_DRAW_CYCLE_LOCKED": "لم يعد ممكنًا تغيير الأرباح المسحوبة من الدورة {cycle}: {status}.",
+    "PROFIT_DRAW_REASON_REQUIRED": "اذكر سبب إلغاء سحب الأرباح.",
+    "PROFIT_DRAW_CARRIED_NOT_REVERSIBLE": "ما تبقّى على الشريك من توزيع سابق يُلغى بإلغاء تلك التسوية، لا وحده.",
+    "PROFIT_DRAW_ALREADY_REVERSED": "تم إلغاء سحب الأرباح هذا من قبل.",
+    "PROFIT_DRAW_SETTLED": "هذا المبلغ خُصم بالفعل من توزيع أرباح مدفوع. اعكس تلك التسوية أولًا.",
+    "PROFIT_DRAW_AMOUNT_NOT_POSITIVE": "يجب أن يكون المبلغ أكبر من صفر.",
+    "PROFIT_DRAW_AMOUNT_PRECISION": "المبلغ لا يقبل أكثر من رقمين عشريين.",
+    "SETTLEMENT_STALE_DRAWS": "تغيّرت الأرباح المسحوبة لأحد الشركاء بعد احتساب هذه التسوية. احتسبها من جديد قبل الاعتماد.",
+    "SETTLEMENT_OWED_TAKEN_LATER": "ما تبقّى على أحد الشركاء من هذه التسوية خُصم بالفعل من توزيع أرباح الدورة {cycle}. اعكس تلك التسوية أولًا.",
     "PUSH_NOT_CONFIGURED": "التنبيهات غير مُعدّة على الخادم بعد.",
     "NO_PUSH_DEVICE": "لا يوجد جهاز لك مُفعّل عليه التنبيهات. فعّلها أعلاه أولًا.",
     "PUSH_TEST_NOT_DELIVERED": "تعذّر وصول التنبيه التجريبي إلى أجهزتك ({devices}). أوقف التنبيهات ثم شغّلها مجددًا على هذا الجهاز، ثم حاول مرة أخرى.",
     "NOT_FOUND": "تعذّر العثور على {entity}",
     "entity": {
+      "profitDraw": "أرباح مسحوبة",
       "auditLog": "سجل التدقيق",
       "category": "الفئة",
       "customer": "العميل",
@@ -2172,6 +2190,7 @@
       "SAMPLE_BACK": "عينات رجعت من محل"
     },
     "referenceType": {
+      "PROFIT_DRAW": "أرباح مسحوبة",
       "PURCHASE_ORDER_ITEM": "طلب شراء",
       "SALE_ORDER": "طلب بيع",
       "SALE_ORDER_CANCEL": "إلغاء بيع",
@@ -2186,6 +2205,8 @@
       "SAMPLES_ORDER": "طلب عينات"
     },
     "auditAction": {
+      "PROFIT_DRAW": "سحب أرباح",
+      "PROFIT_DRAW_REVERSE": "إلغاء سحب أرباح",
       "CREATE": "إنشاء",
       "UPDATE": "تعديل",
       "DELETE": "حذف",
@@ -2218,6 +2239,7 @@
       "ASSISTANT_CHAT": "سؤال للمساعد"
     },
     "entityType": {
+      "ProfitDraw": "أرباح مسحوبة",
       "Product": "منتج",
       "Customer": "عميل",
       "SaleOrder": "طلب بيع",
@@ -2254,6 +2276,7 @@
       "PartnerAccountMovement": "حركة في حساب شريك"
     },
     "dateField": {
+      "PROFIT_DRAWN": "تاريخ سحب الأرباح",
       "CYCLE_START": "تاريخ بدء الدورة",
       "PAYMENT_RECEIVED": "تاريخ استلام الدفعة",
       "ORDER_PLACED": "تاريخ طلب الشراء",
@@ -2288,6 +2311,7 @@
       "TH": "تايلاند"
     },
     "ledgerCategory": {
+      "profit_draw": "أرباح مسحوبة قبل التسوية",
       "rent": "إيجار",
       "salaries": "رواتب",
       "utilities": "مرافق",
@@ -2322,6 +2346,15 @@
     "ledgerDirection": {
       "INFLOW": "مالًا داخلًا",
       "OUTFLOW": "مالًا خارجًا"
+    },
+    "profitDrawLock": {
+      "SETTLEMENT_APPROVED": "تسويتها معتمدة — اعكسها أولًا",
+      "SETTLEMENT_PAID": "تسويتها مدفوعة — اعكسها أولًا",
+      "APPROVED": "تسويتها معتمدة — اعكسها أولًا",
+      "PAID": "تسويتها مدفوعة — اعكسها أولًا",
+      "SETTLEMENT": "الدورة قيد التسوية",
+      "CLOSED": "الدورة مغلقة",
+      "CANCELLED": "الدورة ملغاة"
     },
     "fundingLock": {
       "SETTLEMENT_APPROVED": "التسوية معتمدة — اعكسها لتغيير التمويل",
@@ -2737,6 +2770,7 @@
     "destination": "جبل علي، دبي",
     "reverseReason": "سُجّلت مرتين بالخطأ",
     "accountNote": "دفع عربون المورد بتحويل بنكي",
+    "profitDrawNote": "كاش، لمقدّم الشقة",
     "purchaseRefundReason": "ردّ المورّد ثمن 3 كراتين تالفة",
     "undoTransferReason": "نُقلت إلى الدورة الخطأ بالخطأ",
     "chooseCustomer": "اختر عميلًا",
@@ -2971,6 +3005,47 @@
     "retry": "حاول مرة أخرى",
     "untiedPot": "غير مرتبط بدورة",
     "cyclePot": "للدورة {cycle}"
+  },
+  "profitDraws": {
+    "title": "أرباح مسحوبة",
+    "collected": "الأرباح المحصّلة حتى الآن",
+    "collectedHint": "الربح حتى الآن ناقص ما لا يزال على العملاء",
+    "profitSoFar": "الربح حتى الآن <amount></amount> · على العملاء <owed></owed>",
+    "colPartner": "الشريك",
+    "colShare": "نصيبه من المحصّل",
+    "colTaken": "سحب",
+    "colOwes": "عليه",
+    "colAvailable": "يقدر يسحب الآن",
+    "sharePct": "{pct}%",
+    "take": "سحب أرباح",
+    "takeTitle": "سحب أرباح",
+    "takeHint": "الكاش يخرج من الشركة الآن، وربح الدورة لا يتغيّر. ويُخصم من توزيعه عند التسوية.",
+    "partner": "الشريك",
+    "amount": "المبلغ (جنيه)",
+    "max": "الحد الأقصى <amount></amount>",
+    "takeAll": "سحب كل المتاح",
+    "date": "تاريخ السحب",
+    "note": "ملاحظة",
+    "overAvailable": "أقصى ما يمكن لـ {name} سحبه الآن {max}.",
+    "notPositive": "يجب أن يكون المبلغ أكبر من صفر.",
+    "nothingAvailable": "لا يوجد ما يسحبه {name} الآن.",
+    "saved": "تم تسجيل الأرباح المسحوبة لـ {name}",
+    "failed": "تعذّر تسجيل الأرباح المسحوبة",
+    "historyHeading": "المسحوب حتى الآن",
+    "noDraws": "لم يسحب أحد أرباحًا من هذه الدورة بعد.",
+    "reversed": "أُلغي",
+    "reversedReason": "أُلغي: {reason}",
+    "settled": "خُصم من التوزيع",
+    "undo": "إلغاء",
+    "undoTitle": "إلغاء سحب الأرباح",
+    "undoHint": "<amount></amount> سحبها {name} يوم {day} ترجع إلى كاش الشركة. اذكر السبب.",
+    "reason": "السبب",
+    "undoSaved": "تم إلغاء سحب الأرباح",
+    "locked": "لا يمكن السحب أو الإلغاء: {reason}.",
+    "problem": "تمويل الدورة أو تقسيم أرباحها لم يُدخل بعد، فلا يمكن سحب أرباح.",
+    "loadFailed": "تعذّر تحميل الأرباح المسحوبة",
+    "retry": "حاول مرة أخرى",
+    "noPartners": "لا يوجد شريك أساسي في هذه الدورة."
   },
   "fundingCard": {
     "putInSoFar": "دُفع في الدورة <paid></paid> حتى الآن",

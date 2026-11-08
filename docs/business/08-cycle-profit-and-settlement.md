@@ -453,3 +453,26 @@ stays open with what was typed.
 | Who | Core partners (`@Roles('CORE_PARTNER')`, `cycle.saveSplit` in the office's permissions). | DECIDED |
 | The participant PUT | `PUT /cycles/participants/:id` still accepts one participant's `customProfitPct` (an e2e invariant and older callers use it); settling still refuses what it leaves partial. The office no longer calls it for the split. | OPEN — narrow it once nothing else sends a % |
 
+
+### Profit taken before a cycle is settled — DECIDED 2026-11-08 (owner), built on `feature/profit-advance`, NOT merged, details GUESSED where marked
+
+Raised 2026-11-07 ("not now but keep in mind"), decided 2026-11-08: "I think its a normal thing I am allowed to take some
+of my share profit any time mid cycle and its recorded of course, and the profit we made does not change". Then, from
+the options put to him: up to his **share of the profit already collected**; if he took more than his final payout,
+**he owes it back** — taken off his next payout; **any core partner** may record it for any core partner. Called a
+*profit draw* in the code ("Profit taken" on screen) because *advance* already means paying a supplier for a cycle.
+
+| Question | Rule | Why |
+|---|---|---|
+| Who | A core partner on the cycle (`PROFIT_DRAW_NOT_ON_CYCLE` otherwise). A temporary investor cannot (`NOT_FOUND` partner). Any core partner records it for any core partner. | Owner 2026-11-08. Investors: GUESS — their fee is a share of their own profit, settled at the end. |
+| How much | His share of the **profit collected**, less his standing draws on that cycle, less anything he still owes from an earlier payout (`PROFIT_DRAW_OVER_AVAILABLE` with `available`, `share`, `drawn`, `owed`). His share is the settlement's own split of the collected profit (by contribution or the agreed percentages), to the piastre. | Owner 2026-11-08: "share of collected". |
+| Profit collected | The cycle's profit as the settlement reads it now, less what customers still owe on its sales, never below zero. What is owed is counted against profit first, and the cycle's part of an order is read before returns. | **GUESS** — both err low, so a partner can never take profit the business has not received. |
+| Funding not entered, a broken split, a loss | Nothing to take: the split's refusal (`CYCLE_NOT_FUNDED`, `PARTIAL_CUSTOM_SPLIT`, `SPLIT_NOT_100`), or zero collected. | No basis, no share (CLAUDE.md §10). |
+| The amount and the day | Above zero, at most two decimals (`PROFIT_DRAW_AMOUNT_NOT_POSITIVE`, `PROFIT_DRAW_AMOUNT_PRECISION`), in pounds; the day today or earlier (`DATE_IN_FUTURE`, label `PROFIT_DRAWN`). | GUESS: EGP only. |
+| In the ledger | One OUTFLOW, category `profit_draw`, type `PROFIT_DRAW`, on the cycle, owned by the draw (the ledger will not undo it on its own). **Cash on hand goes down; the cycle's profit, the P&L's profit and the dashboard's profit do not change**; Analytics' "investment" leaves it out. | "The profit we made does not change." |
+| When | Until the cycle's settlement is approved; refused once it is being settled, settled, closed or cancelled (`PROFIT_DRAW_CYCLE_LOCKED`). GUESS: no check against cash on hand. | The split is agreed at approval (§8, funding lock). |
+| At settlement | Calculating writes his draws (and anything he owes from before) as a `PROFIT_DRAWN` line off his payout. A draw or an undo after calculating makes the draft stale: approval and payment refuse (`SETTLEMENT_STALE_DRAWS`) until it is calculated again. Paying marks the draws settled. What the business pays out in all — draws plus payouts — is what it would have paid with no draws. | One reading of the payout (rule 11). |
+| Took more than his payout | No cash is pretended in. The payout is nothing, and what his draws came to beyond it is carried (`CARRIED`, on no cycle) and taken off his **next payout on any cycle**; it also lowers what he may take meanwhile. Never more than he drew: a loss beyond that is the payout's, as it always was. GUESS: not taken from his running account. | Owner 2026-11-08: "they owe it back". |
+| Undo | Once, with a reason (`PROFIT_DRAW_REASON_REQUIRED`, `PROFIT_DRAW_ALREADY_REVERSED`); an INFLOW pointing at the original puts the cash back. Not once a paid settlement took it (`PROFIT_DRAW_SETTLED`); something owed is undone with its settlement only (`PROFIT_DRAW_CARRIED_NOT_REVERSIBLE`). | History is not rewritten (BRD 10). |
+| Reversing a settlement | Frees the draws it took (they stand again, to come off the next settlement) and undoes what it left owing — refused while a later paid settlement holds that (`SETTLEMENT_OWED_TAKEN_LATER`): reverse that one first. | Never a debt taken twice or lost. |
+| Two at once | The cycle, then the partner's account, locked for each draw; two draws against the same room cannot both pass. | Doubles are the second-time bug. |

@@ -67,6 +67,8 @@ export const PARAM_KINDS: Record<string, Record<string, CodeKind>> = {
   LEDGER_CYCLE_NOT_OPEN: { status: 'cycleStatus' },
   TRANSFER_SOURCE_NOT_SELLING: { status: 'cycleStatus' },
   TRANSFER_TARGET_CLOSED: { status: 'cycleStatus' },
+  // A settlement's status (APPROVED/PAID) or the cycle's (SETTLEMENT/CLOSED/CANCELLED).
+  PROFIT_DRAW_CYCLE_LOCKED: { status: 'profitDrawLock' },
 };
 
 export function resolveApiError(

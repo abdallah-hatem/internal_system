@@ -44,6 +44,8 @@ model User {
   runningCostShares     RunningCostShare[]
   /// His running account (§8, 2026-10-25).
   accountMovements      PartnerAccountMovement[] @relation("PartnerAccountMovements")
+  /// Profit he took before his cycles were settled (§8, 2026-11-08).
+  profitDraws           ProfitDraw[]           @relation("ProfitDrawPartner")
   saleOrders            SaleOrder[]            @relation("CreatedSaleOrderUser")
   payments              Payment[]              @relation("CreatedPaymentUser")
   productRequests       ProductRequest[]       @relation("CreatedProductRequestUser")
@@ -333,6 +335,8 @@ model ImportCycle {
   transfersIn           StockTransfer[]        @relation("TransferToCycle")
   /// Partners' advances and contributions from their accounts on this cycle (§8, 2026-10-25).
   accountMovements      PartnerAccountMovement[]
+  /// Profit taken from it before its settlement (§8, 2026-11-08).
+  profitDraws           ProfitDraw[]
 
   /// An optional funding target ("1,600 of 2,000 funded so far"), in its own
   /// currency at the rate typed (§8, 2026-10-25). All three set, or none.
@@ -344,6 +348,55 @@ model ImportCycle {
 }
 
 /// What a running account movement is (§8, owner 2026-10-25).
+/// Profit taken before a cycle is settled (BUSINESS_LOGIC §8, owner 2026-11-08).
+enum ProfitDrawKind {
+  /// A partner took part of his share of a cycle's profit, in cash: cash goes
+  /// down, the cycle's profit does not; his payout is less by it at settlement.
+  DRAW
+  /// He took more than his payout came to: what is left over, carried to his
+  /// next payout on any cycle. No cash moved — it left with the draw.
+  CARRIED
+}
+
+/// Profit taken before a cycle is settled (§8, owner 2026-11-08: "I am allowed
+/// to take some of my share profit any time mid cycle and its recorded, and the
+/// profit we made does not change"). Only a core partner, up to his share of
+/// the profit already collected; taken off his payout when the cycle settles.
+model ProfitDraw {
+  id                      String         @id @default(uuid()) @db.Uuid
+  kind                    ProfitDrawKind @default(DRAW)
+  /// The cycle it was taken from. Null for CARRIED: it is owed against his
+  /// next payout, whichever cycle that is.
+  cycleId                 String?        @map("cycle_id") @db.Uuid
+  partnerUserId           String         @map("partner_user_id") @db.Uuid
+  /// Always above zero.
+  amountEgp               Decimal        @map("amount_egp") @db.Decimal(18, 2)
+  /// The Cairo day he took it.
+  drawnOn                 DateTime       @map("drawn_on") @db.Date
+  note                    String?
+  /// The ledger row that took it out of cash (DRAW only).
+  ledgerEntryId           String?        @unique @map("ledger_entry_id") @db.Uuid
+  /// The settlement whose payout it was taken off, once that was paid.
+  settledById             String?        @map("settled_by_id") @db.Uuid
+  /// The settlement that left it owing (CARRIED only).
+  carriedFromSettlementId String?        @map("carried_from_settlement_id") @db.Uuid
+  createdBy               String?        @map("created_by") @db.Uuid
+  createdAt               DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+  reversedAt              DateTime?      @map("reversed_at") @db.Timestamptz()
+  reversedBy              String?        @map("reversed_by") @db.Uuid
+  reversalReason          String?        @map("reversal_reason")
+
+  cycle       ImportCycle?          @relation(fields: [cycleId], references: [id])
+  partner     User                  @relation("ProfitDrawPartner", fields: [partnerUserId], references: [id])
+  ledgerEntry FinancialTransaction? @relation("ProfitDrawLedger", fields: [ledgerEntryId], references: [id])
+  settledBy   Settlement?           @relation("ProfitDrawSettledBy", fields: [settledById], references: [id])
+  carriedFrom Settlement?           @relation("ProfitDrawCarriedFrom", fields: [carriedFromSettlementId], references: [id])
+
+  @@index([cycleId])
+  @@index([partnerUserId])
+  @@map("profit_draws")
+}
+
 enum PartnerAccountMovementKind {
   /// He paid a supplier for a cycle from his own pocket: + his account. Not cash.
   ADVANCE
@@ -1289,6 +1342,8 @@ model FinancialTransaction {
   paidBy             User?               @relation("ExpensePaidBy", fields: [paidByUserId], references: [id])
   /// The credit in his account, when a partner paid it.
   paidByCredit       PartnerAccountMovement?
+  /// The profit draw this row took out of cash (§8, 2026-11-08).
+  profitDraw         ProfitDraw?         @relation("ProfitDrawLedger")
   /// The supplier refund this row undid, when it is a refund's reversal.
   reversedRefund     SupplierRefund?     @relation("SupplierRefundReversal")
   /// A general running cost: which payouts took it, and how much (§8, L7).
@@ -1466,6 +1521,10 @@ model Settlement {
   runningCostCharges RunningCostCharge[]
   /// Payouts left in partners' accounts (§8, 2026-10-25).
   accountMovements   PartnerAccountMovement[]
+  /// Profit draws this settlement took off the payouts when it was paid.
+  profitDrawsSettled ProfitDraw[]             @relation("ProfitDrawSettledBy")
+  /// What a partner still owed after its payout, carried to his next one.
+  profitDrawsCarried ProfitDraw[]             @relation("ProfitDrawCarriedFrom")
 
   @@map("settlements")
 }

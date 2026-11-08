@@ -31,6 +31,7 @@ import { AssistantModule } from './modules/assistant/assistant.module';
 import { OAuthModule } from './modules/oauth/oauth.module';
 import { LendersModule } from './modules/lenders/lenders.module';
 import { PartnerAccountsModule } from './modules/partner-accounts/partner-accounts.module';
+import { ProfitDrawsModule } from './modules/profit-draws/profit-draws.module';
 import { StockTransfersModule } from './modules/stock-transfers/stock-transfers.module';
 
 @Module({
@@ -67,6 +68,7 @@ import { StockTransfersModule } from './modules/stock-transfers/stock-transfers.
     OAuthModule,
     LendersModule,
     PartnerAccountsModule,
+    ProfitDrawsModule,
     StockTransfersModule,
   ],
   providers: [

@@ -37,6 +37,7 @@ import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 import { SkeletonRegion, Skeleton, SkeletonText, repeat, type SkeletonTextSize } from '@/components/ui/skeleton';
 import { viewPath } from '@/lib/page-views';
 import { FundingCard, FundingCardSkeleton } from '@/components/cycles/funding-card';
+import { ProfitDrawsCard } from '@/components/cycles/profit-draws-card';
 import type { FinancingView } from '@/components/lenders/lender-dialogs';
 
 /**
@@ -220,6 +221,9 @@ export default function CycleDetailsPage() {
           scrollTo(financingRef.current);
         }}
       />
+
+      {/* Profit a core partner takes before settlement (§8, owner 2026-11-08). */}
+      <ProfitDrawsCard cycleId={cycle.id} />
 
       {/* A friend who paid a supplier for us (§18): who, how much, still owed. */}
       {orders.length > 0 && (

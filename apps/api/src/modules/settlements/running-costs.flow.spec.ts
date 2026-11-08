@@ -294,6 +294,19 @@ function fakePrisma(db: Store) {
         );
         return {};
       },
+      findMany: async ({ where }: Row) =>
+        db.lines
+          .filter((l) => l.settlementId === where.settlementId)
+          .map((l) => ({
+            ...l,
+            participant: db.participants.find((p) => p.id === l.participantId),
+          })),
+    },
+    // Profit taken before settlement (§8, 2026-11-08): none in these worlds.
+    profitDraw: {
+      findMany: async () => [],
+      updateMany: async () => ({ count: 0 }),
+      create: async ({ data }: Row) => data,
     },
   };
   return api;
