@@ -17,6 +17,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { cashPosition } from '../../common/cash-position';
 import { businessToday } from '../../common/dates';
 import { ProfitDrawsService } from './profit-draws.service';
+import { quietRunningCosts } from '../../common/running-costs-quiet-spec';
 
 /**
  * Profit taken before a cycle is settled (BUSINESS_LOGIC §8, owner
@@ -88,6 +89,9 @@ suite('profit taken before settlement (Postgres)', () => {
     actor = (await partner('Actor')).id;
   });
   afterAll(() => prisma.$disconnect());
+  // A running cost another suite left waiting must not land on these cycles
+  // (§8, 2026-11-08: shared to whatever is selling).
+  beforeEach(() => quietRunningCosts(prisma));
 
   // ─── Fixtures ───────────────────────────────────────────────────────
 
@@ -328,23 +332,44 @@ suite('profit taken before settlement (Postgres)', () => {
     expect(r.params).toMatchObject({ available: '0.00' });
   });
 
-  it('a part payment counts what is still owed against profit first', async () => {
+  it('a part payment collects the same share of the profit — the dashboard’s proportional reading', async () => {
     const { cycle, people, pay } = await tradedCycle();
-    await pay(1000); // 1,000 still owed > 900 profit: nothing collected yet
-    expect((await draws.forCycle(cycle.id)).data.collectedProfitEgp).toBe(
-      '0.00',
-    );
-    await pay(500); // 500 owed: 400 of the profit is in
-    const { data } = await draws.forCycle(cycle.id);
-    expect(data.collectedProfitEgp).toBe('400.00');
-    // Equal thirds to the piastre, re-summing to what was collected.
-    const shares = data.partners.map((p) => p.shareOfCollectedEgp);
-    expect(shares).toEqual(['133.33', '133.33', '133.34']);
-    expect(await refusal(take(cycle.id, people[0], 133.34))).toMatchObject({
+    await pay(1000); // half the sale paid: half its 900 of profit is in
+    let { data } = await draws.forCycle(cycle.id);
+    expect(data).toMatchObject({
+      salesEgp: '2000.00',
+      salesPaidEgp: '1000.00',
+      uncollectedEgp: '1000.00',
+      sharePaidPct: '50.00',
+      collectedProfitEgp: '450.00',
+    });
+    expect(data.partners.map((p) => p.shareOfCollectedEgp)).toEqual([
+      '150.00',
+      '150.00',
+      '150.00',
+    ]);
+    await pay(500); // three quarters paid
+    ({ data } = await draws.forCycle(cycle.id));
+    expect(data.collectedProfitEgp).toBe('675.00');
+    expect(data.partners.map((p) => p.shareOfCollectedEgp)).toEqual([
+      '225.00',
+      '225.00',
+      '225.00',
+    ]);
+    expect(await refusal(take(cycle.id, people[0], 225.01))).toMatchObject({
       code: 'PROFIT_DRAW_OVER_AVAILABLE',
     });
-    await take(cycle.id, people[0], 133.33);
+    await take(cycle.id, people[0], 225);
     expect((await roomOf(cycle.id, people[0])).availableEgp).toBe('0.00');
+  });
+
+  it('an odd part payment: the share collected to the piastre, re-summing across partners', async () => {
+    const { cycle, pay } = await tradedCycle();
+    await pay(333.33); // 16.6665% of 2,000: 149.9985 of 900, 150.00 to the piastre
+    const { data } = await draws.forCycle(cycle.id);
+    expect(data.collectedProfitEgp).toBe('150.00');
+    const shares = data.partners.map((p) => p.shareOfCollectedEgp);
+    expect(shares).toEqual(['50.00', '50.00', '50.00']);
   });
 
   it('paid in full: each takes up to his share, to the piastre, and not a piastre more', async () => {

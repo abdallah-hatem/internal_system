@@ -184,14 +184,89 @@ describe('each participant’s lines', () => {
     expect(cents(amounts(i).reduce((s, x) => s + x, 0))).toBe(cents(total(i)));
   });
 
-  it('before it is paid it says "to be paid" and that running costs are what paying today would take', () => {
+  // §8, 2026-11-08: running costs are a cost inside the cycle now; an open
+  // settlement no longer promises a deduction from anyone's payout.
+  it('before it is paid it says "to be paid", with no running-cost line taken off', () => {
+    const open = { ...BREAKDOWN.participants[0], runningCostsEgp: '0.00', runningCostsFrom: null, runningCostsTo: null, runningCostsStatus: 'none' as const, paidEgp: '54189.00' };
+    renderIn('en', { ...BREAKDOWN, participants: [open] }, 'APPROVED');
+    const a = screen.getByTestId('breakdown-p-a');
+    expect(labels(a).some((l) => l?.startsWith(en.settlementsPage.runningCostsLine))).toBe(false);
+    expect(a.textContent).not.toContain('If paid today');
+    expect(a.querySelector('[data-total] [data-label]')!.textContent).toBe(en.settlementsPage.wouldBePaid);
+    expect(cents(amounts(a).reduce((s, x) => s + x, 0))).toBe(cents(total(a)));
+  });
+
+  it('a stray "projected" figure from an older API is not shown as a deduction', () => {
     renderIn('en', {
       ...BREAKDOWN,
-      participants: [{ ...BREAKDOWN.participants[0], runningCostsStatus: 'projected' }],
-    }, 'APPROVED');
+      participants: [{ ...BREAKDOWN.participants[0], runningCostsStatus: 'projected', runningCostsFrom: null, runningCostsTo: null }],
+    }, 'DRAFT');
     const a = screen.getByTestId('breakdown-p-a');
-    expect(within(a).getByText(en.settlementsPage.runningCostsProjected)).toBeTruthy();
-    expect(a.querySelector('[data-total] [data-label]')!.textContent).toBe(en.settlementsPage.wouldBePaid);
+    expect(labels(a).some((l) => l?.startsWith(en.settlementsPage.runningCostsLine))).toBe(false);
+  });
+
+  it('an old settlement paid the old way keeps its running-cost line; reversed, it says it was put back', () => {
+    renderIn('en', {
+      ...BREAKDOWN,
+      participants: [{ ...BREAKDOWN.participants[0], runningCostsStatus: 'released' }],
+    }, 'REVERSED');
+    const a = screen.getByTestId('breakdown-p-a');
+    expect(labels(a).some((l) => l?.startsWith(en.settlementsPage.runningCostsLine))).toBe(true);
+    expect(within(a).getByText(en.settlementsPage.runningCostsReleased)).toBeTruthy();
+  });
+});
+
+describe('running costs shared to the cycle (§8, 2026-11-08)', () => {
+  // 1,200 rent and 300 fuel shared to this cycle while it sold: 1,500 more
+  // cost, 35,150 profit; the cost lines still come to the expenses figure.
+  const SHARED: PayoutBreakdown = {
+    ...BREAKDOWN,
+    costs: [
+      ...BREAKDOWN.costs!,
+      { kind: 'shared', category: 'rent', amountEgp: '1200.00' },
+      { kind: 'shared', category: 'fuel', amountEgp: '300.00' },
+    ],
+    expensesEgp: '4850.00',
+    cycleProfitEgp: '35150.00',
+  };
+  const costLines = (cycle: HTMLElement) => amounts(cycle).slice(2);
+
+  it('each is a cost line named for its category, saying it is a running cost shared to this cycle', () => {
+    renderIn('en', SHARED);
+    const cycle = screen.getByTestId('breakdown-cycle');
+    expect(labels(cycle).slice(-2)).toEqual([
+      'Rent — running cost shared to this cycle',
+      en.settlementsPage.costShared.replace('{category}', en.codes.ledgerCategory.fuel),
+    ]);
+    // A cost: it comes off the profit, like a charge.
+    expect(amounts(cycle).slice(-2)).toEqual([-1200, -300]);
+  });
+
+  it('the lines still add up to the profit, and the costs to the expenses figure', () => {
+    renderIn('en', SHARED);
+    const cycle = screen.getByTestId('breakdown-cycle');
+    expect(cents(amounts(cycle).reduce((s, a) => s + a, 0))).toBe(cents(total(cycle)));
+    expect(total(cycle)).toBe(35150);
+    expect(cents(-costLines(cycle).reduce((s, a) => s + a, 0))).toBe(cents(Number(SHARED.expensesEgp)));
+  });
+
+  it('in Arabic: the category and the explanation are Arabic', () => {
+    renderIn('ar', SHARED);
+    const cycle = screen.getByTestId('breakdown-cycle');
+    const [rent] = labels(cycle).slice(-2);
+    expect(rent).toBe(ar.settlementsPage.costShared.replace('{category}', ar.codes.ledgerCategory.rent));
+    expect(rent).toContain('مصروف عام');
+    expect(cycle.textContent).not.toMatch(/running cost|Rent|Fuel/);
+  });
+
+  it('every participant bears it through the profit: no payout carries a running-cost line for it', () => {
+    renderIn('en', {
+      ...SHARED,
+      participants: SHARED.participants.map((p) => ({ ...p, runningCostsEgp: '0.00', runningCostsFrom: null, runningCostsTo: null, runningCostsStatus: 'none' as const })),
+    }, 'APPROVED');
+    for (const id of ['p-a', 'p-i']) {
+      expect(labels(screen.getByTestId(`breakdown-${id}`)).some((l) => l?.startsWith(en.settlementsPage.runningCostsLine))).toBe(false);
+    }
   });
 });
 

@@ -26,7 +26,7 @@ import {
   PROFIT_DRAW_RELATED,
   STANDING_DRAW,
   collectedProfit,
-  uncollectedRevenueEgp,
+  cycleSalesPaid,
 } from '../../common/profit-draws';
 import type {
   CreateProfitDrawDto,
@@ -112,7 +112,13 @@ export class ProfitDrawsService {
               : cycle.status
           : null,
         profitEgp: room.profit === null ? null : m2(room.profit),
-        uncollectedEgp: m2(room.uncollected),
+        /** This cycle's sales, and how much of them the customers have paid. */
+        salesEgp: m2(room.sales.revenueEgp),
+        salesPaidEgp: m2(room.sales.paidEgp),
+        /** What is still owed on them. */
+        uncollectedEgp: m2(room.sales.revenueEgp.sub(room.sales.paidEgp)),
+        /** The share of its sales paid, in percent: the share of its profit collected. */
+        sharePaidPct: room.sales.share.mul(100).toFixed(2),
         collectedProfitEgp: m2(room.collected),
         /** Why there is no split to take a share of (CYCLE_NOT_FUNDED, …), or null. */
         problem: room.problem,
@@ -167,9 +173,9 @@ export class ProfitDrawsService {
       problem = codeOf(e);
     }
 
-    const uncollected = await uncollectedRevenueEgp(db, cycleId);
+    const sales = await cycleSalesPaid(db, cycleId);
     const collected =
-      profit === null ? ZERO : collectedProfit(profit, uncollected);
+      profit === null ? ZERO : collectedProfit(profit, sales.share);
 
     if (profit !== null) {
       const all = await db.cycleParticipant.findMany({
@@ -231,7 +237,7 @@ export class ProfitDrawsService {
         availableEgp: m2(left.gt(0) ? left : ZERO),
       });
     }
-    return { profit, uncollected, collected, problem, partners };
+    return { profit, sales, collected, problem, partners };
   }
 
   // ─── Writing ─────────────────────────────────────────────────────────

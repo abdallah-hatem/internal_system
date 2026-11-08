@@ -98,6 +98,9 @@ function fixture(over: Partial<ProfitDrawsView> = {}): ProfitDrawsView {
     locked: null,
     profitEgp: '90000.00',
     uncollectedEgp: '30000.00',
+    salesEgp: '90000.00',
+    salesPaidEgp: '60000.00',
+    sharePaidPct: '66.67',
     collectedProfitEgp: '60000.00',
     problem: null,
     partners: [
@@ -162,6 +165,8 @@ describe('the card reads the server’s figures', () => {
     const card = await screen.findByTestId('profit-draws-card');
     expect(text(within(card).getByTestId('profit-draws-collected'))).toBe('60,000.00 EGP');
     expect(card.textContent).toContain(en.profitDraws.collectedHint);
+    // The dashboard's proportional reading: the share of its sales paid (owner 2026-11-08).
+    expect(card.textContent).toContain('66.67% of its sales paid');
 
     const a = rowOf('a');
     expect(text(within(a).getByTestId('draw-share'))).toBe('20,000.00 EGP');

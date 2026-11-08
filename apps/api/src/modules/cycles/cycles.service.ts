@@ -1,4 +1,8 @@
 import { HttpException, Injectable } from '@nestjs/common';
+import {
+  assignWaitingRunningCosts,
+  takesRunningCosts,
+} from '../../common/running-cost-allocation';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
@@ -907,6 +911,12 @@ export class CyclesService {
         closedOn: targetStatus === 'CLOSED' ? new Date() : undefined,
       },
     });
+    // A cycle whose order is paid takes the running costs waiting for one
+    // (§8, owner 2026-11-08: "shared the moment we pay for the goods"),
+    // whichever way it got into a running status.
+    if (takesRunningCosts(targetStatus)) {
+      await assignWaitingRunningCosts(tx);
+    }
     return { plan, updated };
   }
 

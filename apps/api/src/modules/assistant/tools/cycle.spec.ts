@@ -80,6 +80,20 @@ function legsOf(cycleId: string) {
 function fakePrisma() {
   const prisma: Row = {
     importCycle: {
+      // The cycles taking running costs (§8, 2026-11-08), by status.
+      findMany: ({ where }: Row = {}) =>
+        Promise.resolve(
+          db.cycles
+            .filter(
+              (c) =>
+                !where?.status ||
+                (typeof where.status === 'string'
+                  ? c.status === where.status
+                  : !where.status.in || where.status.in.includes(c.status)),
+            )
+            // No settlement and no status history in these worlds (§8).
+            .map((c) => ({ settlements: [], statusChanges: [], ...c })),
+        ),
       findUnique: ({ where, include, select }: Row) => {
         const c = db.cycles.find((x) => x.id === where.id);
         if (!c) return Promise.resolve(null);
@@ -328,7 +342,12 @@ function fakePrisma() {
         return Promise.resolve(data);
       },
     },
+    // No running cost waits in these worlds (§8, 2026-11-08).
+    runningCostAllocation: {
+      create: ({ data }: Row) => Promise.resolve(data),
+    },
     financialTransaction: {
+      findMany: () => Promise.resolve([]),
       create: ({ data }: Row) => {
         db.ledger.push(data);
         return Promise.resolve(data);
@@ -391,6 +410,8 @@ function fakePrisma() {
   };
   // The cycle's row lock (lockCycle): one test, one caller, nothing to wait on.
   prisma.$queryRaw = () => Promise.resolve([]);
+  // The running costs' advisory lock (§8, 2026-11-08): nothing to wait on.
+  prisma.$executeRaw = () => Promise.resolve(0);
   return prisma as unknown as PrismaService;
 }
 

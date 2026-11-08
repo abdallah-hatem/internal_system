@@ -45,7 +45,6 @@ import { isUuid } from '../../common/uuid';
 import { settlementWarnings } from './settlement-warnings';
 import { unsoldStock } from '../../common/unsold-stock';
 import { assertDayRange, businessDay, businessToday } from '../../common/dates';
-import { RUNNING_COST_SHARE_CATEGORY } from '../../common/ledger-categories';
 import {
   STANDING_MOVEMENT,
   accountPots,
@@ -55,18 +54,19 @@ import {
 import {
   buildPayoutBreakdown,
   cycleCostLines,
+  isStoredCostBreakdown,
   type PayoutBreakdown,
 } from '../../common/payout-breakdown';
 import {
-  fixRunningCostShares,
   loadRunningCosts,
   periodOf,
-  planRunningCostCharges,
-  summariseRunningCosts,
   thisQuarter,
-  type PlannedCharge,
 } from '../../common/running-costs';
 import { cycleTransfersOutEgp } from '../../common/stock-transfers';
+import {
+  assignWaitingRunningCosts,
+  sharedRunningCosts,
+} from '../../common/running-cost-allocation';
 import {
   PROFIT_DRAWN_COMPONENT,
   STANDING_DRAW,
@@ -470,11 +470,17 @@ export class SettlementsService {
     // the repayments through the one definition analytics reads too.
     const exchangeDiff = await exchangeDifferenceEgp(db, cycleId);
 
+    // Its part of the running costs — rent, fuel, packaging recorded with no
+    // cycle while it was running (§8, owner 2026-11-08: investors pay for
+    // every cost too). Stored once, read here, in Analytics and nowhere else.
+    const shared = (await sharedRunningCosts(db, [cycleId])).get(cycleId);
+
     const expenses = netOperatingExpenseEgp(expenseTxns)
       .sub(netRecoveredEgp(recoveryTxns))
       .sub(netOtherIncomeEgp(otherIncomeTxns))
       .add(losses)
-      .add(exchangeDiff);
+      .add(exchangeDiff)
+      .add(shared?.totalEgp ?? 0);
 
     // The same figures, line by line, so the payout can explain itself (§8,
     // L7). From these very rows — they add up to `expenses` exactly.
@@ -485,6 +491,7 @@ export class SettlementsService {
       lossesEgp: writeOffs.lostOnTheWay,
       samplesWrittenOffEgp: writeOffs.samplesWrittenOff,
       exchangeDifferenceEgp: exchangeDiff,
+      sharedByCategory: shared?.byCategory,
     });
 
     const pnl = summarizeCyclePnl({
@@ -528,7 +535,7 @@ export class SettlementsService {
    */
   async cyclesWithProfitActivity(cycleIds: string[]): Promise<Set<string>> {
     if (cycleIds.length === 0) return new Set();
-    const [batches, ledger, losses, repayments] = await Promise.all([
+    const [batches, ledger, losses, repayments, shared] = await Promise.all([
       this.prisma.inventoryBatch.findMany({
         where: {
           cycleId: { in: cycleIds },
@@ -561,12 +568,18 @@ export class SettlementsService {
         where: { financing: { cycleId: { in: cycleIds } } },
         select: { financing: { select: { cycleId: true } } },
       }),
+      this.prisma.runningCostAllocation.findMany({
+        where: { cycleId: { in: cycleIds } },
+        select: { cycleId: true },
+        distinct: ['cycleId'],
+      }),
     ]);
     return new Set<string>([
       ...batches.map((b) => b.cycleId),
       ...ledger.map((t) => t.cycleId as string),
       ...losses.map((l) => l.leg.cycleId),
       ...repayments.map((r) => r.financing.cycleId),
+      ...shared.map((s) => s.cycleId),
     ]);
   }
 
@@ -669,6 +682,10 @@ export class SettlementsService {
     // 2026-10-18): they are neither sold nor on the shelf, so the profit
     // would be a guess.
     await assertCycleHasNoSamplesOut(this.prisma, cycleId, cycle.code);
+
+    // Any running cost still waiting goes to the cycles running now — this
+    // one among them — before its figures are worked out (§8, 2026-11-08).
+    await this.prisma.$transaction((tx) => assignWaitingRunningCosts(tx));
 
     // The same arithmetic `preview` shows, so what a partner was shown is
     // what is settled — losses on the way included (§8).
@@ -899,6 +916,8 @@ export class SettlementsService {
       }
       // Profit taken or undone since it was calculated (§8, 2026-11-08).
       await assertDrawsCurrent(tx, id, settlement.cycleId);
+      // A running cost shared to it, or undone, since then (§8, 2026-11-08).
+      await assertSharedCostsCurrent(tx, settlement);
       await assertShipmentAccounted(tx, settlement.cycleId);
       // And no friend still owed (§18) — the gate the transition runs too.
       const cycle = await tx.importCycle.findUnique({
@@ -1036,7 +1055,6 @@ export class SettlementsService {
     }
     const leftIn: { partnerUserId: string; amount: string }[] = [];
 
-    const charged: PlannedCharge[] = [];
     const payouts = new Map<string, Prisma.Decimal>();
     const carried: { partnerUserId: string; amount: string }[] = [];
     let drawsSettled = 0;
@@ -1071,73 +1089,11 @@ export class SettlementsService {
       await lockAccounts(tx, coreUsers);
       const drawIds = await assertDrawsCurrent(tx, id, settlement.cycleId);
 
-      // --- His share of the running costs (§8, owner 2026-10-11; L7) -------
-      // Each core partner on this cycle: his equal share of the general
-      // running costs still waiting, oldest first, as far as this payout
-      // covers. The cycle's profit is not touched — it comes off his payout.
-      // Shares fixed first: any cost seen for the first time gets its shares
-      // stored now, over the partners of its own day (§8, review 2026-10-12).
-      const state = await fixRunningCostShares(tx);
-      const { capacities, participantOf } = corePartnerPayouts(
-        settlement.lines,
-      );
-      const plan = planRunningCostCharges({ ...state, capacities });
-      const costDay = new Map(state.costs.map((c) => [c.id, c.day]));
+      // Running costs no longer come off the core partners' payouts (§8,
+      // owner 2026-11-08): they are shared to the selling cycles and are
+      // inside this cycle's profit already, borne by every participant.
+      const { participantOf } = corePartnerPayouts(settlement.lines);
       const takenBy = new Map<string, Prisma.Decimal>();
-      for (const c of plan) {
-        takenBy.set(
-          c.partnerUserId,
-          (takenBy.get(c.partnerUserId) ?? new Prisma.Decimal(0)).add(c.amount),
-        );
-      }
-
-      for (const [userId, total] of takenBy) {
-        const participantId = participantOf.get(userId)!;
-        const mine = plan.filter((c) => c.partnerUserId === userId);
-        const period = periodOf(mine.map((c) => costDay.get(c.costEntryId)!));
-        for (const c of mine) {
-          await tx.runningCostCharge.create({
-            data: {
-              costEntryId: c.costEntryId,
-              settlementId: settlement.id,
-              participantId,
-              partnerUserId: userId,
-              amount: c.amount,
-            },
-          });
-          charged.push(c);
-        }
-        // On the settlement, beside his capital and profit: what he is paid
-        // is the sum of its payable lines (PAYABLE_COMPONENTS).
-        await tx.settlementLine.create({
-          data: {
-            settlementId: settlement.id,
-            participantId,
-            component: 'RUNNING_COSTS',
-            amount: total.neg(),
-          },
-        });
-        // In the ledger: the deduction, so the payout row below (the cash
-        // actually handed over) and his record agree. Not cash, not an
-        // expense — the cost was an expense when it was recorded
-        // (`running_cost_share`, ledger-categories.ts).
-        await tx.financialTransaction.create({
-          data: {
-            type: 'RUNNING_COST_CHARGE',
-            category: RUNNING_COST_SHARE_CATEGORY,
-            direction: 'INFLOW',
-            amount: total,
-            currency: 'EGP',
-            cycleId: settlement.cycleId,
-            relatedType: 'SETTLEMENT',
-            relatedId: settlement.id,
-            reason:
-              `Settlement of ${settlement.cycle.code}: share of running costs ` +
-              `${period ? `${period.from} – ${period.to} ` : ''}taken from the partner's payout`,
-            createdBy: actorId,
-          },
-        });
-      }
 
       // --- What each participant is handed ---------------------------------
       const userOf = new Map(
@@ -1273,11 +1229,6 @@ export class SettlementsService {
         payoutsLeftIn: leftIn,
         profitDrawsSettled: drawsSettled,
         owedCarriedOver: carried,
-        runningCostsCharged: charged.map((c) => ({
-          costEntryId: c.costEntryId,
-          partnerUserId: c.partnerUserId,
-          amount: c.amount.toFixed(2),
-        })),
       },
     });
 
@@ -1431,12 +1382,15 @@ export class SettlementsService {
         where: { id: settlement.cycleId },
         data: { status: 'SELLING', closedOn: null },
       });
-
-      return tx.settlement.update({
+      const reversed = await tx.settlement.update({
         where: { id },
         data: { status: 'REVERSED' },
         include: SETTLEMENT_INCLUDE,
       });
+      // Running again, its settlement undone: it takes running costs again,
+      // the ones that waited meanwhile first (§8, 2026-11-08).
+      await assignWaitingRunningCosts(tx);
+      return reversed;
     });
 
     await this.audit.log({
@@ -1496,11 +1450,6 @@ export class SettlementsService {
         })
       : [];
 
-    const open = settlements.filter(
-      (s) => s.status === 'DRAFT' || s.status === 'APPROVED',
-    );
-    const state = open.length ? await loadRunningCosts(this.prisma) : null;
-
     const leftovers = new Map<string, Prisma.Decimal>();
     for (const cycleId of new Set(settlements.map((s) => s.cycleId))) {
       leftovers.set(cycleId, await cycleTransfersOutEgp(this.prisma, cycleId));
@@ -1528,17 +1477,6 @@ export class SettlementsService {
         });
       };
 
-      if (state) {
-        const { capacities, participantOf } = corePartnerPayouts(s.lines);
-        const dayOf = new Map(state.costs.map((c) => [c.id, c.day]));
-        for (const c of planRunningCostCharges({ ...state, capacities })) {
-          add(
-            participantOf.get(c.partnerUserId)!,
-            c.amount,
-            dayOf.get(c.costEntryId)!,
-          );
-        }
-      }
       for (const c of taken) {
         if (c.settlementId !== s.id) continue;
         // Paid: what stands. Reversed: what was put back.
@@ -1578,36 +1516,116 @@ export class SettlementsService {
         : thisQuarter(businessToday());
     assertDayRange(from, to);
 
+    // Every running cost, net of any undone, with its day (one reading:
+    // common/running-costs.ts); the period's are those whose day falls in it.
     const state = await loadRunningCosts(this.prisma);
-    const costs = state.costs.filter(
-      (c) => (!from || c.day >= from) && (!to || c.day <= to),
-    );
-    const summary = summariseRunningCosts({ ...state, costs });
-    const all = summariseRunningCosts(state);
+    const inPeriod = (day: string) =>
+      (!from || day >= from) && (!to || day <= to);
+    const costs = state.costs.filter((c) => inPeriod(c.day));
+    const ids = costs.map((c) => c.id);
+    const allIds = state.costs.map((c) => c.id);
+
+    // Where each went (§8, owner 2026-11-08): its parts on the selling
+    // cycles; or, before then, the core partners' payouts that took it; or
+    // nowhere yet — waiting for a cycle whose goods are paid for.
+    const parts = allIds.length
+      ? await this.prisma.runningCostAllocation.findMany({
+          where: { costEntryId: { in: allIds } },
+          select: {
+            costEntryId: true,
+            amountEgp: true,
+            cycle: { select: { id: true, code: true, status: true } },
+          },
+        })
+      : [];
+    const charged = state.charges.filter((c) => allIds.includes(c.costEntryId));
+    const sum = (rows: { amount: Prisma.Decimal }[]) =>
+      rows.reduce((t, r) => t.add(r.amount), new Prisma.Decimal(0));
+    const placedOf = (costId: string) =>
+      sum(
+        parts
+          .filter((p) => p.costEntryId === costId)
+          .map((p) => ({ amount: new Prisma.Decimal(p.amountEgp) })),
+      ).add(sum(charged.filter((c) => c.costEntryId === costId)));
+    const waitingOf = (c: { id: string; amount: Prisma.Decimal }) => {
+      const left = c.amount.sub(placedOf(c.id));
+      return left.gt(0) ? left : new Prisma.Decimal(0);
+    };
+
+    const byCategory = new Map<string, Prisma.Decimal>();
+    for (const c of costs) {
+      byCategory.set(
+        c.category,
+        (byCategory.get(c.category) ?? new Prisma.Decimal(0)).add(c.amount),
+      );
+    }
+    const byCycle = new Map<
+      string,
+      {
+        cycleId: string;
+        code: string;
+        status: string;
+        sharedEgp: Prisma.Decimal;
+      }
+    >();
+    for (const p of parts) {
+      if (!ids.includes(p.costEntryId)) continue;
+      const row = byCycle.get(p.cycle.id) ?? {
+        cycleId: p.cycle.id,
+        code: p.cycle.code,
+        status: p.cycle.status,
+        sharedEgp: new Prisma.Decimal(0),
+      };
+      row.sharedEgp = row.sharedEgp.add(p.amountEgp);
+      byCycle.set(p.cycle.id, row);
+    }
     const money = (v: Prisma.Decimal) => v.toFixed(2);
+    const spent = sum(costs);
+    const shared = [...byCycle.values()].reduce(
+      (t, r) => t.add(r.sharedEgp),
+      new Prisma.Decimal(0),
+    );
+    const chargedInPeriod = sum(
+      charged.filter((c) => ids.includes(c.costEntryId)),
+    );
+    const waiting = costs.reduce(
+      (t, c) => t.add(waitingOf(c)),
+      new Prisma.Decimal(0),
+    );
+    const waitingAll = state.costs.reduce(
+      (t, c) => t.add(waitingOf(c)),
+      new Prisma.Decimal(0),
+    );
 
     return {
       data: {
         from: from ?? null,
         to: to ?? null,
-        spentEgp: money(summary.spentEgp),
-        chargedEgp: money(summary.chargedEgp),
-        waitingEgp: money(summary.waitingEgp),
-        /** Everything still waiting, whatever the period: what the next payouts will take. */
-        waitingAllTimeEgp: money(all.waitingEgp),
-        byCategory: summary.byCategory.map((c) => ({
-          category: c.category,
-          spentEgp: money(c.spentEgp),
-        })),
-        partners: summary.partners.map((p) => ({
-          userId: p.userId,
-          name: p.name,
-          shareEgp: money(p.shareEgp),
-          chargedEgp: money(p.chargedEgp),
-          waitingEgp: money(p.waitingEgp),
-          takesResidual: p.takesResidual,
-          active: p.active,
-        })),
+        spentEgp: money(spent),
+        /** Shared to the running cycles: inside their profit, borne by every participant. */
+        sharedEgp: money(shared),
+        /** Taken from the core partners' payouts before 2026-11-08 (history). */
+        chargedEgp: money(chargedInPeriod),
+        /** No cycle was running yet: goes to the next one whose goods are paid for. */
+        waitingEgp: money(waiting),
+        /** Everything still waiting, whatever the period. */
+        waitingAllTimeEgp: money(waitingAll),
+        byCategory: [...byCategory.entries()]
+          .map(([category, v]) => ({ category, spentEgp: money(v) }))
+          .sort(
+            (a, b) =>
+              Number(b.spentEgp) - Number(a.spentEgp) ||
+              a.category.localeCompare(b.category),
+          ),
+        /** Each cycle's part of the period's running costs. */
+        cycles: [...byCycle.values()]
+          .sort((a, b) => a.code.localeCompare(b.code))
+          .map((r) => ({
+            cycleId: r.cycleId,
+            code: r.code,
+            status: r.status,
+            sharedEgp: money(r.sharedEgp),
+          })),
       },
     };
   }
@@ -1675,4 +1693,29 @@ async function assertDrawsCurrent(
     }
   }
   return drawIds;
+}
+
+/**
+ * Refuse approving a draft whose shared running costs are not the cycle's
+ * any more (§8, 2026-11-08): one shared to it after it was calculated, or one
+ * undone. Approval is the last moment one can be added or taken away.
+ */
+async function assertSharedCostsCurrent(
+  tx: Prisma.TransactionClient,
+  settlement: { cycleId: string; costBreakdown: Prisma.JsonValue | null },
+) {
+  const stored = isStoredCostBreakdown(settlement.costBreakdown)
+    ? settlement.costBreakdown.costs
+        .filter((c) => c.kind === 'shared')
+        .reduce((sum, c) => sum.add(c.amountEgp), new Prisma.Decimal(0))
+    : new Prisma.Decimal(0);
+  const now =
+    (await sharedRunningCosts(tx, [settlement.cycleId])).get(settlement.cycleId)
+      ?.totalEgp ?? new Prisma.Decimal(0);
+  if (!now.eq(stored)) {
+    throw badRequest(
+      'SETTLEMENT_STALE_COSTS',
+      'Running costs shared to this cycle changed after this settlement was calculated. Calculate it again.',
+    );
+  }
 }

@@ -128,6 +128,8 @@ function fakeDb(rows: Row[]) {
     lenderRepayment: {
       aggregate: () => Promise.resolve({ _sum: { exchangeDiffEgp: null } }),
     },
+    // No running cost shared to it (§8, 2026-11-08).
+    runningCostAllocation: { findMany: () => Promise.resolve([]) },
     importCycle: {
       findMany: () =>
         Promise.resolve([

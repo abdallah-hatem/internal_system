@@ -383,6 +383,13 @@ function LedgerEntryForm({
           {cycleRequired && (
             <p className="mt-1 text-xs text-muted-foreground">{t('cycleRequiredHint')}</p>
           )}
+          {/* An expense with no cycle is a running cost: shared to the cycles
+              selling, borne by everyone in them (§8, owner 2026-11-08). */}
+          {!cycleRequired && kind === 'EXPENSE' && !cycleId && (
+            <p data-testid="ledger-no-cycle-hint" className="mt-1 text-xs text-muted-foreground">
+              {t('noCycleExpenseHint')}
+            </p>
+          )}
         </div>
       </div>
 

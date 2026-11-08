@@ -33,9 +33,11 @@ const fixed = (v: Prisma.Decimal) => v.toFixed(2);
  * - `exchange`: repaying friends at a moved rate (§18).
  * - `recovery`: money a supplier or shipper gave back (§6).
  * - `otherIncome`: other income credited to the cycle (§9).
+ * - `shared`: its part of the running costs recorded with no cycle while it
+ *   was selling — rent, fuel, packaging (§8, 2026-11-08), by category.
  */
 export interface CycleCostLine {
-  kind: 'charge' | 'loss' | 'exchange' | 'recovery' | 'otherIncome';
+  kind: 'charge' | 'loss' | 'exchange' | 'recovery' | 'otherIncome' | 'shared';
   category: string | null;
   amountEgp: string;
 }
@@ -74,6 +76,8 @@ export function cycleCostLines(input: {
   /** Samples the shops kept or lost (§4, samples at shops): its own line. */
   samplesWrittenOffEgp?: Prisma.Decimal;
   exchangeDifferenceEgp: Prisma.Decimal;
+  /** Its part of the running costs, by category (§8, 2026-11-08). */
+  sharedByCategory?: Map<string, Prisma.Decimal>;
 }): CycleCostLine[] {
   const lines: CycleCostLine[] = [
     ...byCategory(input.expenseRows, 'charge', operatingExpenseEgp),
@@ -84,6 +88,10 @@ export function cycleCostLines(input: {
       category: null,
       amountEgp: fixed(input.lossesEgp),
     });
+  }
+  for (const [category, amount] of input.sharedByCategory ?? []) {
+    if (amount.isZero()) continue;
+    lines.push({ kind: 'shared', category, amountEgp: fixed(amount) });
   }
   if (input.samplesWrittenOffEgp && !input.samplesWrittenOffEgp.isZero()) {
     lines.push({

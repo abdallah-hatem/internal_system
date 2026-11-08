@@ -72,6 +72,7 @@ function world() {
     // Profit taken before settlement (§8, 2026-11-08): none in these worlds.
     settlementLine: [],
     profitDraw: [],
+    runningCostAllocation: [],
   };
   const withRelations = (table: string, row: Row) => {
     if (table === 'cycleParticipant') {
@@ -154,6 +155,7 @@ function world() {
     Object.keys(tables).map((t) => [t, model(t)]),
   );
   prisma.$queryRaw = async () => [];
+  prisma.$executeRaw = async () => 0;
   prisma.$transaction = async (cb: (tx: any) => Promise<unknown>) => cb(prisma);
 
   const audit = { log: jest.fn() } as unknown as AuditService;

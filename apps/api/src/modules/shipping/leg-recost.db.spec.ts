@@ -16,6 +16,7 @@ import { SettlementsService } from '../settlements/settlements.service';
 import { StockTransfersService } from '../stock-transfers/stock-transfers.service';
 import { DeliveriesService } from './deliveries.service';
 import { ShippingService } from './shipping.service';
+import { quietRunningCosts } from '../../common/running-costs-quiet-spec';
 
 /**
  * Correcting a leg's cost after goods arrived re-costs the cycle (BUSINESS_LOGIC
@@ -103,6 +104,9 @@ suite(
       transfers = new StockTransfersService(db, auditService);
     });
     afterAll(() => prisma.$disconnect());
+    // A running cost another suite left waiting would land on this cycle when
+    // it starts selling and move its profit (§8, 2026-11-08).
+    beforeEach(() => quietRunningCosts(prisma));
 
     // ─── Fixtures, through the services ─────────────────────────────────────
 
