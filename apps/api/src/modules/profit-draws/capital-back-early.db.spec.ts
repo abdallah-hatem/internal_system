@@ -422,6 +422,39 @@ suite('capital taken back before settlement (Postgres)', () => {
     });
   });
 
+  // Production's pool holds one connection (connection_limit=1), so a read made outside the
+  // transaction waits for the connection the transaction holds and hangs (P2028). This
+  // suite's larger pool hides that; this client does not.
+  it('takes capital back on a single connection, as production does', async () => {
+    const { cycle, pay } = await tradedCycle();
+    await pay(2000);
+    const one = new PrismaClient({
+      datasources: {
+        db: {
+          url: `${url}${url!.includes('?') ? '&' : '?'}connection_limit=1&pool_timeout=5`,
+        },
+      },
+    });
+    try {
+      const db = one as unknown as PrismaService;
+      const audit = { log: jest.fn() } as unknown as AuditService;
+      const costing = new CostingService(db);
+      const single = new ProfitDrawsService(
+        db,
+        audit,
+        new SettlementsService(db, audit, costing),
+        costing,
+      );
+      const who = (await usualOf(cycle.id))[0];
+      await expect(
+        single.takeCapital(cycle.id, { userId: who.id, amountEgp: 100 }, actor),
+      ).resolves.toBeDefined();
+      await expect(single.capitalForCycle(cycle.id)).resolves.toBeDefined();
+    } finally {
+      await one.$disconnect();
+    }
+  });
+
   /** The participants' users, in joining order. */
   const usualOf = async (cycleId: string) =>
     (

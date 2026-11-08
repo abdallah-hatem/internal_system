@@ -123,7 +123,11 @@ jobs:
 
       - name: Unit tests
         working-directory: apps/api
-        run: npx jest --ci
+        # The *.db.spec.ts suites run only when INTEGRATION_DATABASE_URL is set; without
+        # it CI skipped every one of them. One file at a time: they share running costs.
+        env:
+          INTEGRATION_DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: npx jest --ci --runInBand
 
       - name: Build API
         working-directory: apps/api
