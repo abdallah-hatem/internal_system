@@ -75,6 +75,34 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production" in build-log/history/2026-10.md.
+- **TODO (owner 2026-11-08: "yes put todo") — capital back early, beside profit draws.** Owner: "why am i allowed to
+  take from profit only i have money as well, the money i put to purchase goods … so that money + profit − expenses,
+  right?" Yes at settlement (capital back + profit share, profit already net of expenses). Mid-cycle the capital is
+  stock, customers' debt, or cash recovered from paid sales — and that recovered cash is everyone's capital, investors'
+  included, so no one may take theirs ahead of the others. Build (§8, next to "Profit taken before a cycle is settled"):
+  - **Recovered share of the cycle** = cost of goods sold on paid sales (each realised order's COGS from this cycle ×
+    the share of that order paid — the same `paidAndValueOf` reading profit draws and the dashboard use, rule 11) ÷
+    the cycle's cost to fund (`CostingService.fundingFor`). Never above 1. Cycle 1 on 2026-11-08: ≈ 70%.
+  - **Each participant — core partners AND temporary investors —** may take back up to recovered share × his
+    contribution, less capital already taken back early. Cycle 1 ≈ Abdallah 38.5k of 55,000; Shady/Fares ≈ 23.1k each;
+    Ahmad Eraiby ≈ 42k of 60,000; Mohammed Setta ≈ 14k of 20,000. Any core partner records it for anyone (owner rule for
+    draws). GUESS: investors may take theirs early too; the partners record it for them.
+  - Ledger: one `contribution` OUTFLOW on the cycle ("Capital returned early"), cash down; profit unchanged (capital is in
+    CAPITALISED_CATEGORIES). Its own table or a kind on profit_draws (`CAPITAL`) — reuse the draw machinery: amount > 0,
+    2 decimals, date not future, locked from settlement approval (`PROFIT_DRAW_CYCLE_LOCKED`), undo once with a reason,
+    cycle + account locks, refusal codes in en+ar.
+  - **Shares must not move:** profit is split by contribution, so an early capital return must NOT lower the
+    `contributionAmount` the split reads (or the investor who took his early loses profit share). Keep the split on
+    the original contributions; settlement's `CAPITAL_RETURN` line pays contribution − capital taken early (new
+    negative line, e.g. `CAPITAL_TAKEN_EARLY`), stale-draft refusal like draws.
+  - A loss: if the cycle ends below cost, capital returned early can exceed what settlement would return → owed,
+    carried like profit draws (`CARRIED`), never below zero cash pretended.
+  - Screens: cycle page card next to Profit taken — "Capital back early": recovered %, each person's room / taken;
+    settlement breakdown line. Partners page history.
+  - Tests (§0/§1): nothing recovered → 0; recovered rises with payments; investor and partner rooms by contribution
+    share; taking twice; over room refused; undo; settlement pays the rest and totals unchanged; loss case owed;
+    split percentages unchanged after an early return; check-data row for capital taken early above contribution.
+  - Docs: §8 rule (dated DECIDED/GUESS), 00-recent-changes, this entry → done.
 - **On `dev` 2026-11-08, **live 2026-11-08** (`1daf16d5`; backup `prod-20261108-173340.sql`, migrations rehearsed on a production copy, check-data 0) — running costs by the day they are dated; profit
   draws read "collected" as the dashboard does** (owner 2026-11-08: "1 equally", "yes by day its dated, we need to
   know when statuses moved", "use the dashboard's proportional reading for profit draws"). Migration
