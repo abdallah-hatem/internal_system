@@ -65,7 +65,7 @@ export interface ProviderSettings {
 }
 
 /** One model call may wait this long; a serverless function has about a minute. */
-const TIMEOUT_MS = 40_000;
+const TIMEOUT_MS = 50_000;
 
 @Injectable()
 export class AiProvider {
@@ -110,6 +110,12 @@ export class AiProvider {
           tools,
           tool_choice: 'auto',
           temperature: 0.2,
+          // Gemini 3 thinks before it answers; with every tool in the question
+          // that ran past the timeout (production, 2026-11-08). Low is enough
+          // for reading figures and calling a tool.
+          ...(settings.provider === 'gemini'
+            ? { reasoning_effort: 'low' }
+            : {}),
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
