@@ -1,4 +1,4 @@
-# Where things stand — 27 October 2026
+# Where things stand — 8 November 2026
 
 A snapshot for someone picking this up, or for you in three months. What the
 business does, what is built, what is live, and what is knowingly unfinished.
@@ -132,7 +132,7 @@ The parts worth knowing about:
 > a different Vercel account. It returns 200 on `/`, which is why it went
 > unnoticed for two sessions. Test on a route only this app has, never `/`.
 
-Production runs `origin/master` (2026-10-27, evening): a new temporary investor from the Funding card's `+`, Change split
+Production runs `origin/master` at `1daf16d5` (2026-11-08): partners can take part of their profit share before a cycle settles (profit draws); a running cost with no cycle (rent, fuel) is shared equally to every cycle running on its day, from Preparing to settlement approval, so investors bear their part; each cycle keeps its status history; the office chat runs on Gemini (`gemini-flash-lite-latest`) and answers again; Analytics' How it adds up no longer shows Cash paid out. 2026-11-06/07: the dashboard's Cash from sales tile with a profit pill and (i), Sales cash on Analytics, a credit note limited to what the order owes, batch movements with customer and price, Products oldest first, phone fixes, CI fixes. Before that, 2026-10-27 (evening): a new temporary investor from the Funding card's `+`, Change split
 saved on the server in one go, samples into the current order (migration `20261027120000_samples_into_order`) and the
 known-bugs batch (batch names in the order popup, ledger reverse 404, locked RET- numbers). Before that, `d87b68b`: customer branches and the Sales branch filter, migration
 `20261025120000_customer_branches` applied first; a walk-in looks up no branch. Earlier the same day the Funding card
@@ -148,7 +148,11 @@ Nothing is merged and waiting.
 `20261026100000_sale_order_edits`) for possible later use; that migration must not reach production until the branch
 ships. How to ship: `docs/deployment.md` "Shipping a release".
 
-### The data in production (2026-10-27)
+### The data in production (2026-11-08)
+
+Since 2026-10-27: **CYC-2026-0002** is IN_TRANSIT (Preparing 29 Oct, left 30 Oct); Mohamed Youssef paid its supplier 12,999.13 AED (197,586.78 EGP) and is owed 2,092.15 AED after three repayments (165,182 EGP, paid by the partners from their own money, recorded as advances — Abdallah 50,775, Shady 63,100, Fares 51,207 — not yet drawn into contributions; 100 EGP of the repayments is not matched by an advance). Cash from sales 164,200 EGP; customers owe 56,525, all on cycle 1 (Ahmad Zogmar 34,425, Koshary 17,450, Flesteeny 4,650). The Sameh test sale of 2026-11-06 was deleted (one-off script, backup first). Ahmad Zogmar holds 4 samples past their reminder. No running cost (expense with no cycle) stands.
+
+As of 2026-10-27:
 
 Real, small, and entered partly after the fact. Production was emptied by the
 owner on 2026-10-14 (`scripts/prod-reset-partners.sh`; logins abdallah@, shady@,

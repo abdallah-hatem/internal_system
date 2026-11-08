@@ -5,7 +5,15 @@ feature by feature at the owner's word, each on its own branch, merged and shipp
 Goal (current, 2026-10-27): the "Next up" list below, top first.
 
 ## Current stage
-2026-10-27 (evening) — **production runs `origin/master`** with what was on `dev` (owner: "ship current"): a new
+2026-11-08 — **production runs `origin/master` at `1daf16d5`**: profit taken before a cycle is settled,
+running costs shared to the running cycles (investors bear them), the cycles' status history (migrations
+`20261108100000_profit_draws`, `20261108200000_running_cost_allocations`, `20261108300000_cycle_status_history`, rehearsed
+on a production copy first, backup `prod-20261108-173340.sql`), the office chat on Gemini, Cash paid out removed from
+Analytics. 2026-11-06/07: Cash from sales and its profit pill with an (i), Sales cash on Analytics, the credit-note limit,
+batch movements with customer and price, Products oldest first, phone fixes, two CI rounds. Next up starts with the owner's
+TODO: capital back early.
+
+Before that, 2026-10-27 (evening) — **production runs `origin/master`** with what was on `dev` (owner: "ship current"): a new
 temporary investor from the Funding card, Change split saved on the server in one go, samples into the current order
 (migration `20261027120000_samples_into_order` applied first) and the known-bugs batch — on top of customer branches
 (`d87b68b`) and the other 2026-10-26/27 releases under "Live in production" (build-log/history/2026-10.md). Production's migrations end at
