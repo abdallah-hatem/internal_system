@@ -477,3 +477,10 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   from two machines. Doubled quotes inside SQL string literals (`'friend''s'`) are fine; a lone `'` in a `--` comment is
   not. Run `bash -n scripts/check-data.sh` after editing it. — 2026-10-28
 
+
+## Estimates for the owner
+
+- A profit estimate counts every cost the business has, not only goods and shipping: cycle expenses (packaging, fuel,
+  delivery, customs), its share of running costs (rent, split between the running cycles), losses and samples. When a
+  cost is unknown, put a range in the estimate and say so. On 2026-11-08 I gave cycle 2's share from goods + legs only;
+  the owner had to ask "you assumed no expense as well right ?". — 2026-11-08

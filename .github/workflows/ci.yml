@@ -124,10 +124,15 @@ jobs:
       - name: Unit tests
         working-directory: apps/api
         # The *.db.spec.ts suites run only when INTEGRATION_DATABASE_URL is set; without
-        # it CI skipped every one of them. One file at a time: they share running costs.
+        # it CI skipped every one of them. They get a database of their own: they leave
+        # core partners and running costs behind, and on the e2e database every new cycle
+        # then had six partners. One file at a time: they share running costs.
         env:
-          INTEGRATION_DATABASE_URL: ${{ env.DATABASE_URL }}
-        run: npx jest --ci --runInBand
+          INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/motorcycle_parts_jest
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE motorcycle_parts_jest"
+          DATABASE_URL="$INTEGRATION_DATABASE_URL" npx prisma migrate deploy
+          npx jest --ci --runInBand
 
       - name: Build API
         working-directory: apps/api
