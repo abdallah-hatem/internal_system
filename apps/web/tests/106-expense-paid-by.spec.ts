@@ -12,8 +12,11 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 import { API, apiCtx } from './support/fixtures';
-import { usersByEmail } from './support/running-costs';
+import { usersByEmail, ownRunningCosts } from './support/running-costs';
 import { login, messages, openNav } from './support/ui';
+
+// Running costs a test here records are undone after it, so they do not move into the cycles later specs build (§8, 2026-11-09).
+ownRunningCosts(test);
 
 const en = messages('en') as any;
 const dialog = (page: Page) => page.locator('[data-ledger-entry-dialog]');

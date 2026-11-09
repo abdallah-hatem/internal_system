@@ -7,6 +7,10 @@
  */
 import { test, expect } from '@playwright/test';
 import { API } from './support/env';
+import { ownRunningCosts } from './support/running-costs';
+
+// Running costs a test here records are undone after it, so they do not move into the cycles later specs build (§8, 2026-11-09).
+ownRunningCosts(test);
 
 async function auth(request: any) {
   const res = await request.post(`${API}/auth/login`, {

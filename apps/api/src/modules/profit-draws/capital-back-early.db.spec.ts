@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { businessToday } from '../../common/dates';
 import { HttpException } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- this suite talks to a real, throwaway Postgres; that is its point
 import { PrismaClient } from '@prisma/client';
@@ -37,10 +38,12 @@ import { quietRunningCosts } from '../../common/running-costs-quiet-spec';
 const url = process.env.INTEGRATION_DATABASE_URL;
 const suite = url ? describe : describe.skip;
 
+// Cairo days, as the service judges "not dated forward": a UTC day is
+// yesterday's in Cairo from 22:00 UTC, so "tomorrow" was today there.
 const daysAgo = (n: number) =>
-  new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+  businessToday(new Date(Date.now() - n * 86_400_000));
 const daysAhead = (n: number) =>
-  new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  businessToday(new Date(Date.now() + n * 86_400_000));
 
 type Person = { id: string };
 type Seat = {

@@ -816,6 +816,101 @@ suite('running costs shared to the running cycles (Postgres)', () => {
     expect(await partsOf(data.id)).toEqual([[planned.id, '55.00']]);
   });
 
+  // ─── Later the same day (e2e TC-RC-01, CI 2026-11-08) ──────────────
+  // "A cycle running at any moment of that Cairo day counts": one whose goods
+  // are paid for after the cost was typed in ran that day too. Before
+  // 2026-11-09 the cost stayed wholly on the cycles running when it was
+  // typed, so the same rent split differently by the hour it was entered.
+
+  /** A cycle being bought, with a draft order of one line: Preparing is allowed. */
+  async function beingBought() {
+    const c = await bareCycle('PURCHASING');
+    const tag = randomUUID().slice(0, 8);
+    await prisma.purchaseOrder.create({
+      data: {
+        cycleId: c.id,
+        supplierId: (
+          await prisma.supplier.create({
+            data: { name: `RCL ${tag}`, country: 'AE' },
+          })
+        ).id,
+        reference: `PO-L-${tag}`,
+        currency: 'EGP',
+        fxRateToEgp: 1,
+        orderedOn: new Date(`${daysAgo(5)}T00:00:00Z`),
+        status: 'DRAFT',
+        items: {
+          create: [
+            {
+              productId: (
+                await prisma.product.create({
+                  data: { sku: `RCL-${tag}`, name: `RCL part ${tag}` },
+                })
+              ).id,
+              orderedQty: 1,
+              unitPrice: 10,
+              lineTotal: 10,
+            },
+          ],
+        },
+      },
+    });
+    return c;
+  }
+
+  it('a cycle paid for later the same day shares a cost dated that day, as if the cost had been typed in after it', async () => {
+    const old = await bareCycle('SELLING', { createdAt: daysAgo(30) });
+    const { data: rent } = await spend(300);
+    const { data: yesterday } = await spend(300, { occurredOn: daysAgo(1) });
+    expect(await partsOf(rent.id)).toEqual([[old.id, '300.00']]);
+
+    const fresh = await beingBought();
+    await cyclesService.transition(fresh.id, 'PREPARING', actor);
+    expect(await partsOf(rent.id)).toEqual([
+      [old.id, '150.00'],
+      [fresh.id, '150.00'],
+    ]);
+    // Yesterday's did not run on the newcomer's watch: it stays where it was.
+    expect(await partsOf(yesterday.id)).toEqual([[old.id, '300.00']]);
+    // The second time changes nothing: still two parts, adding up to the cost.
+    await prisma.$transaction((tx) => assignWaitingRunningCosts(tx));
+    expect(await partsOf(rent.id)).toEqual([
+      [old.id, '150.00'],
+      [fresh.id, '150.00'],
+    ]);
+  });
+
+  it('once a cycle holding a part is being settled, the cost never moves again — not for a cycle paid for later that day', async () => {
+    const old = await bareCycle('SELLING', { createdAt: daysAgo(30) });
+    const { data: rent } = await spend(301);
+    await prisma.importCycle.update({
+      where: { id: old.id },
+      data: { status: 'SETTLEMENT' },
+    });
+    const fresh = await beingBought();
+    await cyclesService.transition(fresh.id, 'PREPARING', actor);
+    expect(await partsOf(rent.id)).toEqual([[old.id, '301.00']]);
+  });
+
+  it('a draft calculated before a cycle paid for later that day took its part is stale; calculated again it carries the smaller part', async () => {
+    const { cycle: c } = await sellingCycle();
+    const { data: rent } = await spend(120);
+    const draft = (await settlements.calculate(c.id, actor)).data!;
+    expect(await profitOf(c.id)).toBe('780.00');
+    const fresh = await beingBought();
+    await cyclesService.transition(fresh.id, 'PREPARING', actor);
+    expect(await partsOf(rent.id)).toEqual([
+      [c.id, '60.00'],
+      [fresh.id, '60.00'],
+    ]);
+    expect((await refusal(settlements.approve(draft.id, actor))).code).toBe(
+      'SETTLEMENT_STALE_COSTS',
+    );
+    const redo = (await settlements.calculate(c.id, actor)).data!;
+    await settlements.approve(redo.id, actor);
+    expect(await profitOf(c.id)).toBe('840.00');
+  });
+
   it('the past, filled in from the audit log: transitions and a settlement, in order, the cycle’s status last', async () => {
     const c = await bareCycle('SELLING', { createdAt: daysAgo(40) });
     // Another cycle that already has its history (the trigger's row) and an

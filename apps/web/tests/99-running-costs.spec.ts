@@ -28,8 +28,12 @@ import {
   settlementRows,
   soldOutCycle,
   usersByEmail,
+  ownRunningCosts,
 } from './support/running-costs';
 import { login, messages, openNav, openView, type Locale } from './support/ui';
+
+// Running costs a test here records are undone after it, so they do not move into the cycles later specs build (§8, 2026-11-09).
+ownRunningCosts(test);
 
 const SHOTS = process.env.L7_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/l7';
@@ -67,9 +71,11 @@ async function noSidewaysScroll(page: Page) {
 
 /**
  * Abdallah (60,000) and Shady (40,000) fund a cycle that sells 10 parts
- * landed at 100 for 300 each. Rent of 3,000 is recorded first, with nothing
- * of this cycle selling yet: it waits, and goes to the cycles selling when
- * this one starts selling — this one among them — as a cost in its profit.
+ * landed at 100 for 300 each. Rent of 3,000 dated today is recorded first,
+ * before this cycle's goods are paid for: it goes to the cycles running then
+ * (the seed's, earlier specs'), and when this one is paid for later the same
+ * day it ran that day too, so it takes its part (§8, fixed 2026-11-09 — until
+ * then it took nothing, which is what CI caught here).
  */
 async function aWorld(request: any, label: string) {
   const { headers } = await apiCtx(request);

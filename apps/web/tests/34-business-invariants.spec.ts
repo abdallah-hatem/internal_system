@@ -20,8 +20,11 @@ import { test, expect, APIRequestContext } from '@playwright/test';
 import { alreadyWalked, anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers, investorSession } from './support/fixtures';
 import { psqlQuery, psqlStdin } from './support/database';
 import { leftoverWorld } from './support/leftovers';
-import { approved, cents, recordCost, runningCosts, settlement, settlementRows, soldOutCycle, usersByEmail, waitingFor } from './support/running-costs';
+import { approved, cents, recordCost, runningCosts, settlement, settlementRows, soldOutCycle, usersByEmail, ownRunningCosts } from './support/running-costs';
 import { API } from './support/env';
+
+// Running costs a test here records are undone after it, so they do not move into the cycles later specs build (§8, 2026-11-09).
+ownRunningCosts(test);
 
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
@@ -1847,12 +1850,15 @@ test.describe('Goods that leave in parts', () => {
   });
 });
 
-// ─── L7: running costs come out of the core partners' payouts (owner, 2026-10-11) ─
-// Every rule the owner agreed gets its guard here (CLAUDE.md §1). Running
-// costs are the whole business's, so each test reads what is already waiting
-// and asserts on what its own payout changes.
+// ─── Running costs are the cycles' costs, borne by everyone (owner, 2026-11-08) ─
+// Since 2026-11-08 (§8 "investors pay for every cost too", superseding the
+// 2026-10-11 partners-only rule these tests used to guard) a cost with no
+// cycle is shared equally to the cycles running on the day it is dated and
+// sits inside their profit. Nothing is taken from a payout for it any more.
+// Running costs are the whole business's, so each test reads what is already
+// there and asserts on what its own cycle changes.
 
-test.describe('Running costs come out of the core partners’ payouts (L7, §8)', () => {
+test.describe('Running costs are shared to the running cycles, inside their profit (§8, 2026-11-08)', () => {
   const dashboard = async (request: APIRequestContext, headers: any) =>
     (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data;
   const pay = async (request: APIRequestContext, headers: any, id: string) => {
@@ -1863,119 +1869,113 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
     const res = await request.post(`${API}/settlements/${id}/reverse`, { headers, data: { reason: 'paid the wrong figures' } });
     expect(res.ok(), await res.text()).toBeTruthy();
   };
-  const line = (s: any, userId: string) =>
-    s.breakdown.participants.find((p: any) => s.lines.find((l: any) => l.participantId === p.participantId)?.participant?.partnerUserId === userId);
+  const preview = async (request: APIRequestContext, headers: any, cycleId: string) =>
+    cents((await (await request.get(`${API}/settlements/preview/${cycleId}`, { headers })).json()).data.grossProfitEgp);
+  /** A cycle's part of every running cost, all time, in piastres. */
+  const partOf = (rc: any, cycleId: string) => cents(rc.cycles.find((c: any) => c.cycleId === cycleId)?.sharedEgp ?? 0);
+  /** Nothing is placed twice, nothing lost: spent = shared + taken the old way + waiting. */
+  const accountsFor = (rc: any) =>
+    expect(cents(rc.sharedEgp) + cents(rc.chargedEgp) + cents(rc.waitingEgp), 'spent = shared + charged + waiting').toBe(cents(rc.spentEgp));
 
-  test('TC-INV-59: a cost is charged once in total — each partner his own share, the next payout takes nothing more of it, and taken + waiting is always what was spent', async ({ request }) => {
+  test('TC-INV-59: a running cost is placed once in total — never more than was spent, before and after another cycle is paid for that day', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
     const a = user('abdallah@motoparts.com');
-    const b = user('shady@motoparts.com');
-    await recordCost(request, headers, { amount: 3000, note: `inv59 ${Date.now()}` });
+    const first = await soldOutCycle(request, 'Inv RC First', [[a.id, 'CORE_PARTNER', 10000]]);
+    await recordCost(request, headers, { amount: 1000.01, note: `inv59 ${Date.now()}` });
     const before = await runningCosts(request, headers);
-    const owedA = waitingFor(before, a.id);
-    expect(owedA, 'A owes something').toBeGreaterThan(0);
-
-    // A and B fund it heavily, so both payouts cover all they owe.
-    const first = await soldOutCycle(request, 'Inv L7 First', [[a.id, 'CORE_PARTNER', 60000], [b.id, 'CORE_PARTNER', 40000]]);
-    const id1 = await approved(first.mk, first.cycle.id);
-    await pay(request, headers, id1);
+    accountsFor(before);
+    expect(partOf(before, first.cycle.id), 'the cycle selling took a part').toBeGreaterThan(0);
+    // Paid for later the same day: it ran that day too, so it shares — and
+    // the total placed is still exactly what was spent.
+    const second = await soldOutCycle(request, 'Inv RC Second', [[a.id, 'CORE_PARTNER', 10000]]);
     const after = await runningCosts(request, headers);
-    expect(waitingFor(after, a.id)).toBe(0);
-    expect(waitingFor(after, b.id)).toBe(0);
-    expect(cents(Number(after.chargedEgp) + Number(after.waitingEgp))).toBe(cents(after.spentEgp));
-    const s1 = await settlement(request, headers, id1);
-    expect(cents(line(s1, a.id).runningCostsEgp)).toBe(-cents(owedA));
-
-    // The second payout to A, from another cycle: nothing left of his to take.
-    const second = await soldOutCycle(request, 'Inv L7 Second', [[a.id, 'CORE_PARTNER', 10000]]);
-    const id2 = await approved(second.mk, second.cycle.id);
-    await pay(request, headers, id2);
-    const s2 = await settlement(request, headers, id2);
-    expect(line(s2, a.id).runningCostsStatus).toBe('none');
-    expect(cents((await runningCosts(request, headers)).chargedEgp)).toBe(cents(after.chargedEgp));
+    accountsFor(after);
+    expect(cents(after.spentEgp)).toBe(cents(before.spentEgp));
+    expect(partOf(after, second.cycle.id), 'the cycle paid for later that day took a part').toBeGreaterThan(0);
+    expect(partOf(after, first.cycle.id), 'and the first one holds less').toBeLessThan(partOf(before, first.cycle.id));
   });
 
-  test('TC-INV-60: reversing the settlement puts its running costs back to waiting, and its ledger rows net to nothing', async ({ request }) => {
+  test('TC-INV-60: reversing a settlement leaves the cycle its part of the running costs, writes no running_cost_share row, and its ledger rows net to nothing', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
     const a = user('abdallah@motoparts.com');
+    const w = await soldOutCycle(request, 'Inv RC Reverse', [[a.id, 'CORE_PARTNER', 50000]]);
     await recordCost(request, headers, { amount: 900, category: 'utilities' });
-    const before = await runningCosts(request, headers);
-    const w = await soldOutCycle(request, 'Inv L7 Reverse', [[a.id, 'CORE_PARTNER', 50000]]);
     const id = await approved(w.mk, w.cycle.id);
+    const part = partOf(await runningCosts(request, headers), w.cycle.id);
+    expect(part).toBeGreaterThan(0);
     const cash0 = (await dashboard(request, headers)).cashOnHand;
     await pay(request, headers, id);
-    expect(waitingFor(await runningCosts(request, headers), a.id)).toBe(0);
     await reverse(request, headers, id);
-    const back = await runningCosts(request, headers);
-    expect(cents(waitingFor(back, a.id))).toBe(cents(waitingFor(before, a.id)));
-    expect(cents(back.chargedEgp)).toBe(cents(before.chargedEgp));
+    expect(partOf(await runningCosts(request, headers), w.cycle.id), 'its part stays: stored once').toBe(part);
     expect(cents((await dashboard(request, headers)).cashOnHand)).toBe(cents(cash0));
     const rows = await settlementRows(request, headers, id);
-    const net = rows.filter((r) => r.category === 'running_cost_share').reduce((s, r) => s + (r.direction === 'INFLOW' ? 1 : -1) * Number(r.amount), 0);
-    expect(rows.some((r) => r.category === 'running_cost_share')).toBe(true);
+    expect(rows.some((r) => r.category === 'running_cost_share'), 'no payout is charged for running costs any more').toBe(false);
+    const net = rows.filter((r) => ['SETTLEMENT_PAYOUT', 'SETTLEMENT_REVERSAL'].includes(r.type)).reduce((s, r) => s + (r.direction === 'INFLOW' ? 1 : -1) * Number(r.amount), 0);
     expect(cents(net)).toBe(0);
   });
 
-  test('TC-INV-61: a temporary investor is never charged, however big his payout; a partner’s cash out is his payout less his share', async ({ request }) => {
+  test('TC-INV-61: an investor bears his share through the profit — no payout carries a running-cost line, and the payouts are capital plus the profit after the shared cost', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
     const a = user('abdallah@motoparts.com');
     const investor = user('investor@motoparts.com');
+    const w = await soldOutCycle(request, 'Inv RC Investor', [[a.id, 'CORE_PARTNER', 20000], [investor.id, 'TEMP_INVESTOR', 80000, 10]]);
     await recordCost(request, headers, { amount: 1200, category: 'salaries' });
-    const owedA = waitingFor(await runningCosts(request, headers), a.id);
-    const w = await soldOutCycle(request, 'Inv L7 Investor', [[a.id, 'CORE_PARTNER', 20000], [investor.id, 'TEMP_INVESTOR', 80000, 10]]);
     const id = await approved(w.mk, w.cycle.id);
     const cash0 = (await dashboard(request, headers)).cashOnHand;
     await pay(request, headers, id);
     const s = await settlement(request, headers, id);
+    const shared = s.breakdown.costs.filter((c: any) => c.kind === 'shared').reduce((t: number, c: any) => t + cents(c.amountEgp), 0);
+    expect(shared, 'the salaries are in the cycle’s costs').toBeGreaterThan(0);
+    // 3,000 sold less 1,000 landed, less its part of the salaries.
+    expect(cents(s.grossProfitEgp)).toBe(cents(2000) - shared);
+    expect(s.lines.filter((l: any) => l.component === 'RUNNING_COSTS')).toEqual([]);
+    const paid = s.breakdown.participants.map((p: any) => cents(p.paidEgp));
+    expect(paid.reduce((t: number, x: number) => t + x, 0), 'capital back plus the whole profit').toBe(cents(100000) + cents(s.grossProfitEgp));
     const inv = s.breakdown.participants.find((p: any) => p.type === 'TEMP_INVESTOR');
-    expect(inv.runningCostsStatus).toBe('none');
-    expect(inv.runningCostsEgp).toBe('0.00');
-    // 2,000 profit, 80% his: 1,600, less a 10% fee of 160 → 1,440 + 80,000.
-    expect(inv.paidEgp).toBe('81440.00');
-    const pa = line(s, a.id);
-    // 20,000 + 400 + the 160 fee, less his share of what was waiting.
-    expect(cents(pa.paidEgp)).toBe(cents(20560 - owedA));
-    const payouts = (await settlementRows(request, headers, id)).filter((r) => r.type === 'SETTLEMENT_PAYOUT');
-    expect(payouts.map((r) => cents(r.amount)).sort((x, y) => x - y)).toEqual([cents(pa.paidEgp), cents(inv.paidEgp)].sort((x, y) => x - y));
-    // Cash leaves for exactly what was handed over.
+    // 80% of the profit, less his 10% fee to the partner.
+    // Each line rounds to the piastre, so within one.
+    expect(Math.abs(cents(inv.paidEgp) - (cents(80000) + cents(s.grossProfitEgp) * 0.8 * 0.9))).toBeLessThanOrEqual(1);
     const cash1 = (await dashboard(request, headers)).cashOnHand;
-    expect(cents(cash0) - cents(cash1)).toBe(cents(pa.paidEgp) + cents(inv.paidEgp));
+    expect(cents(cash0) - cents(cash1), 'cash leaves for exactly what was handed over').toBe(paid.reduce((t: number, x: number) => t + x, 0));
   });
 
-  test('TC-INV-62: a cost charged to a cycle is that cycle’s, never a running cost; rent never touches a cycle’s profit', async ({ request }) => {
+  test('TC-INV-62: a cost charged to a cycle is that cycle’s alone, never shared; rent with no cycle lowers every running cycle’s profit', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
     const a = user('abdallah@motoparts.com');
-    const w = await soldOutCycle(request, 'Inv L7 Profit', [[a.id, 'CORE_PARTNER', 5000]]);
-    const preview = async () => (await (await request.get(`${API}/settlements/preview/${w.cycle.id}`, { headers })).json()).data.grossProfitEgp;
-    expect(await preview()).toBe('2000.00');
+    const x = await soldOutCycle(request, 'Inv RC X', [[a.id, 'CORE_PARTNER', 5000]]);
+    const y = await soldOutCycle(request, 'Inv RC Y', [[a.id, 'CORE_PARTNER', 5000]]);
+    const [x0, y0] = [await preview(request, headers, x.cycle.id), await preview(request, headers, y.cycle.id)];
     const spent0 = (await runningCosts(request, headers)).spentEgp;
-    await recordCost(request, headers, { amount: 500, category: 'extra_freight', cycleId: w.cycle.id });
-    expect((await runningCosts(request, headers)).spentEgp, 'a cycle cost is not spent as running costs').toBe(spent0);
-    expect(await preview()).toBe('1500.00');
+    await recordCost(request, headers, { amount: 500, category: 'extra_freight', cycleId: x.cycle.id });
+    expect((await runningCosts(request, headers)).spentEgp, 'a cycle cost is not a running cost').toBe(spent0);
+    expect(await preview(request, headers, x.cycle.id)).toBe(x0 - cents(500));
+    expect(await preview(request, headers, y.cycle.id), 'nor is it shared to another cycle').toBe(y0);
     await recordCost(request, headers, { amount: 7000 });
-    expect(await preview(), 'rent never moves a cycle’s profit').toBe('1500.00');
-    const id = await approved(w.mk, w.cycle.id);
-    await pay(request, headers, id);
+    const dropX = x0 - cents(500) - (await preview(request, headers, x.cycle.id));
+    const dropY = y0 - (await preview(request, headers, y.cycle.id));
+    expect(dropX, 'rent lowers X’s profit').toBeGreaterThan(0);
+    expect(dropY, 'and Y’s').toBeGreaterThan(0);
+    expect(dropX + dropY).toBeLessThanOrEqual(cents(7000));
+    const id = await approved(x.mk, x.cycle.id);
     const s = await settlement(request, headers, id);
-    expect(Number(s.grossProfitEgp)).toBe(1500);
-    expect(s.breakdown.costs).toEqual([{ kind: 'charge', category: 'extra_freight', amountEgp: '500.00' }]);
+    expect(s.breakdown.costs).toContainEqual({ kind: 'charge', category: 'extra_freight', amountEgp: '500.00' });
+    expect(s.breakdown.costs.some((c: any) => c.kind === 'shared' && c.category === 'rent')).toBe(true);
   });
 
-  test('TC-INV-63: a running cost already taken from a payout cannot be reversed until that settlement is; a period that ends before it starts is refused; an investor cannot read them', async ({ request }) => {
+  test('TC-INV-63: a running cost shared to a cycle being settled cannot be undone until that settlement is reversed; a period that ends before it starts is refused; an investor cannot read them', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
     const a = user('abdallah@motoparts.com');
+    const w = await soldOutCycle(request, 'Inv RC Undo', [[a.id, 'CORE_PARTNER', 50000]]);
     const rent = await recordCost(request, headers, { amount: 600 });
-    const w = await soldOutCycle(request, 'Inv L7 Undo', [[a.id, 'CORE_PARTNER', 50000]]);
     const id = await approved(w.mk, w.cycle.id);
-    await pay(request, headers, id);
     const refused = await request.post(`${API}/ledger/${rent.id}/reverse`, { headers, data: { reason: 'wrong month' } });
     expect(refused.status()).toBe(400);
-    expect((await refused.json()).error.code).toBe('RUNNING_COST_CHARGED');
+    expect((await refused.json()).error.code).toBe('RUNNING_COST_SETTLED');
     await reverse(request, headers, id);
     const allowed = await request.post(`${API}/ledger/${rent.id}/reverse`, { headers, data: { reason: 'wrong month' } });
     expect(allowed.ok(), await allowed.text()).toBeTruthy();
@@ -1989,7 +1989,6 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
       expect((await r.json()).error.code, caller.who).toBe(caller.code);
     }
   });
-
   test('TC-INV-64: cash on hand counts only cash handed back — a 300 cash refund is 300, a credit-note return is nothing', async ({ request }) => {
     const { headers, mk, customer } = await leftoverWorld(request, 'Inv L7 Cash');
     const order = ((await (await request.get(`${API}/sales/orders?customerId=${customer.id}&limit=10`, { headers })).json()).data as any[])[0];
@@ -2032,98 +2031,64 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
   });
 });
 
-// ─── L7 alignment review (2026-10-12): a cost's shares are fixed on its own day,
-// and the guards the review asked to see named.
+// ─── Which cycles a running cost goes to, and when it stops moving (§8, 2026-11-08)
 
-test.describe('A running cost’s shares are fixed on its own day (L7 review, §8)', () => {
+test.describe('A running cost goes to the cycles running on its day, and stops moving once one is settled (§8)', () => {
   const pay = async (request: APIRequestContext, headers: any, id: string) => {
     const res = await request.post(`${API}/settlements/${id}/pay`, { headers, data: {} });
     expect(res.ok(), await res.text()).toBeTruthy();
   };
-  const setStatus = async (request: APIRequestContext, headers: any, id: string, status: string) => {
-    const res = await request.put(`${API}/users/${id}`, { headers, data: { status } });
-    expect(res.ok(), await res.text()).toBeTruthy();
-  };
-  const shareOf = (rc: any, userId: string) => Number(rc.partners.find((p: any) => p.userId === userId)?.shareEgp ?? 0);
-  /** The seeded partners have been partners since January, as the real three have. */
-  const partnersSinceJanuary = () =>
-    psqlStdin(`UPDATE partners SET created_at = '2026-01-01T08:00:00Z' WHERE user_id IN (SELECT id FROM users WHERE email IN ('abdallah@motoparts.com','shady@motoparts.com','fares@motoparts.com'));`);
+  const partOf = (rc: any, cycleId: string) => cents(rc.cycles.find((c: any) => c.cycleId === cycleId)?.sharedEgp ?? 0);
 
-  test('TC-INV-65: C leaves with his share unpaid — A and B are never charged more than their own share, and C’s stays waiting, shown as his', async ({ request }) => {
-    const { headers } = await apiCtx(request);
-    const user = await usersByEmail(request, headers);
-    // The seed's partners by name since 2026-10-19 (partner.a/b/c until then).
-    const [a, b, c] = ['abdallah', 'shady', 'fares'].map((x) => user(`${x}@motoparts.com`));
-    const before = await runningCosts(request, headers);
-    await recordCost(request, headers, { amount: 900 });
-    const after = await runningCosts(request, headers);
-    const owed = (u: any) => shareOf(after, u.id) - shareOf(before, u.id);
-    expect(cents(owed(c)), 'C owes a share of it').toBeGreaterThan(0);
-
-    // The three funded a cycle together; C leaves before it is paid out.
-    const w = await soldOutCycle(request, 'Inv L7 Leaves', [[a.id, 'CORE_PARTNER', 50000], [b.id, 'CORE_PARTNER', 50000], [c.id, 'CORE_PARTNER', 50000]]);
-    const id = await approved(w.mk, w.cycle.id);
-    await setStatus(request, headers, c.id, 'SUSPENDED');
-    try {
-      const waitingA = waitingFor(after, a.id);
-      const waitingB = waitingFor(after, b.id);
-      await pay(request, headers, id);
-      const s = await settlement(request, headers, id);
-      const lineOf = (uid: string) => s.breakdown.participants.find((p: any) => s.lines.find((l: any) => l.participantId === p.participantId)?.participant?.partnerUserId === uid);
-      // Each takes exactly what he himself owed — not a penny of C's.
-      expect(cents(lineOf(a.id).runningCostsEgp)).toBe(-cents(waitingA));
-      expect(cents(lineOf(b.id).runningCostsEgp)).toBe(-cents(waitingB));
-      expect(lineOf(c.id).runningCostsStatus, 'C, no longer a partner, is not charged').toBe('none');
-      const now = await runningCosts(request, headers);
-      const cRow = now.partners.find((p) => p.userId === c.id) as any;
-      expect(cRow, 'C still listed while he owes').toBeTruthy();
-      expect(cRow.active).toBe(false);
-      expect(cents(cRow.waitingEgp)).toBeGreaterThanOrEqual(cents(owed(c)));
-      expect(cents(shareOf(now, a.id))).toBe(cents(shareOf(after, a.id)));
-    } finally {
-      await setStatus(request, headers, c.id, 'ACTIVE');
-    }
-  });
-
-  test('TC-INV-66: D joins after the cost’s day — he is never charged for it; a cost on his watch is his too', async ({ request }) => {
-    const { headers } = await apiCtx(request);
-    partnersSinceJanuary();
-    const stamp = `${Date.now()}`;
-    const email = `inv66-partner-${stamp}@motoparts.com`;
-    const made = await request.post(`${API}/auth/register`, { headers, data: { email, password: PASSWORD, displayName: `Partner D ${stamp}`, role: 'CORE_PARTNER' } });
-    expect(made.ok(), await made.text()).toBeTruthy();
-    const user = await usersByEmail(request, headers);
-    const d = user(email);
-    await recordCost(request, headers, { amount: 1200, occurredOn: dayFromNow(-2) });
-    expect(shareOf(await runningCosts(request, headers, { from: dayFromNow(-2), to: dayFromNow(-2) }), d.id)).toBe(0);
-    const w = await soldOutCycle(request, 'Inv L7 Joins', [[d.id, 'CORE_PARTNER', 50000]]);
-    const id = await approved(w.mk, w.cycle.id);
-    await pay(request, headers, id);
-    const s = await settlement(request, headers, id);
-    expect(s.breakdown.participants[0].runningCostsStatus, 'D is charged nothing of a cost before his day').toBe('none');
-    // A cost on his watch is his too.
-    await recordCost(request, headers, { amount: 400, category: 'utilities' });
-    expect(shareOf(await runningCosts(request, headers, { from: dayFromNow(0), to: dayFromNow(0) }), d.id)).toBeGreaterThan(0);
-    // He leaves again, so later tests share among the seeded three.
-    await setStatus(request, headers, d.id, 'INACTIVE');
-  });
-
-  test('TC-INV-67: a core partner who is also an investor on the cycle — only his core-partner line is charged', async ({ request }) => {
+  test('TC-INV-65: a cycle paid for later the same day takes its part of that day’s rent; the draft calculated before it is refused, and calculated again it is approved', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
     const a = user('abdallah@motoparts.com');
-    await recordCost(request, headers, { amount: 600 });
-    const w = await soldOutCycle(request, 'Inv L7 Both', [[a.id, 'CORE_PARTNER', 20000], [a.id, 'TEMP_INVESTOR', 30000, 0]]);
-    const id = await approved(w.mk, w.cycle.id);
-    await pay(request, headers, id);
-    const s = await settlement(request, headers, id);
-    const byType = (t: string) => s.breakdown.participants.find((p: any) => p.type === t);
-    expect(byType('CORE_PARTNER').runningCostsStatus).toBe('charged');
-    expect(byType('TEMP_INVESTOR').runningCostsStatus).toBe('none');
-    expect(s.lines.filter((l: any) => l.component === 'RUNNING_COSTS').map((l: any) => l.participant.participantType)).toEqual(['CORE_PARTNER']);
+    const x = await soldOutCycle(request, 'Inv RC Morning', [[a.id, 'CORE_PARTNER', 5000]]);
+    await recordCost(request, headers, { amount: 2400, note: `inv65 ${Date.now()}` });
+    const draft = await x.mk(`settlements/calculate/${x.cycle.id}`, {});
+    const before = partOf(await runningCosts(request, headers), x.cycle.id);
+    const y = await soldOutCycle(request, 'Inv RC Afternoon', [[a.id, 'CORE_PARTNER', 5000]]);
+    const rc = await runningCosts(request, headers);
+    expect(partOf(rc, y.cycle.id), 'paid for that day, it ran that day').toBeGreaterThan(0);
+    expect(partOf(rc, x.cycle.id)).toBeLessThan(before);
+    const stale = await request.post(`${API}/settlements/${draft.id}/approve`, { headers, data: {} });
+    expect(stale.status()).toBe(400);
+    expect((await stale.json()).error.code).toBe('SETTLEMENT_STALE_COSTS');
+    await approved(x.mk, x.cycle.id);
   });
 
-  test('TC-INV-68: a running_cost_share is never typed by hand, and one cannot be reversed on its own', async ({ request }) => {
+  test('TC-INV-66: a cycle whose settlement is approved takes no later cost, and what it holds never moves — not for a cycle paid for later that day', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const user = await usersByEmail(request, headers);
+    const a = user('abdallah@motoparts.com');
+    const x = await soldOutCycle(request, 'Inv RC Settled', [[a.id, 'CORE_PARTNER', 5000]]);
+    await recordCost(request, headers, { amount: 900 });
+    const id = await approved(x.mk, x.cycle.id);
+    const held = partOf(await runningCosts(request, headers), x.cycle.id);
+    const agreed = (await settlement(request, headers, id)).grossProfitEgp;
+    await recordCost(request, headers, { amount: 700, category: 'utilities' });
+    await soldOutCycle(request, 'Inv RC Later', [[a.id, 'CORE_PARTNER', 5000]]);
+    expect(partOf(await runningCosts(request, headers), x.cycle.id)).toBe(held);
+    await pay(request, headers, id);
+    expect((await settlement(request, headers, id)).grossProfitEgp, 'the agreed profit is what was paid').toBe(agreed);
+  });
+
+  test('TC-INV-67: a cycle still being planned or bought takes nothing — its goods are not paid for yet', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const user = await usersByEmail(request, headers);
+    const a = user('abdallah@motoparts.com');
+    const planned = await mk('cycles', {
+      originType: 'UAE_DIRECT', currency: 'EGP',
+      participants: [{ participantType: 'CORE_PARTNER', partnerUserId: a.id, contributionAmount: 1000 }],
+    });
+    await mk(`cycles/${planned.id}/transition`, { status: 'FUNDING' });
+    await mk(`cycles/${planned.id}/transition`, { status: 'PURCHASING' });
+    await recordCost(request, headers, { amount: 450 });
+    expect(partOf(await runningCosts(request, headers), planned.id)).toBe(0);
+  });
+
+  test('TC-INV-68: a running_cost_share is never typed by hand, and a payout writes none any more', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
     const a = user('abdallah@motoparts.com');
@@ -2132,17 +2097,12 @@ test.describe('A running cost’s shares are fixed on its own day (L7 review, §
       expect(r.status(), kind).toBe(400);
       expect((await r.json()).error.code, kind).toBe('LEDGER_CATEGORY_NOT_MANUAL');
     }
+    const w = await soldOutCycle(request, 'Inv RC Memo', [[a.id, 'CORE_PARTNER', 20000]]);
     await recordCost(request, headers, { amount: 300 });
-    const w = await soldOutCycle(request, 'Inv L7 Memo', [[a.id, 'CORE_PARTNER', 20000]]);
     const id = await approved(w.mk, w.cycle.id);
     await pay(request, headers, id);
-    const memo = (await settlementRows(request, headers, id)).find((r) => r.category === 'running_cost_share');
-    expect(memo).toBeTruthy();
-    const rev = await request.post(`${API}/ledger/${memo.id}/reverse`, { headers, data: { reason: 'undo it alone' } });
-    expect(rev.status()).toBe(400);
-    expect((await rev.json()).error.code).toBe('ENTRY_OWNED_ELSEWHERE');
+    expect((await settlementRows(request, headers, id)).filter((r) => r.category === 'running_cost_share')).toEqual([]);
   });
-
   test('TC-INV-69: Mark paid and reversal — refused to an investor and to the office with a code, done by a core partner', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);

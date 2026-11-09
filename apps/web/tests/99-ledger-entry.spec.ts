@@ -19,6 +19,10 @@ import { API, apiCtx } from './support/fixtures';
 import { psqlStdin } from './support/database';
 import { leftoverWorld } from './support/leftovers';
 import { BASE, day, login, messages, pickDate, type Locale } from './support/ui';
+import { ownRunningCosts } from './support/running-costs';
+
+// Running costs a test here records are undone after it, so they do not move into the cycles later specs build (§8, 2026-11-09).
+ownRunningCosts(test);
 
 const SHOTS = process.env.L6_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/l6';
