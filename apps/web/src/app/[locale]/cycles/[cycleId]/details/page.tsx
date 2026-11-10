@@ -38,6 +38,7 @@ import { SkeletonRegion, Skeleton, SkeletonText, repeat, type SkeletonTextSize }
 import { viewPath } from '@/lib/page-views';
 import { FundingCard, FundingCardSkeleton } from '@/components/cycles/funding-card';
 import { TakeMoneyCard } from '@/components/cycles/take-money-card';
+import { TimelineCard, TimelineCardSkeleton } from '@/components/cycles/timeline-card';
 import type { FinancingView } from '@/components/lenders/lender-dialogs';
 
 /**
@@ -207,6 +208,9 @@ export default function CycleDetailsPage() {
 
       <ShipmentPanel cycle={cycle} />
 
+      {/* When each step happened and how many days each took (§1, owner 2026-11-10). */}
+      <TimelineCard cycleId={cycle.id} />
+
       {/* The money in, in one card (owner 2026-10-26): the target and paid so
           far, the contributions, the profit split and who is on the cycle.
           After the shipment, not first on the page (owner 2026-10-26). */}
@@ -369,6 +373,8 @@ function CycleDetailSkeleton({ direct }: { direct: boolean }) {
       </div>
 
       <ShipmentPanelSkeleton inside />
+
+      <TimelineCardSkeleton />
 
       <FundingCardSkeleton />
 

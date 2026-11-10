@@ -19,7 +19,17 @@ import { CycleStatus, Prisma, ParticipantType } from '@prisma/client';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { isUUID } from 'class-validator';
-import { assertNotFuture } from '../../common/dates';
+import {
+  assertNotFuture,
+  businessDay,
+  businessToday,
+  startOfBusinessDay,
+} from '../../common/dates';
+import {
+  STATUS_HISTORY_BEGAN,
+  cycleTimeline,
+} from '../../common/cycle-timeline';
+import { positionDay } from '../../common/shipment-position';
 import { assertUuid, isUuid } from '../../common/uuid';
 import {
   legsThatMustHaveDelivered,
@@ -333,6 +343,72 @@ export class CyclesService {
         costChangeRecosts: cost.state.recosts,
       },
     };
+  }
+
+  /**
+   * When each step of the cycle happened and how many days each took (§1,
+   * owner 2026-11-10): ordered, each leg's departures and deliveries, received
+   * into stock, selling, settlement, closed. The arithmetic is
+   * `cycleTimeline`'s; this only loads the days it reads.
+   *
+   * A malformed id is a 400 (the shape is wrong), an unknown one a 404.
+   */
+  async getTimeline(id: string, viewer: ScopeViewer = 'internal') {
+    assertUuid(id, 'id');
+    assertInScope(await cyclesVisibleTo(viewer, this.prisma), id);
+    const loaded = await loadShipment(this.prisma, id);
+    if (!loaded) throw notFound('cycle');
+    const { cycle, position } = loaded;
+
+    const [orders, receipts, changes] = await Promise.all([
+      // An order is placed once it is confirmed: a draft has not been sent to
+      // anyone, and a cancelled one never went (CLAUDE.md §4).
+      this.prisma.purchaseOrder.findMany({
+        where: { cycleId: id, status: { notIn: ['DRAFT', 'CANCELLED'] } },
+        select: { orderedOn: true },
+      }),
+      // Stock this cycle received itself; units moved in from another cycle
+      // were received there.
+      this.prisma.inventoryBatch.findMany({
+        where: { cycleId: id, transferredFromBatchId: null },
+        select: { createdAt: true },
+      }),
+      this.prisma.cycleStatusChange.findMany({
+        where: { cycleId: id },
+        orderBy: [{ changedAt: 'asc' }, { id: 'asc' }],
+        select: { toStatus: true, changedAt: true },
+      }),
+    ]);
+
+    const positionByLeg = new Map(position.legs.map((l) => [l.legId, l]));
+    const historyBegan = startOfBusinessDay(STATUS_HISTORY_BEGAN);
+    const timeline = cycleTimeline({
+      originType: cycle.originType,
+      status: cycle.status,
+      orderedOn: orders.map((o) => positionDay(o.orderedOn)),
+      legs: cycle.shippingLegs.map((leg) => {
+        const p = positionByLeg.get(leg.id);
+        return {
+          sequence: leg.sequence,
+          origin: leg.origin,
+          destination: leg.destination,
+          departures: leg.departures.map((d) => positionDay(d.departedOn)),
+          deliveries: leg.deliveries.map((d) => positionDay(d.arrivedOn)),
+          waitingToLeave: (p?.atOrigin ?? 0) > 0,
+          complete: !!p?.arrivedOn,
+        };
+      }),
+      // A receipt is stored at its day's instant (`instantOfDay`): its day
+      // in Cairo is the day chosen.
+      receivedOn: receipts.map((b) => businessDay(b.createdAt)),
+      statusChanges: changes.map((c) => ({
+        toStatus: c.toStatus,
+        day: businessDay(c.changedAt),
+        recorded: c.changedAt < historyBegan,
+      })),
+      today: businessToday(),
+    });
+    return { data: { cycleId: cycle.id, code: cycle.code, ...timeline } };
   }
 
   /**

@@ -386,3 +386,46 @@ copy and the stranded-drafts scripts are pinned to it by tests.
 
 ---
 
+**DECIDED 2026-11-10 (owner) — a cycle's timeline: when each step happened and
+how many days each took.** A Timeline card on the cycle page, after Shipment:
+ordered, each leg's departures and deliveries (numbered when in parts: "1st
+part left Guangzhou", "2nd delivery arrived in Cairo"), received into stock
+(first and last, when on more than one day), Selling began, Settlement began,
+Closed; and one figure, **order to selling** — or "since the order … so far"
+until it sells. Read from what is already recorded, with nothing new to enter:
+the purchase orders' dates, the shipment's departures and deliveries, the
+receipts into stock and the status history (`cycle_status_changes`). The server
+works it all out (`GET /cycles/:id/timeline`, `common/cycle-timeline.ts`); the
+page only shows it.
+
+  - Days are **Cairo calendar days** between two dates, never hours / 24 — a
+    receipt at 00:30 in Cairo is that day, and a clock change moves nothing.
+  - Each step is measured from the step it follows, and says which: N days
+    after ordering (leg 1 leaving), **waited N days** (a later leg leaving, from
+    its goods coming in), **N days on the way** (a leg's first delivery, from its
+    first departure), **+N days after the 1st** (a 2nd+ part, delivery or
+    receipt), N days after it arrived (received, from the delivery in Egypt),
+    after receiving (Selling), after N days of selling (Settlement).
+  - Steps are listed in the order of the process, not sorted by date: leg 2 can
+    leave Dubai before leg 1's last delivery reaches it.
+  - A step not reached has no date ("Arrive in Cairo, Egypt"); only the one under
+    way counts its days so far. Nothing is invented. A legacy cycle's steps that
+    were never recorded while later ones were say "Not recorded".
+  - **GUESS — a step dated before the step it follows** (a delivery dated before
+    its departure) is shown with its date as recorded, a small "Dated before the
+    step it follows", and **no length** — never a negative, and not a 0 nobody
+    entered (§10 of CLAUDE.md).
+  - **GUESS — "ordered" is the earliest confirmed order's date**; a draft has not
+    been placed. Stock moved in from another cycle is not a receipt of this one.
+  - **GUESS — a later leg's wait is counted from the latest delivery of the leg
+    before it on or before it left** (the goods that were there), not from the
+    first.
+  - **GUESS — Selling is dated from the first time the cycle began selling;
+    Settlement and Closed from the last time** (a reversed settlement returns to
+    Selling, and Settlement is to come again).
+  - Status dates from before 2026-11-08, when the status history began, were
+    filled in from the audit log: they carry a small "from the log".
+  - In Arabic a delivery is تسليمة, as everywhere else (the owner said "batch";
+    «تشغيلة» is a stock batch).
+
+---
