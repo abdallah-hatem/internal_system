@@ -242,7 +242,7 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
               <p className="min-w-0 break-words font-medium text-foreground [overflow-wrap:anywhere]">
                 <bdi>{p.name}</bdi>
                 {p.participantType === 'TEMP_INVESTOR' && (
-                  <span className="ms-2 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-normal text-primary">{t('investor')}</span>
+                  <span className="ms-2 inline-block whitespace-nowrap rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-normal text-primary">{t('investor')}</span>
                 )}
                 {p.profit?.sharePct != null && (
                   <span className="ms-2 text-xs font-normal text-muted-foreground">
@@ -304,7 +304,7 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
                     <span
                       data-testid="taken-kind"
                       className={cn(
-                        'ms-2 rounded px-1.5 py-0.5 text-[11px]',
+                        'ms-2 inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] [overflow-wrap:normal]',
                         d.kind === 'PROFIT' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary',
                       )}
                     >
