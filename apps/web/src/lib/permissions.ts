@@ -76,13 +76,11 @@ export const ACTION_ROLES = {
   'partnerAccount.reverse': PARTNERS, //  POST /partner-accounts/:id/movements/:id/reverse
   'partnerAccount.contribute': PARTNERS, // POST /cycles/:id/account-contributions
   'partnerAccount.target': PARTNERS, //   PUT  /cycles/:id/funding-target
-  // Profit a partner takes before settlement (§8, 2026-11-08) — CycleProfitDrawsController, ProfitDrawsController
-  'profitDraw.read': PARTNERS, //        GET  /cycles/:id/profit-draws
-  'profitDraw.take': PARTNERS, //        POST /cycles/:id/profit-draws
-  'profitDraw.reverse': PARTNERS, //     POST /profit-draws/:id/reverse (capital taken back too)
-  // Capital taken back before settlement (§8, 2026-11-08) — CycleProfitDrawsController
-  'capitalBack.read': PARTNERS, //       GET  /cycles/:id/capital-back
-  'capitalBack.take': PARTNERS, //       POST /cycles/:id/capital-back
+  // Money taken from a cycle before settlement — profit first, then capital (§8, 2026-11-10)
+  // — CycleProfitDrawsController, ProfitDrawsController
+  'takeMoney.read': PARTNERS, //         GET  /cycles/:id/take
+  'takeMoney.take': PARTNERS, //         POST /cycles/:id/take
+  'profitDraw.reverse': PARTNERS, //     POST /profit-draws/:id/reverse (profit or capital taken)
   // Leftovers moved to another cycle at cost (§8, L5) — CycleTransfersController, StockTransfersController
   'stockTransfer.create': PARTNERS, //    POST /cycles/:id/transfers
   'stockTransfer.undo': PARTNERS, //      POST /stock-transfers/:id/undo

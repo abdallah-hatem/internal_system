@@ -475,7 +475,7 @@ Raised 2026-11-07 ("not now but keep in mind"), decided 2026-11-08: "I think its
 of my share profit any time mid cycle and its recorded of course, and the profit we made does not change". Then, from
 the options put to him: up to his **share of the profit already collected**; if he took more than his final payout,
 **he owes it back** — taken off his next payout; **any core partner** may record it for any core partner. Called a
-*profit draw* in the code ("Profit taken" on screen) because *advance* already means paying a supplier for a cycle.
+*profit draw* in the code ("Profit taken" on screen; since 2026-11-10 part of "Take money from this cycle", below) because *advance* already means paying a supplier for a cycle.
 
 | Question | Rule | Why |
 |---|---|---|
@@ -527,10 +527,26 @@ implement next".
   undo what was taken back first.
 - Refusals: `CAPITAL_BACK_NOT_ON_CYCLE` (not on the cycle), `CAPITAL_BACK_OVER_AVAILABLE` (with the share, his part, what
   he took).
-- **Screens:** a "Capital back early" card on the cycle page under Profit taken — the share recovered, then per person
-  put in, his part recovered, taken back, can take now (investors tagged); Take capital back / Undo dialogs. The settlement
-  table gets a "Capital taken back" column and each payout's breakdown a line, only when someone took some.
+- **Screens:** since 2026-11-10 the cycle page's one "Take money from this cycle" card (below); until then a "Capital
+  back early" card under Profit taken. The settlement table gets a "Capital taken back" column and each payout's
+  breakdown a line, only when someone took some.
 - GUESS: the cost to fund includes the expenses charged to the cycle, but the cost paid for counts only the goods' landed
   cost — so even fully sold and paid the share is a little under 100% until settlement; the rest comes back then.
 - Check-data: 29/29.1 read capital rows as they read draws; 29.5 capital taken back above what he put in; 29.6 cash taken
   back early with no capital row behind it.
+
+### Taking money from a cycle: one card — DECIDED 2026-11-10 (owner), on `feature/take-money-card`, not merged, the order a GUESS
+
+The owner approved one design (2026-11-10, "one card"): the cycle page's "Profit taken" and "Capital back early" cards
+become one, **"Take money from this cycle"** / «سحب أموال من هذه الدورة», with one Take button. Only the screen and one
+convenience endpoint change: the two rules above, their records (`ProfitDraw` kinds DRAW and CAPITAL), their settlement
+lines (PROFIT_DRAWN, CAPITAL_TAKEN_EARLY), their ledger categories and Analytics stay as they were.
+
+| Question | Rule | Why |
+|---|---|---|
+| What the card shows | Profit collected and capital recovered (one short line each: what customers have paid for); then per participant — partners and investors — profit he can take now, capital he can take now, taken so far (profit / capital), and **the total he can take now**; what he owes from an earlier payout, when he does. An investor shows "No profit share": he takes capital only (the profit-draw rule above). One history of everything taken, each row labelled Profit or Capital, each undoable on its own. | **DECIDED** owner 2026-11-10. |
+| One take | Pick the person and an amount up to his total. **Profit first, then capital**: as much as his profit room allows, the rest from his capital room (`common/take-money.ts`, `splitTake`). The dialog shows the cut before Take is pressed — 60,000 of 20,000 profit + 50,000 capital reads "20,000 profit + 40,000 capital". | **GUESS 2026-11-10** on the order: profit is his to keep whatever the cycle does next, while capital taken early is what he may owe back if the cycle ends in a loss — so taking profit first leaves him owing least. OPEN for the owner to confirm. |
+| Recorded | `POST /cycles/:id/take` writes the profit part (a DRAW and its `profit_draw` cash row) and the capital part (a CAPITAL row and its `capital_back_early` cash row) **in one transaction**, under the cycle's lock then his account's, through the same writers and checks as taking either on its own — so a person never gets half a take. A part of nothing is no row. The note and the day go on both parts. | Owner 2026-11-10 brief: "a person never gets half a take". |
+| Refusals | More than his total: `TAKE_OVER_AVAILABLE` (`available`, `profit`, `capital`) and nothing recorded. Not on the cycle: `CAPITAL_BACK_NOT_ON_CYCLE`. Locked: `PROFIT_DRAW_CYCLE_LOCKED`. The amount: `PROFIT_DRAW_AMOUNT_NOT_POSITIVE`, `PROFIT_DRAW_AMOUNT_PRECISION`; dated forward: `DATE_IN_FUTURE`, label `MONEY_TAKEN`. No split yet (`CYCLE_NOT_FUNDED`, …): his profit room counts as nothing, capital can still be taken. | GUESS: one new code for the total, since neither existing one can say "profit plus capital". |
+| Undo | Each part on its own, from the existing `POST /profit-draws/:id/reverse` (once, with a reason). | The records stay two. |
+| The old endpoints | `GET/POST /cycles/:id/profit-draws` and `/cycles/:id/capital-back` still work; `GET /cycles/:id/take` returns both rooms per person, built from those two reads (no third reckoning). | Rule 11. |
