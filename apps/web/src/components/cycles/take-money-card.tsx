@@ -222,7 +222,7 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">{t('recovered')}</p>
           <p data-testid="take-money-recovered" className="text-lg font-bold text-foreground">
-            {pct(data.recoveredPct)}%
+            <bdi dir="ltr">{formatNumber(num(data.recoveredPct), { maximumFractionDigits: 2 })}%</bdi>
           </p>
           <p className="text-xs text-muted-foreground">
             {t.rich('recoveredHint', {
@@ -310,7 +310,7 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
                     >
                       {t(`kind${d.kind}`)}
                     </span>
-                    <span className="ms-2 text-xs text-muted-foreground">{formatDate(d.takenOn)}</span>
+                    <span className="ms-2 whitespace-nowrap text-xs text-muted-foreground">{formatDate(d.takenOn)}</span>
                   </p>
                   {d.note && <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]"><bdi>{d.note}</bdi></p>}
                   {d.reversedAt && (
