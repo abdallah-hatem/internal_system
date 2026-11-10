@@ -132,8 +132,8 @@ export default function SettlementsPage() {
       refetchNow(['users', 'participation']),
       refetchNow(['running-costs']),
       queryClient.invalidateQueries({ queryKey: ['cycles'] }),
-      // A payout takes the profit taken off it (§8, 2026-11-08): the cycle's card says so.
-      queryClient.invalidateQueries({ queryKey: ['profit-draws'] }),
+      // A payout takes what was taken off it (§8): the cycle's Take money card says so.
+      queryClient.invalidateQueries({ queryKey: ['take-money'] }),
     ]);
 
   const onError = (e: any) =>

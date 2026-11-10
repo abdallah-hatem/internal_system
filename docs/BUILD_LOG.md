@@ -22,6 +22,15 @@ paid in one step, and **samples by branch** (BUSINESS_LOGIC §4 "Samples by bran
 then "tidy and push dev and merge"): New Order shows the order's branch's samples first, the rest under a collapsed
 "At other branches", tags a sample taken from another branch, regroups when the branch changes; Add all = the order's
 branch only (GUESS); one short heading per samples order instead of a sentence repeating its rows. No migration.
+- **2026-11-10 — one "Take money from this cycle" card (owner: approved design), on `feature/take-money-card`, PR to
+  `dev`, not merged:** the cycle page's Profit taken and Capital back early cards merged into one (`take-money-card.tsx`;
+  the two old cards and their tests removed). New `GET/POST /cycles/:id/take`: both rooms per person, and one take cut
+  profit first then capital (`common/take-money.ts`, order a GUESS) and written in one transaction through the shared
+  writers the old endpoints now use too (`writeProfit`/`writeCapital`, `openForTaking`). New code `TAKE_OVER_AVAILABLE`,
+  date field `MONEY_TAKEN`; permissions `takeMoney.read/take` replace `profitDraw.read/take` and `capitalBack.read/take`.
+  Tests: `take-money.db.spec.ts` (19, incl. whole-or-nothing and one connection), `take-money.spec.ts`, the card's
+  component test (38); seen to fail with the cut reversed, a half-take swallowed and a read outside the transaction.
+  Cycle detail visual baselines retaken (darwin); the -linux ones deleted for CI to retake. No migration.
 - **2026-11-09 — CI red since 2026-11-08 (23 e2e + 2 visual) fixed on `fix/e2e-running-costs` (PR to `dev`):** one
   product bug, live in production since `1daf16d5`: a running cost dated today stayed wholly on the cycles running when it
   was typed in, so a cycle paid for later that day took nothing (e2e TC-RC-01/02). Fixed in

@@ -76,6 +76,7 @@ export const DATE_FIELDS = {
   ACCOUNT_CONTRIBUTED: 'The date of a contribution from an account',
   PROFIT_DRAWN: 'The date profit was taken',
   CAPITAL_TAKEN_BACK: 'The date capital was taken back',
+  MONEY_TAKEN: 'The date money was taken from a cycle',
 } as const;
 export type DateField = keyof typeof DATE_FIELDS;
 

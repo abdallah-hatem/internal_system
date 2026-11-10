@@ -57,6 +57,29 @@ export class CreateCapitalBackDto {
   note?: string;
 }
 
+/**
+ * POST /cycles/:id/take — one take from the cycle, cut into profit first and
+ * capital after (§8, owner 2026-11-10). Partner or investor.
+ */
+export class TakeMoneyDto {
+  @IsUUID('all')
+  userId: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Type(() => Number)
+  amountEgp: number;
+
+  /** The Cairo day he took it; today when left out. */
+  @IsOptional()
+  @IsDateString()
+  takenOn?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
 /** POST /profit-draws/:id/reverse — a reason travels with every undo (§9). */
 export class ReverseProfitDrawDto {
   @IsString()

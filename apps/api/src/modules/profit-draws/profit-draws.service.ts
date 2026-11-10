@@ -37,13 +37,43 @@ import {
   cycleCostRecovered,
   recoveredShare,
 } from '../../common/capital-back-early';
+import { splitTake } from '../../common/take-money';
 import type {
   CreateCapitalBackDto,
   CreateProfitDrawDto,
   ReverseProfitDrawDto,
+  TakeMoneyDto,
 } from './dto/profit-draw.dto';
 
 type Db = Prisma.TransactionClient;
+
+/** Who is taking: his user id, his name, and whether he may take profit at all. */
+interface Holder {
+  id: string;
+  name: string;
+  corePartner: boolean;
+}
+
+/** Everything one part of a take needs to be checked and written. */
+interface Write<R> {
+  id: string;
+  cycle: { id: string; code: string; status: string };
+  holder: Holder;
+  room: R;
+  amount: Prisma.Decimal;
+  day: string;
+  note?: string;
+  actorId: string;
+}
+
+type DrawRoomRead = Awaited<ReturnType<ProfitDrawsService['room']>>;
+type CapitalRoomRead = Awaited<ReturnType<ProfitDrawsService['capitalRoom']>>;
+type Written = {
+  id: string;
+  cycleId: string | null;
+  partnerUserId: string;
+  amountEgp: Prisma.Decimal;
+};
 
 const ZERO = new Prisma.Decimal(0);
 const m2 = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v).toFixed(2);
@@ -329,6 +359,86 @@ export class ProfitDrawsService {
   }
 
   /**
+   * Both rooms per participant, and everything taken, in one read — the
+   * cycle page's "Take money from this cycle" card (§8, owner 2026-11-10).
+   * Made of the two reads above, never a third reckoning of either room
+   * (rule 11): profit is a core partner's only, capital everyone's.
+   */
+  async takeForCycle(cycleId: string) {
+    const { data: profit } = await this.forCycle(cycleId);
+    const { data: capital } = await this.capitalForCycle(cycleId);
+    const profitOf = new Map(profit.partners.map((p) => [p.partnerUserId, p]));
+    const people = capital.people.map((c) => {
+      const p = profitOf.get(c.userId);
+      // No split to take a share of: his profit room is nothing for now.
+      const profitAvailable = p && !profit.problem ? p.availableEgp : '0.00';
+      return {
+        userId: c.userId,
+        name: c.name,
+        participantType: c.participantType,
+        /** Null for someone with no share of profit to take (an investor). */
+        profit: p
+          ? {
+              sharePct: p.sharePct,
+              shareOfCollectedEgp: p.shareOfCollectedEgp,
+              takenEgp: p.drawnEgp,
+              owedEgp: p.owedEgp,
+              availableEgp: profitAvailable,
+            }
+          : null,
+        capital: {
+          contributionEgp: c.contributionEgp,
+          recoveredEgp: c.recoveredEgp,
+          takenEgp: c.takenEgp,
+          availableEgp: c.availableEgp,
+        },
+        /** What he may take now in all: profit first, then capital. */
+        availableEgp: m2(
+          new Prisma.Decimal(profitAvailable).add(c.availableEgp),
+        ),
+      };
+    });
+    const taken = [
+      ...profit.draws.map((d) => ({
+        id: d.id,
+        kind: 'PROFIT' as const,
+        userId: d.partnerUserId,
+        name: d.name,
+        amountEgp: d.amountEgp,
+        takenOn: d.drawnOn,
+        note: d.note,
+        createdAt: d.createdAt,
+        reversedAt: d.reversedAt,
+        reversalReason: d.reversalReason,
+        settled: d.settled,
+      })),
+      ...capital.taken.map((d) => ({ ...d, kind: 'CAPITAL' as const })),
+    ].sort(
+      (a, b) =>
+        b.takenOn.localeCompare(a.takenOn) ||
+        b.createdAt.getTime() - a.createdAt.getTime() ||
+        b.id.localeCompare(a.id),
+    );
+    return {
+      data: {
+        cycleId,
+        cycleCode: profit.cycleCode,
+        locked: profit.locked,
+        /** Why no profit can be taken (no agreed split), or null; capital still can. */
+        problem: profit.problem,
+        profitEgp: profit.profitEgp,
+        sharePaidPct: profit.sharePaidPct,
+        collectedProfitEgp: profit.collectedProfitEgp,
+        toFundEgp: capital.toFundEgp,
+        recoveredEgp: capital.recoveredEgp,
+        recoveredPct: capital.recoveredPct,
+        people,
+        taken,
+      },
+    };
+  }
+
+  /**
    * Each participant's room to take capital back, read through `db` (the
    * transaction's client when writing).
    */
@@ -410,104 +520,28 @@ export class ProfitDrawsService {
     const amount = positive(dto.amountEgp);
     assertNotFuture(dto.takenOn, 'CAPITAL_TAKEN_BACK');
     const day = dto.takenOn ? businessDay(dto.takenOn) : businessToday();
-    const holder = await this.prisma.user.findUnique({
-      where: { id: dto.userId },
-      select: {
-        id: true,
-        email: true,
-        partner: { select: { displayName: true } },
-      },
-    });
+    const holder = await this.holderOf(dto.userId);
     if (!holder) throw notFound('participant');
-    const name = holder.partner?.displayName ?? holder.email;
 
-    const id = randomUUID();
     const created = await this.prisma.$transaction(
       async (tx) => {
-        // The cycle first, then his account: the order every writer here
-        // takes them in.
-        await lockCycle(tx, cycleId);
-        const cycle = await tx.importCycle.findUnique({
-          where: { id: cycleId },
-          select: { id: true, code: true, status: true },
-        });
-        if (!cycle) throw notFound('cycle');
-        await assertOpenForDraws(tx, cycle);
-        await lockAccounts(tx, [holder.id]);
-
+        const cycle = await this.openForTaking(tx, cycleId, holder.id);
         const room = await this.capitalRoom(tx, cycleId);
-        const mine = room.people.find((p) => p.userId === holder.id);
-        if (!mine) {
-          throw badRequest(
-            'CAPITAL_BACK_NOT_ON_CYCLE',
-            `${name} has no capital in ${cycle.code} to take back.`,
-            { partner: name, cycle: cycle.code },
-          );
-        }
-        const available = new Prisma.Decimal(mine.availableEgp);
-        if (amount.gt(available)) {
-          throw badRequest(
-            'CAPITAL_BACK_OVER_AVAILABLE',
-            `${name} can take back at most ${formatMoney(available)} EGP from ${cycle.code} now: ` +
-              `paid sales have recovered ${room.share.mul(100).toFixed(2)}% of its cost, ` +
-              `${formatMoney(mine.recoveredEgp)} of the ${formatMoney(mine.contributionEgp)} he put in, ` +
-              `and he has taken back ${formatMoney(mine.takenEgp)}.`,
-            {
-              partner: name,
-              cycle: cycle.code,
-              available: formatMoney(available),
-              pct: room.share.mul(100).toFixed(2),
-              recovered: formatMoney(mine.recoveredEgp),
-              contribution: formatMoney(mine.contributionEgp),
-              taken: formatMoney(mine.takenEgp),
-            },
-          );
-        }
-
-        const entry = await tx.financialTransaction.create({
-          data: {
-            type: CAPITAL_BACK_TYPE,
-            category: CAPITAL_BACK_CATEGORY,
-            direction: 'OUTFLOW',
-            amount,
-            currency: 'EGP',
-            cycleId,
-            relatedType: PROFIT_DRAW_RELATED,
-            relatedId: id,
-            occurredOn: dayDate(day),
-            reason: `${name} took part of his capital back from ${cycle.code}`,
-            createdBy: actorId,
-          },
-        });
-        return tx.profitDraw.create({
-          data: {
-            id,
-            kind: 'CAPITAL',
-            cycleId,
-            partnerUserId: holder.id,
-            amountEgp: amount,
-            drawnOn: dayDate(day),
-            note: dto.note?.trim() || null,
-            ledgerEntryId: entry.id,
-            createdBy: actorId,
-          },
+        return this.writeCapital(tx, {
+          id: randomUUID(),
+          cycle,
+          holder,
+          room,
+          amount,
+          day,
+          note: dto.note,
+          actorId,
         });
       },
       { timeout: 30_000 },
     );
 
-    await this.audit.log({
-      actorUserId: actorId,
-      action: 'CAPITAL_BACK_EARLY',
-      entityType: 'ProfitDraw',
-      entityId: created.id,
-      afterJson: {
-        cycleId,
-        userId: holder.id,
-        amountEgp: m2(created.amountEgp),
-        takenOn: day,
-      },
-    });
+    await this.auditCapital(actorId, created, day);
     return {
       data: { id: created.id, amountEgp: m2(created.amountEgp), takenOn: day },
     };
@@ -520,8 +554,142 @@ export class ProfitDrawsService {
     const amount = positive(dto.amountEgp);
     assertNotFuture(dto.drawnOn, 'PROFIT_DRAWN');
     const day = dto.drawnOn ? businessDay(dto.drawnOn) : businessToday();
-    const holder = await this.prisma.user.findUnique({
-      where: { id: dto.partnerUserId },
+    const holder = await this.holderOf(dto.partnerUserId);
+    if (!holder || !holder.corePartner) throw notFound('partner');
+
+    const created = await this.prisma.$transaction(
+      async (tx) => {
+        const cycle = await this.openForTaking(tx, cycleId, holder.id);
+        const room = await this.room(tx, cycleId);
+        return this.writeProfit(tx, {
+          id: randomUUID(),
+          cycle,
+          holder,
+          room,
+          amount,
+          day,
+          note: dto.note,
+          actorId,
+        });
+      },
+      // The projection reads every sale of the cycle; give it room.
+      { timeout: 30_000 },
+    );
+
+    await this.auditProfit(actorId, created, day);
+    return {
+      data: { id: created.id, amountEgp: m2(created.amountEgp), drawnOn: day },
+    };
+  }
+
+  /**
+   * One take from the cycle — profit first, then capital (§8, owner
+   * 2026-11-10: one card; the order a GUESS, `splitTake`). Both parts are
+   * recorded in one transaction, under the same locks and through the same
+   * writers and checks as taking either on its own, so a person never gets
+   * half a take: both rows and their cash rows are written, or nothing is.
+   */
+  async take(cycleId: string, dto: TakeMoneyDto, actorId: string) {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    if (!isUuid(dto.userId)) throw notFound('participant');
+    const amount = positive(dto.amountEgp);
+    assertNotFuture(dto.takenOn, 'MONEY_TAKEN');
+    const day = dto.takenOn ? businessDay(dto.takenOn) : businessToday();
+    const holder = await this.holderOf(dto.userId);
+    if (!holder) throw notFound('participant');
+
+    const done = await this.prisma.$transaction(
+      async (tx) => {
+        const cycle = await this.openForTaking(tx, cycleId, holder.id);
+        // Both rooms before anything is written: the take is cut from what he
+        // could take at this moment.
+        const capital = await this.capitalRoom(tx, cycleId);
+        const capMine = capital.people.find((p) => p.userId === holder.id);
+        if (!capMine) {
+          throw badRequest(
+            'CAPITAL_BACK_NOT_ON_CYCLE',
+            `${holder.name} has no capital in ${cycle.code} to take back.`,
+            { partner: holder.name, cycle: cycle.code },
+          );
+        }
+        // Profit is a core partner's on this cycle only, and only while the
+        // split has a basis; otherwise his profit room is nothing.
+        const profit = holder.corePartner ? await this.room(tx, cycleId) : null;
+        const profitMine =
+          profit && !profit.problem
+            ? profit.partners.find((p) => p.partnerUserId === holder.id)
+            : undefined;
+        const profitRoom = new Prisma.Decimal(profitMine?.availableEgp ?? 0);
+        const capitalRoomNow = new Prisma.Decimal(capMine.availableEgp);
+
+        const split = splitTake(amount, profitRoom, capitalRoomNow);
+        if (!split) {
+          const most = profitRoom.add(capitalRoomNow);
+          throw badRequest(
+            'TAKE_OVER_AVAILABLE',
+            `${holder.name} can take at most ${formatMoney(most)} EGP from ${cycle.code} now: ` +
+              `${formatMoney(profitRoom)} of profit and ${formatMoney(capitalRoomNow)} of capital.`,
+            {
+              partner: holder.name,
+              cycle: cycle.code,
+              available: formatMoney(most),
+              profit: formatMoney(profitRoom),
+              capital: formatMoney(capitalRoomNow),
+            },
+          );
+        }
+
+        const drawn =
+          split.profit.gt(0) && profit
+            ? await this.writeProfit(tx, {
+                id: randomUUID(),
+                cycle,
+                holder,
+                room: profit,
+                amount: split.profit,
+                day,
+                note: dto.note,
+                actorId,
+              })
+            : null;
+        const takenBack = split.capital.gt(0)
+          ? await this.writeCapital(tx, {
+              id: randomUUID(),
+              cycle,
+              holder,
+              room: capital,
+              amount: split.capital,
+              day,
+              note: dto.note,
+              actorId,
+            })
+          : null;
+        return { drawn, takenBack };
+      },
+      { timeout: 30_000 },
+    );
+
+    // After the commit, never inside it (one connection in production).
+    if (done.drawn) await this.auditProfit(actorId, done.drawn, day);
+    if (done.takenBack) await this.auditCapital(actorId, done.takenBack, day);
+    return {
+      data: {
+        takenOn: day,
+        amountEgp: m2(amount),
+        profit: done.drawn
+          ? { id: done.drawn.id, amountEgp: m2(done.drawn.amountEgp) }
+          : null,
+        capital: done.takenBack
+          ? { id: done.takenBack.id, amountEgp: m2(done.takenBack.amountEgp) }
+          : null,
+      },
+    };
+  }
+
+  /** The person taking: his name as the office knows him, and whether he is a core partner. */
+  private async holderOf(userId: string): Promise<Holder | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
       select: {
         id: true,
         role: true,
@@ -529,116 +697,192 @@ export class ProfitDrawsService {
         partner: { select: { displayName: true } },
       },
     });
-    if (!holder || holder.role !== 'CORE_PARTNER' || !holder.partner) {
-      throw notFound('partner');
-    }
-    const name = holder.partner.displayName ?? holder.email;
+    if (!user) return null;
+    return {
+      id: user.id,
+      name: user.partner?.displayName ?? user.email,
+      corePartner: user.role === 'CORE_PARTNER' && !!user.partner,
+    };
+  }
 
-    const id = randomUUID();
-    const created = await this.prisma.$transaction(
-      async (tx) => {
-        // The cycle first, then his account: the order every writer here
-        // takes them in. An approval waits on the cycle's lock, so none slips
-        // in between the check below and the write.
-        await lockCycle(tx, cycleId);
-        const cycle = await tx.importCycle.findUnique({
-          where: { id: cycleId },
-          select: { id: true, code: true, status: true },
-        });
-        if (!cycle) throw notFound('cycle');
-        await assertOpenForDraws(tx, cycle);
-        await lockAccounts(tx, [holder.id]);
+  /**
+   * The cycle first, then his account: the order every writer here takes them
+   * in. An approval waits on the cycle's lock, so none slips in between the
+   * checks that follow and the write.
+   */
+  private async openForTaking(tx: Db, cycleId: string, holderId: string) {
+    await lockCycle(tx, cycleId);
+    const cycle = await tx.importCycle.findUnique({
+      where: { id: cycleId },
+      select: { id: true, code: true, status: true },
+    });
+    if (!cycle) throw notFound('cycle');
+    await assertOpenForDraws(tx, cycle);
+    await lockAccounts(tx, [holderId]);
+    return cycle;
+  }
 
-        const onCycle = await tx.cycleParticipant.findFirst({
-          where: {
-            cycleId,
-            participantType: 'CORE_PARTNER',
-            partnerUserId: holder.id,
-          },
-          select: { id: true },
-        });
-        if (!onCycle) {
-          throw badRequest(
-            'PROFIT_DRAW_NOT_ON_CYCLE',
-            `${name} is not a core partner on ${cycle.code}, so has no share of its profit to take.`,
-            { partner: name, cycle: cycle.code },
-          );
-        }
-
-        const room = await this.room(tx, cycleId);
-        if (room.problem) {
-          throw badRequest(
-            room.problem,
-            `${cycle.code}'s profit has no agreed split yet, so no share of it can be taken.`,
-          );
-        }
-        const mine = room.partners.find((p) => p.partnerUserId === holder.id)!;
-        const available = new Prisma.Decimal(mine.availableEgp);
-        if (amount.gt(available)) {
-          throw badRequest(
-            'PROFIT_DRAW_OVER_AVAILABLE',
-            `${name} can take at most ${formatMoney(available)} EGP from ${cycle.code} now: ` +
-              `his share of the profit collected is ${formatMoney(mine.shareOfCollectedEgp)}, ` +
-              `he has taken ${formatMoney(mine.drawnEgp)} and owes ${formatMoney(mine.owedEgp)}.`,
-            {
-              partner: name,
-              cycle: cycle.code,
-              available: formatMoney(available),
-              share: formatMoney(mine.shareOfCollectedEgp),
-              drawn: formatMoney(mine.drawnEgp),
-              owed: formatMoney(mine.owedEgp),
-            },
-          );
-        }
-
-        const entry = await tx.financialTransaction.create({
-          data: {
-            type: 'PROFIT_DRAW',
-            category: PROFIT_DRAW_CATEGORY,
-            direction: 'OUTFLOW',
-            amount,
-            currency: 'EGP',
-            cycleId,
-            relatedType: PROFIT_DRAW_RELATED,
-            relatedId: id,
-            occurredOn: dayDate(day),
-            reason: `${name} took part of his profit from ${cycle.code}`,
-            createdBy: actorId,
-          },
-        });
-        return tx.profitDraw.create({
-          data: {
-            id,
-            kind: 'DRAW',
-            cycleId,
-            partnerUserId: holder.id,
-            amountEgp: amount,
-            drawnOn: dayDate(day),
-            note: dto.note?.trim() || null,
-            ledgerEntryId: entry.id,
-            createdBy: actorId,
-          },
-        });
+  /**
+   * Profit taken: he is a core partner on the cycle, the split has a basis,
+   * and the amount is within his room — then its cash row and its draw.
+   * `room` was read through `tx`, under the locks `openForTaking` took.
+   */
+  private async writeProfit(tx: Db, w: Write<DrawRoomRead>) {
+    const { cycle, holder, room, amount } = w;
+    const onCycle = await tx.cycleParticipant.findFirst({
+      where: {
+        cycleId: cycle.id,
+        participantType: 'CORE_PARTNER',
+        partnerUserId: holder.id,
       },
-      // The projection reads every sale of the cycle; give it room.
-      { timeout: 30_000 },
-    );
+      select: { id: true },
+    });
+    if (!onCycle) {
+      throw badRequest(
+        'PROFIT_DRAW_NOT_ON_CYCLE',
+        `${holder.name} is not a core partner on ${cycle.code}, so has no share of its profit to take.`,
+        { partner: holder.name, cycle: cycle.code },
+      );
+    }
+    if (room.problem) {
+      throw badRequest(
+        room.problem,
+        `${cycle.code}'s profit has no agreed split yet, so no share of it can be taken.`,
+      );
+    }
+    const mine = room.partners.find((p) => p.partnerUserId === holder.id)!;
+    const available = new Prisma.Decimal(mine.availableEgp);
+    if (amount.gt(available)) {
+      throw badRequest(
+        'PROFIT_DRAW_OVER_AVAILABLE',
+        `${holder.name} can take at most ${formatMoney(available)} EGP from ${cycle.code} now: ` +
+          `his share of the profit collected is ${formatMoney(mine.shareOfCollectedEgp)}, ` +
+          `he has taken ${formatMoney(mine.drawnEgp)} and owes ${formatMoney(mine.owedEgp)}.`,
+        {
+          partner: holder.name,
+          cycle: cycle.code,
+          available: formatMoney(available),
+          share: formatMoney(mine.shareOfCollectedEgp),
+          drawn: formatMoney(mine.drawnEgp),
+          owed: formatMoney(mine.owedEgp),
+        },
+      );
+    }
+    return this.writeRows(tx, w, {
+      kind: 'DRAW',
+      type: 'PROFIT_DRAW',
+      category: PROFIT_DRAW_CATEGORY,
+      reason: `${holder.name} took part of his profit from ${cycle.code}`,
+    });
+  }
 
-    await this.audit.log({
+  /** Capital taken back: he is on the cycle and the amount is within his part recovered. */
+  private async writeCapital(tx: Db, w: Write<CapitalRoomRead>) {
+    const { cycle, holder, room, amount } = w;
+    const mine = room.people.find((p) => p.userId === holder.id);
+    if (!mine) {
+      throw badRequest(
+        'CAPITAL_BACK_NOT_ON_CYCLE',
+        `${holder.name} has no capital in ${cycle.code} to take back.`,
+        { partner: holder.name, cycle: cycle.code },
+      );
+    }
+    const available = new Prisma.Decimal(mine.availableEgp);
+    if (amount.gt(available)) {
+      throw badRequest(
+        'CAPITAL_BACK_OVER_AVAILABLE',
+        `${holder.name} can take back at most ${formatMoney(available)} EGP from ${cycle.code} now: ` +
+          `paid sales have recovered ${room.share.mul(100).toFixed(2)}% of its cost, ` +
+          `${formatMoney(mine.recoveredEgp)} of the ${formatMoney(mine.contributionEgp)} he put in, ` +
+          `and he has taken back ${formatMoney(mine.takenEgp)}.`,
+        {
+          partner: holder.name,
+          cycle: cycle.code,
+          available: formatMoney(available),
+          pct: room.share.mul(100).toFixed(2),
+          recovered: formatMoney(mine.recoveredEgp),
+          contribution: formatMoney(mine.contributionEgp),
+          taken: formatMoney(mine.takenEgp),
+        },
+      );
+    }
+    return this.writeRows(tx, w, {
+      kind: 'CAPITAL',
+      type: CAPITAL_BACK_TYPE,
+      category: CAPITAL_BACK_CATEGORY,
+      reason: `${holder.name} took part of his capital back from ${cycle.code}`,
+    });
+  }
+
+  /** The cash row out, and the draw row that owns it. */
+  private async writeRows(
+    tx: Db,
+    w: Write<unknown>,
+    as: {
+      kind: 'DRAW' | 'CAPITAL';
+      type: string;
+      category: string;
+      reason: string;
+    },
+  ) {
+    const entry = await tx.financialTransaction.create({
+      data: {
+        type: as.type,
+        category: as.category,
+        direction: 'OUTFLOW',
+        amount: w.amount,
+        currency: 'EGP',
+        cycleId: w.cycle.id,
+        relatedType: PROFIT_DRAW_RELATED,
+        relatedId: w.id,
+        occurredOn: dayDate(w.day),
+        reason: as.reason,
+        createdBy: w.actorId,
+      },
+    });
+    return tx.profitDraw.create({
+      data: {
+        id: w.id,
+        kind: as.kind,
+        cycleId: w.cycle.id,
+        partnerUserId: w.holder.id,
+        amountEgp: w.amount,
+        drawnOn: dayDate(w.day),
+        note: w.note?.trim() || null,
+        ledgerEntryId: entry.id,
+        createdBy: w.actorId,
+      },
+    });
+  }
+
+  private auditProfit(actorId: string, row: Written, day: string) {
+    return this.audit.log({
       actorUserId: actorId,
       action: 'PROFIT_DRAW',
       entityType: 'ProfitDraw',
-      entityId: created.id,
+      entityId: row.id,
       afterJson: {
-        cycleId,
-        partnerUserId: holder.id,
-        amountEgp: m2(created.amountEgp),
+        cycleId: row.cycleId,
+        partnerUserId: row.partnerUserId,
+        amountEgp: m2(row.amountEgp),
         drawnOn: day,
       },
     });
-    return {
-      data: { id: created.id, amountEgp: m2(created.amountEgp), drawnOn: day },
-    };
+  }
+
+  private auditCapital(actorId: string, row: Written, day: string) {
+    return this.audit.log({
+      actorUserId: actorId,
+      action: 'CAPITAL_BACK_EARLY',
+      entityType: 'ProfitDraw',
+      entityId: row.id,
+      afterJson: {
+        cycleId: row.cycleId,
+        userId: row.partnerUserId,
+        amountEgp: m2(row.amountEgp),
+        takenOn: day,
+      },
+    });
   }
 
   /**

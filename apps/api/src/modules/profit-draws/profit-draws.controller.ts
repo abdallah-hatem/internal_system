@@ -10,6 +10,7 @@ import {
   CreateCapitalBackDto,
   CreateProfitDrawDto,
   ReverseProfitDrawDto,
+  TakeMoneyDto,
 } from './dto/profit-draw.dto';
 
 @ApiTags('Profit draws')
@@ -65,6 +66,30 @@ export class CycleProfitDrawsController {
     @CurrentUser() user: Viewer,
   ) {
     return this.draws.takeCapital(id, body, user.id);
+  }
+
+  @Get(':id/take')
+  @Roles(...PROFIT_DRAW_ROLES)
+  @ApiOperation({
+    summary:
+      'What each participant may take from a cycle now, profit and capital, and everything taken',
+  })
+  takeRoom(@Param('id') id: string) {
+    return this.draws.takeForCycle(id);
+  }
+
+  @Post(':id/take')
+  @Roles(...PROFIT_DRAW_ROLES)
+  @ApiOperation({
+    summary:
+      'One take from a cycle: profit first, then capital, both in one transaction',
+  })
+  take(
+    @Param('id') id: string,
+    @Body() body: TakeMoneyDto,
+    @CurrentUser() user: Viewer,
+  ) {
+    return this.draws.take(id, body, user.id);
   }
 }
 
