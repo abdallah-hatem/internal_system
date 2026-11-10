@@ -60,6 +60,19 @@ export class CyclesController {
     return this.cyclesService.getShipment(id, user);
   }
 
+  // Read like the shipment it is built from: core partners, and an investor
+  // on their own cycle (another cycle's id is 404).
+  @Get(':id/timeline')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'TEMP_INVESTOR')
+  @ApiOperation({
+    summary:
+      'Timeline: when each step happened (ordered, departures, deliveries, received, selling…) and the days between',
+  })
+  getTimeline(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.cyclesService.getTimeline(id, user);
+  }
+
   @Post()
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')

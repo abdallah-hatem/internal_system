@@ -45,7 +45,8 @@ const PAGE_SIZE = 10;
  *   (customers/[id], contracts-list, customer-statement);
  * - a cycle: the place cards of Where the goods are (four: the fixture is a
  *   UAE-direct cycle, which the list it is opened from knows), the Shipment
- *   panel's two product lines, the Funding card's three partner rows and three
+ *   panel's two product lines, the Timeline card's six steps (2026-11-10), the
+ *   Funding card's three partner rows and three
  *   contribution rows (it replaced the Participants list, owner 2026-10-26), and
  *   three rows each in Purchases and Inventory (cycles/[cycleId]/details,
  *   ShipmentPanel, FundingCardSkeleton).
@@ -57,7 +58,7 @@ const PAGE_SIZE = 10;
 const DASHBOARD_ROWS = (width: number) =>
   (width < 640 ? PHONE_FIRST_TILES.length : RIGHT_NOW_TILES.length + THIS_MONTH_TILES.length) + 5 + 5;
 const CUSTOMER_ROWS = 3 + 3 + 4 + 4;
-const CYCLE_ROWS = 4 + 2 + 3 + 3 + 3 + 3;
+const CYCLE_ROWS = 4 + 2 + 6 + 3 + 3 + 3 + 3;
 const stamp = Date.now().toString(36).toUpperCase();
 // Short enough to sit on one line in Sales' customer column whatever the stamp:
 // "Skeleton Shop <stamp>" was within a few pixels of the column's width, so it

@@ -22,6 +22,16 @@ paid in one step, and **samples by branch** (BUSINESS_LOGIC §4 "Samples by bran
 then "tidy and push dev and merge"): New Order shows the order's branch's samples first, the rest under a collapsed
 "At other branches", tags a sample taken from another branch, regroups when the branch changes; Add all = the order's
 branch only (GUESS); one short heading per samples order instead of a sentence repeating its rows. No migration.
+- **2026-11-10 — a cycle's Timeline card (owner), on `feature/cycle-timeline`, PR to `dev`, not merged:** after Shipment
+  on the cycle page, when each step happened and the days between, and order to selling (or so far). New read
+  `GET /cycles/:id/timeline` (`CyclesService.getTimeline`; arithmetic in `common/cycle-timeline.ts`, Cairo calendar
+  days; a malformed id 400 `VALIDATION_FAILED`, unknown 404). Web `components/cycles/timeline-card.tsx` (query under
+  `['cycle', id, 'timeline']`, so shipment and status changes refresh it), `cycleTimeline` i18n in en + ar. Tests:
+  `cycle-timeline.spec.ts` (31: every day of 2024–2028, month ends, leap day, clock changes, midnight Cairo vs UTC,
+  2,000 random cycles never negative), `timeline.db.spec.ts` (12), the card's component test (11); seen to fail with
+  status days read in UTC, negative lengths let through, a bad id as 404, legs in entry order, moved-in stock counted,
+  drafts counted, local-time day arithmetic, the card on its own query key. TC-SKEL-09 counts the card's six skeleton
+  rows. Cycle detail visual baselines retaken (darwin); the -linux ones deleted for CI to retake. No migration.
 - **2026-11-10 — one "Take money from this cycle" card (owner: approved design), on `feature/take-money-card`, PR to
   `dev`, not merged:** the cycle page's Profit taken and Capital back early cards merged into one (`take-money-card.tsx`;
   the two old cards and their tests removed). New `GET/POST /cycles/:id/take`: both rooms per person, and one take cut
