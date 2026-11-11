@@ -1,0 +1,101 @@
+# Nightly backup of the production database (Neon) to the private R2 bucket
+# motoparts-backups, kept 30 days. Every night the dump is also restored into a
+# throwaway Postgres and its tables counted, so a backup that cannot be restored
+# fails the run (and GitHub emails the repo owner). Docs: docs/build-log/how-to-run.md
+# "Nightly backup".
+#
+# The repo is public: nothing here may print a secret, and the dump never becomes
+# an artifact — it goes only to R2. Scheduled runs use master's copy of this file.
+name: Nightly backup
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 02:00 Cairo
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      restore:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: restore_check
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d restore_check"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      BUCKET: motoparts-backups
+    steps:
+      - name: Check the secrets are set
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+        run: |
+          for v in PROD_DATABASE_URL R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            [ -n "${!v}" ] || { echo "::error::secret for $v is not set"; exit 1; }
+          done
+
+      - name: Dump production
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          STAMP=$(TZ=Africa/Cairo date +%Y-%m-%d_%H%M)
+          echo "FILE=prod-$STAMP.dump" >> "$GITHUB_ENV"
+          docker run --rm -v "$PWD/out:/out" -e URL="$PROD_DATABASE_URL" postgres:18-alpine \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --file="/out/prod-'"$STAMP"'.dump" "$URL"'
+          ls -l out
+
+      - name: Restore it into a throwaway database
+        run: |
+          set -euo pipefail
+          docker run --rm --network host -v "$PWD/out:/out" -e PGPASSWORD=postgres postgres:18-alpine \
+            pg_restore --no-owner --no-privileges --exit-on-error \
+              -h localhost -p 5433 -U postgres -d restore_check "/out/$FILE"
+          tables=$(docker run --rm --network host -e PGPASSWORD=postgres postgres:18-alpine \
+            psql -h localhost -p 5433 -U postgres -d restore_check -tAc \
+            "select count(*) from information_schema.tables where table_schema='public'")
+          rows=$(docker run --rm --network host -e PGPASSWORD=postgres postgres:18-alpine \
+            psql -h localhost -p 5433 -U postgres -d restore_check -tAc \
+            "select (select count(*) from users) + (select count(*) from import_cycles) + (select count(*) from _prisma_migrations)")
+          echo "restored: $tables tables, $rows users+cycles+migrations rows"
+          [ "$tables" -gt 40 ] || { echo "::error::restored only $tables tables"; exit 1; }
+          [ "$rows" -gt 10 ] || { echo "::error::restored database looks empty"; exit 1; }
+
+      - name: Upload to R2, check it, drop copies older than 30 days
+        env:
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_NO_CHECK_BUCKET: 'true'
+        run: |
+          set -euo pipefail
+          R="docker run --rm -v $PWD/out:/data -e RCLONE_CONFIG_R2_TYPE -e RCLONE_CONFIG_R2_PROVIDER -e RCLONE_CONFIG_R2_ENDPOINT -e RCLONE_CONFIG_R2_ACCESS_KEY_ID -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY -e RCLONE_CONFIG_R2_NO_CHECK_BUCKET rclone/rclone:1.68.2"
+          $R copyto "/data/$FILE" "r2:$BUCKET/neon/$FILE"
+          remote=$($R size --json "r2:$BUCKET/neon/$FILE" | sed -n 's/.*"bytes":\([0-9]*\).*/\1/p')
+          local_size=$(stat -c %s "out/$FILE")
+          [ "$remote" = "$local_size" ] || { echo "::error::upload size mismatch ($remote vs $local_size)"; exit 1; }
+          echo "uploaded neon/$FILE ($local_size bytes)"
+          $R delete --min-age 30d "r2:$BUCKET/neon/"
+          echo "kept: $($R lsf "r2:$BUCKET/neon/" | wc -l) backups"
+
+      - name: Remove the local copy
+        if: always()
+        run: rm -rf out

@@ -229,7 +229,7 @@ Ordered by what would hurt first.
 - **No rate limiting anywhere.** `POST /auth/portal/signup` is public; ten requests
   in a second all succeed. `@nestjs/throttler` is the fix; the limits are a
   judgement call nobody has made.
-- **Backups have never been tested.** Neon's restore window has not been checked
+- **Nightly backup to R2 since 2026-11-11** (`nightly-backup.yml`, 30 days, each one restored into a throwaway database before upload — see how-to-run.md). Before that: **backups had never been tested.** Neon's restore window has not been checked
   and no restore has been tried. Production is backed up only when the owner asks.
   The plan is in BUILD_LOG "Queued, not started" (needs the owner's Neon access).
 - **Queued features**: samples into the current order, Confirm & paid in one step, Paid by on an expense, Edit order

@@ -38,3 +38,20 @@ its current state.
 - Auto mode blocks production steps: switch this session to manual (set_session_permission_mode), let the owner
   approve each step, switch back to auto.
 
+
+## Nightly backup (2026-11-11)
+
+`.github/workflows/nightly-backup.yml` runs every night at 02:00 Cairo (and by hand: Actions → Nightly backup →
+Run workflow). It `pg_dump`s production (custom format), **restores the dump into a throwaway Postgres and counts its
+tables and rows** — a backup that cannot be restored fails the run — then uploads it to the private R2 bucket
+`motoparts-backups` under `neon/prod-YYYY-MM-DD_HHMM.dump`, checks the uploaded size, and deletes copies older than
+30 days. A failed run is emailed to the repo owner by GitHub. The repo is public: the dump never becomes an artifact
+and nothing prints a secret.
+
+Secrets (repo Settings → Secrets and variables → Actions): `PROD_DATABASE_URL` (Neon's unpooled URL, the API's
+`DATABASE_URL_UNPOOLED`), `R2_ENDPOINT` (`https://<account-id>.r2.cloudflarestorage.com`), `R2_BACKUP_ACCESS_KEY_ID`,
+`R2_BACKUP_SECRET_ACCESS_KEY` — an R2 token with Object Read & Write on `motoparts-backups` only. The R2 account is
+the owner's (the same one EGOH uses); the bucket and key are this business's own, never EGOH's.
+
+Restoring one: download it from R2, then `pg_restore --no-owner --no-privileges --clean --if-exists -d <url> <file>`.
+Rehearse on a local copy first (`motorcycle_parts_prodcopy`), never straight onto production.
