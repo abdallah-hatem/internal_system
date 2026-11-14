@@ -19,7 +19,9 @@ import { MoneyInput } from '@/components/ui/money-input';
 import { Dialog, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
-import { AlertTriangle, Loader2, PencilLine, Plus, Scale, Wallet } from '@/components/ui/icons';
+import { AlertTriangle, History, Loader2, PencilLine, Plus, Scale, Wallet } from '@/components/ui/icons';
+import { PartnerMoneyDialog } from '@/components/cycles/partner-money-dialog';
+import { ExchangeBreakdownDialog, type ExchangeBreakdown } from '@/components/cycles/exchange-breakdown-dialog';
 import {
   FundingTargetDialog,
   RecordAdvanceDialog,
@@ -110,6 +112,8 @@ export interface AccountFunding {
     /** + a cost (the rate rose since he paid), − a gain. */
     exchangeDifferenceEgp: string;
     exchangeSplit: { participantId: string; participantType: string; name: string; amountEgp: string }[] | null;
+    /** Each friend's payment and every standing repayment on it; the rows sum to `exchangeDifferenceEgp` (owner 2026-11-14). */
+    exchangeBreakdown?: ExchangeBreakdown[];
   } | null;
   paidSoFar: {
     totalEgp: string;
@@ -238,6 +242,8 @@ export function FundingCard({
   const [enteringAmounts, setEnteringAmounts] = useState(false);
   const [changingSplit, setChangingSplit] = useState(false);
   const [adding, setAdding] = useState(false);
+  /** The partner whose Details are open (owner 2026-11-14). */
+  const [details, setDetails] = useState<{ partnerUserId: string; name: string } | null>(null);
 
   const funding = useQuery<AccountFunding>({
     queryKey: ['account-funding', cycle.id],
@@ -259,6 +265,7 @@ export function FundingCard({
     void queryClient.invalidateQueries({ queryKey: ['cycles'] });
     void queryClient.invalidateQueries({ queryKey: ['landedCost', cycle.id] });
     void queryClient.invalidateQueries({ queryKey: ['account-funding', cycle.id] });
+    void queryClient.invalidateQueries({ queryKey: ['partner-money', cycle.id] });
   }
 
   /**
@@ -518,19 +525,33 @@ export function FundingCard({
                     </>
                   )}
                 </span>
-                <span data-testid="paid-how" className="text-end text-xs text-muted-foreground md:text-start">
-                  {parts.map((part, i) => (
-                    <span key={part.key} className="block md:inline">
-                      {i > 0 && <span className="hidden md:inline"> · </span>}
-                      {part.label}
-                      {parts.length > 1 && (
-                        <>
-                          {' '}
-                          <Money value={part.amount} className="text-foreground" />
-                        </>
-                      )}
-                    </span>
-                  ))}
+                <span className="text-end text-xs text-muted-foreground md:text-start">
+                  <span data-testid="paid-how">
+                    {parts.map((part, i) => (
+                      <span key={part.key} className="block md:inline">
+                        {i > 0 && <span className="hidden md:inline"> · </span>}
+                        {part.label}
+                        {parts.length > 1 && (
+                          <>
+                            {' '}
+                            <Money value={part.amount} className="text-foreground" />
+                          </>
+                        )}
+                      </span>
+                    ))}
+                  </span>
+                  {/* An investor has no account: only a partner's money has Details (owner 2026-11-14). */}
+                  {r.participantType !== 'TEMP_INVESTOR' && (
+                    <button
+                      type="button"
+                      onClick={() => setDetails({ partnerUserId: r.partnerUserId, name: r.name })}
+                      data-testid="paid-details"
+                      aria-label={t('details.linkLabel', { name: r.name })}
+                      className="mt-0.5 inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-primary-600 hover:text-primary-700 md:mt-0 md:ms-2"
+                    >
+                      <History className="h-3.5 w-3.5" /> {t('details.link')}
+                    </button>
+                  )}
                 </span>
               </div>
             );
@@ -596,7 +617,7 @@ export function FundingCard({
                   <Money value={p.availableEgp} />
                   {num(p.untiedEgp) > 0 && (
                     <span data-testid="available-split" className="block text-[11px] text-muted-foreground" title={t('untiedTitle')}>
-                      {t.rich('availableSplit', {
+                      {t.rich(num(p.ownAdvancesEgp) > 0 ? 'availableSplit' : 'availableSplitUntied', {
                         own: () => <Money value={p.ownAdvancesEgp} />,
                         untied: () => <span className="underline decoration-dotted underline-offset-2"><Money value={p.untiedEgp} /></span>,
                       })}
@@ -628,7 +649,10 @@ export function FundingCard({
                   <span className="tabular-nums">{t('colFromAdvances')} <Money value={p.availableEgp} className="text-foreground" /></span>
                   {num(p.untiedEgp) > 0 && (
                     <span className="basis-full tabular-nums">
-                      {t.rich('availableSplit', { own: () => <Money value={p.ownAdvancesEgp} />, untied: () => <Money value={p.untiedEgp} /> })}
+                      {t.rich(num(p.ownAdvancesEgp) > 0 ? 'availableSplit' : 'availableSplitUntied', {
+                        own: () => <Money value={p.ownAdvancesEgp} />,
+                        untied: () => <Money value={p.untiedEgp} />,
+                      })}
                     </span>
                   )}
                 </span>
@@ -775,6 +799,15 @@ export function FundingCard({
         )}
       </div>
 
+      {details && (
+        <PartnerMoneyDialog
+          cycleId={data.cycleId}
+          cycleCode={data.code}
+          partnerUserId={details.partnerUserId}
+          name={details.name}
+          onClose={() => setDetails(null)}
+        />
+      )}
       {advancing && (
         <RecordAdvanceDialog
           partners={data.partners.map((p) => ({ partnerUserId: p.partnerUserId, name: p.name }))}
@@ -846,6 +879,7 @@ export function FundingCard({
  */
 function ExchangeLine({ friends, names }: { friends: NonNullable<AccountFunding['friends']>; names: string }) {
   const t = useTranslations('fundingCard');
+  const [open, setOpen] = useState(false);
   const diff = num(friends.exchangeDifferenceEgp);
   const split = friends.exchangeSplit;
   const equal = !!split && split.length > 0 && split.every((p) => p.amountEgp === split[0].amountEgp);
@@ -865,19 +899,40 @@ function ExchangeLine({ friends, names }: { friends: NonNullable<AccountFunding[
       </>
     );
   return (
-    <p
-      data-testid="exchange-difference"
-      data-gain={diff < 0 ? 'true' : 'false'}
-      className="mt-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground"
-    >
-      {t.rich(diff < 0 ? 'exchangeGain' : 'exchangeCost', {
-        friends: names,
-        // Signed and coloured as every exchange line is: −red a loss, +green a
-        // gain (owner 2026-11-06, `lenders/exchange-result.tsx`).
-        amount: () => <ExchangeAmount diffEgp={diff} className="font-medium" />,
-        parts,
-      })}
-    </p>
+    <div className="mt-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+      <p data-testid="exchange-difference" data-gain={diff < 0 ? 'true' : 'false'} className="inline">
+        {t.rich(diff < 0 ? 'exchangeGain' : 'exchangeCost', {
+          friends: names,
+          // Signed and coloured as every exchange line is: −red a loss, +green a
+          // gain (owner 2026-11-06, `lenders/exchange-result.tsx`).
+          amount: () => <ExchangeAmount diffEgp={diff} className="font-medium" />,
+          parts,
+          // "On net, you paid X less/more than it cost the cycle" (owner 2026-11-14):
+          // only true on net, so it says so, unsigned.
+          net: () => <Money value={Math.abs(diff)} className="text-foreground" />,
+        })}
+      </p>{' '}
+      {/* Why it is that figure, repayment by repayment (owner 2026-11-14: "must explain WHY"). */}
+      {friends.exchangeBreakdown && friends.exchangeBreakdown.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          data-testid="exchange-how"
+          aria-label={t('exchangeDetails.howLabel')}
+          className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-primary-600 hover:text-primary-700"
+        >
+          <History className="h-3.5 w-3.5" /> {t('exchangeDetails.how')}
+        </button>
+      )}
+      {open && (
+        <ExchangeBreakdownDialog
+          friends={names}
+          totalEgp={friends.exchangeDifferenceEgp}
+          breakdown={friends.exchangeBreakdown ?? []}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </div>
   );
 }
 

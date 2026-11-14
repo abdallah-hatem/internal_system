@@ -20,6 +20,8 @@ import type { FundingTotals } from './funding-note';
 const state = vi.hoisted(() => ({
   funding: null as unknown as AccountFunding,
   get: 'ok' as 'ok' | 'never' | 'fail',
+  /** Every `GET /cycles/c-2/partner-money/:id` asked (the Details dialog). */
+  moneyReads: [] as string[],
   posts: [] as Array<{ url: string; body: unknown }>,
   puts: [] as Array<{ url: string; body: unknown }>,
   /** The people `GET /users` lists; `POST /users/investors` adds to it. */
@@ -45,6 +47,23 @@ vi.mock('@/lib/api', () => ({
         if (state.get === 'never') return new Promise(() => {});
         if (state.get === 'fail') return Promise.reject(new Error('network'));
         return Promise.resolve({ data: { data: state.funding } });
+      }
+      if (url.startsWith('/cycles/c-2/partner-money/')) {
+        state.moneyReads.push(url);
+        return Promise.resolve({
+          data: {
+            data: {
+              cycleId: 'c-2',
+              cycleCode: 'CYC-2026-0002',
+              partnerUserId: url.split('/').pop(),
+              name: 'Abdallah',
+              onCycle: true,
+              forCycle: { movements: [], totalEgp: '0.00' },
+              untied: { shown: false, movements: [], netEgp: '0.00', drawnHereEgp: '0.00', otherCyclesEgp: '0.00', stillUntiedEgp: '0.00', totalEgp: '0.00' },
+              totals: { availableEgp: '0.00', intoCapitalEgp: '0.00', leftEgp: '0.00', leftForCycleEgp: '0.00', leftUntiedEgp: '0.00', enteredEgp: '0.00', putInEgp: '0.00' },
+            },
+          },
+        });
       }
       if (url === '/currency-rates/map') return Promise.resolve({ data: { data: { USD: 50 } } });
       if (url === '/users') {
@@ -389,6 +408,59 @@ describe('production’s cycle 2 (2026-10-26)', () => {
     expect(screen.getAllByText(en.fundingCard.colFromAdvances).length).toBeGreaterThan(0);
   });
 
+  // Owner 2026-11-14: "0.00 EGP paid for this cycle ·" said nothing — only
+  // the money in his account is named when nothing was paid for this cycle.
+  it.each(['en', 'ar'] as const)('with nothing paid for this cycle the split names only his untied money (%s)', async (locale) => {
+    const f = cycleTwo();
+    f.partners[0] = { ...f.partners[0], availableEgp: '137.74', ownAdvancesEgp: '0.00', untiedEgp: '137.74' };
+    state.funding = f;
+    wrap(locale);
+    const contributions = await screen.findByTestId('funding-contributions');
+    const row = within(contributions).getAllByTestId('share-row')[0];
+    const want = locale === 'en' ? '137.74 EGP in his account' : '137.74 EGP في حسابه';
+    expect(text(within(row).getByTestId('available-split'))).toBe(want);
+    // The phone's line says the same, never the 0.00 part.
+    expect(text(row)).not.toContain(locale === 'en' ? 'paid for this cycle' : 'مدفوعة لهذه الدورة');
+    expect(text(row)).toContain(want);
+  });
+
+  it('every partner row has a Details link that opens his money in this cycle; closing and opening another asks for that one', async () => {
+    state.moneyReads = [];
+    wrap();
+    const rows = await screen.findAllByTestId('paid-row');
+    const links = rows.map((r) => within(r).getByTestId('paid-details'));
+    expect(links.map((l) => [l.textContent?.trim(), l.getAttribute('type'), l.getAttribute('aria-label')])).toEqual([
+      ['Details', 'button', "Abdallah's money in this cycle"],
+      ['Details', 'button', "Shady's money in this cycle"],
+      ['Details', 'button', "Fares's money in this cycle"],
+    ]);
+    // The How text itself is unchanged by the link beside it.
+    expect(text(within(rows[0]).getByTestId('paid-how'))).toBe('paid Oct 20, 2026, not drawn yet');
+    fireEvent.click(links[0]);
+    const dialog = await screen.findByTestId('partner-money-dialog');
+    expect(text(dialog)).toContain("Abdallah's money in CYC-2026-0002");
+    expect(state.moneyReads).toEqual(['/cycles/c-2/partner-money/u-a']);
+    fireEvent.click(document.querySelector('[data-dialog-footer] button')!);
+    await waitFor(() => expect(screen.queryByTestId('partner-money-dialog')).toBeNull());
+    fireEvent.click(links[1]);
+    expect(text(await screen.findByTestId('partner-money-dialog'))).toContain("Shady's money in CYC-2026-0002");
+    expect(state.moneyReads).toEqual(['/cycles/c-2/partner-money/u-a', '/cycles/c-2/partner-money/u-s']);
+  });
+
+  it('an investor has no account, so no Details link', async () => {
+    const f = cycleTwo();
+    f.putIn.byPartner = [
+      ...f.putIn.byPartner,
+      { ...f.putIn.byPartner[2], partnerUserId: 'u-i', name: 'Friend', participantType: 'TEMP_INVESTOR' },
+    ];
+    state.funding = f;
+    wrap();
+    const rows = await screen.findAllByTestId('paid-row');
+    expect(rows).toHaveLength(4);
+    expect(within(rows[3]).queryByTestId('paid-details')).toBeNull();
+    expect(within(rows[0]).queryByTestId('paid-details')).not.toBeNull();
+  });
+
   it('on a phone the status pill has a line of its own, never half the row beside the name', async () => {
     wrap();
     const contributions = await screen.findByTestId('funding-contributions');
@@ -520,7 +592,7 @@ describe('production’s cycle 1: a friend paid, the partners repaid him (owner 
     wrap('en', { lenders: ['Ahmad Eraiby'] });
     const line = await screen.findByTestId('exchange-difference');
     expect(text(line)).toBe(
-      'Exchange-rate loss on repaying Ahmad Eraiby: −7,788.12 EGP (2,596.04 EGP each) — a cost to the cycle, taken from its profit; each partner still gets his full contribution back as capital.',
+      'Exchange-rate loss on repaying Ahmad Eraiby: −7,788.12 EGP (2,596.04 EGP each) — on net, you paid 7,788.12 EGP more than it cost the cycle, so it is a cost to the cycle, taken from its profit; each partner still gets his full contribution back as capital.',
     );
     expect(line.getAttribute('data-gain')).toBe('false');
     const amount = line.querySelector('[data-result]')!;
@@ -537,7 +609,7 @@ describe('production’s cycle 1: a friend paid, the partners repaid him (owner 
     expect(line.getAttribute('data-gain')).toBe('true');
     expect(line.querySelector('[data-result]')!.className).toContain('text-success');
     expect(text(line)).toBe(
-      'Exchange-rate gain on repaying Ahmad Eraiby: +1,200.00 EGP (400.00 EGP each) — the rate fell since he paid, so it adds to the cycle’s profit; each partner still gets his full contribution back as capital.',
+      'Exchange-rate gain on repaying Ahmad Eraiby: +1,200.00 EGP (400.00 EGP each) — on net, you paid 1,200.00 EGP less than it cost the cycle, so it adds to the cycle’s profit; each partner still gets his full contribution back as capital.',
     );
   });
 
@@ -545,11 +617,49 @@ describe('production’s cycle 1: a friend paid, the partners repaid him (owner 
     asCycleOne('1000.00', ['300.00', '300.00', '400.00']);
     wrap('en', { lenders: ['Ahmad Eraiby'] });
     const line = await screen.findByTestId('exchange-difference');
-    expect(text(line)).toContain('−1,000.00 EGP (Abdallah 300.00 EGP · Shady 300.00 EGP · Fares 400.00 EGP) — a cost');
+    expect(text(line)).toContain('−1,000.00 EGP (Abdallah 300.00 EGP · Shady 300.00 EGP · Fares 400.00 EGP) — on net, you paid 1,000.00 EGP more');
     cleanup();
     asCycleOne('1000.00', null);
     wrap('en', { lenders: ['Ahmad Eraiby'] });
-    expect(text(await screen.findByTestId('exchange-difference'))).toContain('Ahmad Eraiby: −1,000.00 EGP — a cost');
+    expect(text(await screen.findByTestId('exchange-difference'))).toContain('Ahmad Eraiby: −1,000.00 EGP — on net, you paid 1,000.00 EGP more');
+  });
+
+  it('the line has a How link only when there are repayments to explain; it opens them, the net the card’s figure', async () => {
+    asCycleOne('-304.71', null);
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    await screen.findByTestId('exchange-difference');
+    // No breakdown sent: nothing to open.
+    expect(screen.queryByTestId('exchange-how')).toBeNull();
+    cleanup();
+    asCycleOne('-304.71', null);
+    state.funding.friends = {
+      ...state.funding.friends!,
+      exchangeBreakdown: [
+        {
+          financingId: 'f-1',
+          lender: 'Ahmad Eraiby',
+          currency: 'AED',
+          amount: '12999.13',
+          fxRateToEgp: '15.2',
+          amountEgp: '197586.78',
+          paidOn: '2026-10-01',
+          repaidEgp: '197282.07',
+          exchangeDifferenceEgp: '-304.71',
+          repayments: [
+            { id: 'r1', paidOn: '2026-10-20', amountEgp: '60775.00', rateToEgp: '15.0443', cleared: '4039.73', exchangeDifferenceEgp: '-628.90' },
+            { id: 'r2', paidOn: '2026-11-10', amountEgp: '32100.07', rateToEgp: '15.3431', cleared: '2092.15', exchangeDifferenceEgp: '324.19' },
+          ],
+        },
+      ],
+    };
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const how = await screen.findByTestId('exchange-how');
+    expect(how.getAttribute('type')).toBe('button');
+    expect(text(screen.getByTestId('exchange-difference'))).not.toContain('How');
+    fireEvent.click(how);
+    const dialog = await screen.findByTestId('exchange-breakdown');
+    expect(screen.getAllByTestId('exchange-row')).toHaveLength(2);
+    expect(text(within(dialog).getByTestId('exchange-total'))).toBe('On net+304.71 EGP');
   });
 
   it('no line before he is repaid, none at an unchanged rate, and none where no friend paid', async () => {

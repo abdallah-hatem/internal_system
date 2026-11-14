@@ -787,6 +787,8 @@ suite('partner running accounts (Postgres)', () => {
       repay?: boolean;
       /** His loan in dirhams; 9,878.84 once 60,000 of it stayed in as his investment (2026-10-27). */
       loanAed?: number;
+      /** His dirham's rate on the day he paid; the order's when left out. */
+      loanRate?: number;
     } = {},
   ) {
     const base = await cycleWithPartners('PURCHASING', 'AED');
@@ -803,7 +805,8 @@ suite('partner running accounts (Postgres)', () => {
         supplierId: supplier.id,
         reference: `PO-${tag}`,
         currency: 'AED',
-        fxRateToEgp: 13.9066,
+        // Production's cycle 2 ordered at its friend's rate (15.2).
+        fxRateToEgp: opts.loanRate ?? 13.9066,
         orderedOn: new Date(`${daysAgo(40)}T00:00:00Z`),
         status: 'CONFIRMED',
         items: {
@@ -838,6 +841,7 @@ suite('partner running accounts (Postgres)', () => {
       {
         lenderId: friend.id,
         amount: opts.loanAed ?? 13905.69,
+        ...(opts.loanRate ? { fxRateToEgp: opts.loanRate } : {}),
         paidOn: daysAgo(35),
       },
       actor,
@@ -882,7 +886,7 @@ suite('partner running accounts (Postgres)', () => {
         actor,
       );
     }
-    return { ...base, friend };
+    return { ...base, friend, financingId: f.id };
   }
 
   /** Each partner's share of repaying him, entered directly (Enter amounts). */
@@ -1490,5 +1494,357 @@ suite('partner running accounts (Postgres)', () => {
       untied: '0.00',
       byCycle: [[two.code, '5775.00']],
     });
+  });
+
+  // ─── One partner's money in a cycle: the Funding card's Details (2026-11-14) ─
+
+  /** A movement tied to no cycle, as production's Aug 15 row was written. */
+  const untiedAdvance = (userId: string, amountEgp: number, note: string) =>
+    prisma.partnerAccountMovement.create({
+      data: {
+        partnerUserId: userId,
+        kind: 'ADVANCE',
+        amount: amountEgp,
+        amountEgp,
+        occurredOn: new Date(`${daysAgo(60)}T00:00:00Z`),
+        note,
+      },
+    });
+  const moneyOf = async (cycleId: string, userId: string) =>
+    (await accounts.partnerMoney(cycleId, userId)).data;
+
+  /** Production's Abdallah on CYC-2026-0002: 50,775 + 5,225 for it, 10,000 untied, 65,862.26 drawn in. */
+  async function abdallahCase() {
+    const { cycle, people } = await cycleWithPartners();
+    const abdallah = people[0].id;
+    await untiedAdvance(
+      abdallah,
+      10_000,
+      'Paid 65,000 for CYC-2026-0001; his share there is 55,000',
+    );
+    await advance(abdallah, cycle.id, 50_775, {
+      paidOn: daysAgo(20),
+      note: 'Paid supplier',
+    });
+    await advance(abdallah, cycle.id, 5_225, { paidOn: daysAgo(1) });
+    await accounts.contribute(
+      cycle.id,
+      { lines: [{ partnerUserId: abdallah, amountEgp: 65_862.26 }] },
+      actor,
+    );
+    return { cycle, people, abdallah };
+  }
+
+  it('Details: production’s Abdallah on cycle 2 — 56,000 for it, 10,000 untied, 66,000 available, −65,862.26 into capital, 137.74 left', async () => {
+    const { cycle, abdallah } = await abdallahCase();
+    const d = await moneyOf(cycle.id, abdallah);
+    expect(d.cycleCode).toBe(cycle.code);
+    expect(d.onCycle).toBe(true);
+    expect(d.forCycle.movements.map((m) => [m.kind, m.amountEgp])).toEqual([
+      ['ADVANCE', '50775.00'],
+      ['ADVANCE', '5225.00'],
+    ]);
+    expect(d.forCycle.movements[0].note).toBe('Paid supplier');
+    expect(d.forCycle.totalEgp).toBe('56000.00');
+    expect(d.untied).toMatchObject({
+      shown: true,
+      netEgp: '10000.00',
+      drawnHereEgp: '9862.26',
+      otherCyclesEgp: '0.00',
+      stillUntiedEgp: '137.74',
+      totalEgp: '10000.00',
+    });
+    expect(
+      d.untied.movements.map((m) => [m.kind, m.amountEgp, m.note]),
+    ).toEqual([
+      [
+        'ADVANCE',
+        '10000.00',
+        'Paid 65,000 for CYC-2026-0001; his share there is 55,000',
+      ],
+    ]);
+    expect(d.totals).toEqual({
+      availableEgp: '66000.00',
+      intoCapitalEgp: '-65862.26',
+      leftEgp: '137.74',
+      leftForCycleEgp: '0.00',
+      leftUntiedEgp: '137.74',
+      enteredEgp: '0.00',
+      putInEgp: '65862.26',
+    });
+    // The same figures the Funding card reads: Put in, and Available to draw.
+    const f = (await accounts.cycleFunding(cycle.id)).data;
+    expect(f.putIn.byPartner[0].totalEgp).toBe(d.totals.putInEgp);
+    expect(f.partners[0].availableEgp).toBe(d.totals.leftEgp);
+  });
+
+  it('Details: a reversed advance is listed but not counted, on its cycle and untied', async () => {
+    const { cycle, people } = await cycleWithPartners();
+    const shady = people[1].id;
+    const kept = (await advance(shady, cycle.id, 700)).data;
+    const gone = (await advance(shady, cycle.id, 300)).data;
+    await accounts.reverse(shady, gone.id, 'entered twice', actor);
+    const untied = await untiedAdvance(shady, 200, 'entered by mistake');
+    await accounts.reverse(shady, untied.id, 'not his', actor);
+    const d = await moneyOf(cycle.id, shady);
+    expect(d.forCycle.movements.map((m) => [m.id, !!m.reversedAt])).toEqual([
+      [kept.id, false],
+      [gone.id, true],
+    ]);
+    expect(d.forCycle.totalEgp).toBe('700.00');
+    expect(d.untied.movements.map((m) => !!m.reversedAt)).toEqual([true]);
+    expect(d.untied).toMatchObject({
+      shown: false,
+      netEgp: '0.00',
+      totalEgp: '0.00',
+    });
+    expect(d.totals).toMatchObject({
+      availableEgp: '700.00',
+      leftEgp: '700.00',
+      intoCapitalEgp: '0.00',
+    });
+  });
+
+  it('Details: only his movements, only this cycle’s and untied — another partner’s or another cycle’s never appear', async () => {
+    const { cycle, people } = await cycleWithPartners();
+    const other = await cycleWithPartners();
+    const [abdallah, shady] = [people[0].id, people[1].id];
+    await advance(abdallah, cycle.id, 1_000);
+    await advance(shady, cycle.id, 9_999);
+    // His own advance on another cycle: its pot, never this one's.
+    await prisma.cycleParticipant.create({
+      data: {
+        cycleId: other.cycle.id,
+        participantType: 'CORE_PARTNER',
+        partnerUserId: abdallah,
+        contributionAmount: 0,
+      },
+    });
+    await advance(abdallah, other.cycle.id, 4_444);
+    await leftIn(abdallah, 500);
+    // The other cycle draws 4,444 of its own and 300 of the untied 500.
+    await accounts.contribute(
+      other.cycle.id,
+      { lines: [{ partnerUserId: abdallah, amountEgp: 4_744 }] },
+      actor,
+    );
+    const d = await moneyOf(cycle.id, abdallah);
+    expect(d.forCycle.movements.map((m) => m.amountEgp)).toEqual(['1000.00']);
+    expect(
+      [...d.forCycle.movements, ...d.untied.movements].every(
+        (m) =>
+          m.amountEgp !== '9999.00' &&
+          m.amountEgp !== '4444.00' &&
+          m.amountEgp !== '4744.00',
+      ),
+    ).toBe(true);
+    // Untied: the 500 left in; 300 went to the other cycle, none here, 200 still untied.
+    expect(d.untied).toMatchObject({
+      shown: true,
+      netEgp: '500.00',
+      drawnHereEgp: '0.00',
+      otherCyclesEgp: '300.00',
+      stillUntiedEgp: '200.00',
+      totalEgp: '200.00',
+    });
+    expect(d.totals).toMatchObject({
+      availableEgp: '1200.00',
+      intoCapitalEgp: '0.00',
+      leftEgp: '1200.00',
+    });
+    expect(
+      (await accounts.cycleFunding(cycle.id)).data.partners[0].availableEgp,
+    ).toBe('1200.00');
+  });
+
+  it('Details: a partner with nothing reads all zeros, nothing shown', async () => {
+    const { cycle, people } = await cycleWithPartners();
+    const d = await moneyOf(cycle.id, people[2].id);
+    expect(d.forCycle).toEqual({ movements: [], totalEgp: '0.00' });
+    expect(d.untied).toMatchObject({
+      shown: false,
+      movements: [],
+      totalEgp: '0.00',
+    });
+    expect(d.totals).toMatchObject({
+      availableEgp: '0.00',
+      leftEgp: '0.00',
+      putInEgp: '0.00',
+      enteredEgp: '0.00',
+    });
+  });
+
+  it('Details: a contribution entered directly shows as entered, so the totals explain Put in', async () => {
+    const { cycle, people, participants } = await cycleWithPartners();
+    const fares = people[2].id;
+    await advance(fares, cycle.id, 1_000);
+    await accounts.contribute(
+      cycle.id,
+      { lines: [{ partnerUserId: fares, amountEgp: 600 }] },
+      actor,
+    );
+    // Then 2,000 more entered by hand: contribution 2,600, 600 of it from the account.
+    await cyclesService.updateParticipant(
+      participants[2].id,
+      { contributionAmount: 2_600 },
+      actor,
+    );
+    const d = await moneyOf(cycle.id, fares);
+    expect(d.totals).toEqual({
+      availableEgp: '1000.00',
+      intoCapitalEgp: '-600.00',
+      leftEgp: '400.00',
+      leftForCycleEgp: '400.00',
+      leftUntiedEgp: '0.00',
+      enteredEgp: '2000.00',
+      putInEgp: '3000.00',
+    });
+    const row = (await accounts.cycleFunding(cycle.id)).data.putIn.byPartner[2];
+    expect(row).toMatchObject({ totalEgp: '3000.00', enteredEgp: '2000.00' });
+  });
+
+  it('Details: drawing it twice — the second draw takes the rest of untied money and left reaches zero, never below', async () => {
+    const { cycle, abdallah } = await abdallahCase();
+    await accounts.contribute(
+      cycle.id,
+      { lines: [{ partnerUserId: abdallah, amountEgp: 137.74 }] },
+      actor,
+    );
+    const d = await moneyOf(cycle.id, abdallah);
+    expect(d.untied).toMatchObject({
+      drawnHereEgp: '10000.00',
+      stillUntiedEgp: '0.00',
+      totalEgp: '10000.00',
+    });
+    expect(d.totals).toMatchObject({
+      availableEgp: '66000.00',
+      intoCapitalEgp: '-66000.00',
+      leftEgp: '0.00',
+    });
+  });
+
+  it('Details: an unknown or malformed cycle is a 404 cycle; an unknown partner, an investor or a stranger a 404 partner', async () => {
+    const { cycle } = await cycleWithPartners();
+    const investor = await prisma.user.create({
+      data: {
+        email: `acct-inv-${randomUUID()}@example.test`,
+        passwordHash: 'x',
+        role: 'TEMP_INVESTOR',
+      },
+    });
+    for (const id of [randomUUID(), 'not-a-uuid']) {
+      const r = await refusal(accounts.partnerMoney(id, actor));
+      expect([r.status, r.code, r.params]).toEqual([
+        404,
+        'NOT_FOUND',
+        { entity: 'cycle' },
+      ]);
+    }
+    for (const id of [randomUUID(), 'nope', investor.id]) {
+      const r = await refusal(accounts.partnerMoney(cycle.id, id));
+      expect([r.status, r.code, r.params]).toEqual([
+        404,
+        'NOT_FOUND',
+        { entity: 'partner' },
+      ]);
+    }
+  });
+
+  // ─── Why the exchange difference is what it is (owner 2026-11-14) ───
+
+  /** Production's cycle 2 friend: 12,999.13 AED at 15.2, repaid in four. */
+  async function mohamedYoussefCase() {
+    const base = await friendPaidCycle({
+      repay: false,
+      loanAed: 12_999.13,
+      loanRate: 15.2,
+    });
+    const repay = (amountEgp: number, rateToEgp: number, ago: number) =>
+      lenders.repay(
+        base.financingId,
+        { amountEgp, rateToEgp, paidOn: daysAgo(ago) },
+        actor,
+      );
+    await repay(98_800, 15.2, 30);
+    await repay(60_775, 15.0443, 25);
+    // Entered by mistake and reversed: it cleared nothing and says nothing.
+    await repay(1_000, 15.9, 22);
+    const wrong = await prisma.lenderRepayment.findFirstOrThrow({
+      where: { financingId: base.financingId, amountEgp: 1_000 },
+    });
+    await lenders.reverseRepayment(wrong.id, 'wrong rate', actor);
+    await repay(5_607, 15.2675, 20);
+    await repay(32_100.07, 15.3431, 10);
+    return base;
+  }
+
+  it('exchange breakdown: production’s cycle 2 — four repayments, 0 / −628.90 / +24.80 / +299.39, summing to the card’s −304.71', async () => {
+    const { cycle } = await mohamedYoussefCase();
+    const { friends } = (await accounts.cycleFunding(cycle.id)).data;
+    expect(friends!.exchangeDifferenceEgp).toBe('-304.71');
+    const [f] = friends!.exchangeBreakdown;
+    expect(friends!.exchangeBreakdown).toHaveLength(1);
+    expect(f).toMatchObject({
+      currency: 'AED',
+      amount: '12999.13',
+      fxRateToEgp: '15.2',
+      amountEgp: '197586.78',
+      repaidEgp: '197282.07',
+      exchangeDifferenceEgp: '-304.71',
+    });
+    expect(
+      f.repayments.map((r) => [
+        r.amountEgp,
+        r.rateToEgp,
+        r.cleared,
+        r.exchangeDifferenceEgp,
+      ]),
+    ).toEqual([
+      ['98800.00', '15.2', '6500.00', '0.00'],
+      ['60775.00', '15.0443', '4039.73', '-628.90'],
+      ['5607.00', '15.2675', '367.25', '24.80'],
+      ['32100.07', '15.3431', '2092.15', '299.39'],
+    ]);
+    // The rows sum to the card's figure exactly, and clear his whole debt.
+    const sum = f.repayments.reduce(
+      (s, r) => s + Math.round(Number(r.exchangeDifferenceEgp) * 100),
+      0,
+    );
+    expect(sum).toBe(-30471);
+    expect(
+      f.repayments.reduce((s, r) => s + Math.round(Number(r.cleared) * 100), 0),
+    ).toBe(1_299_913);
+    // The same rows settlement reads.
+    expect(m2(await exchangeDifferenceEgp(prisma, cycle.id))).toBe('-304.71');
+  });
+
+  it('exchange breakdown: a reversed repayment is not a row, and reversing another moves the total and the rows together', async () => {
+    const { cycle, financingId } = await mohamedYoussefCase();
+    const before = (await accounts.cycleFunding(cycle.id)).data.friends!;
+    expect(
+      before.exchangeBreakdown[0].repayments.map((r) => r.amountEgp),
+    ).not.toContain('1000.00');
+    const last = await prisma.lenderRepayment.findFirstOrThrow({
+      where: { financingId, reversedAt: null },
+      orderBy: { paidOn: 'desc' },
+    });
+    await lenders.reverseRepayment(last.id, 'second visit', actor);
+    const after = (await accounts.cycleFunding(cycle.id)).data.friends!;
+    expect(after.exchangeDifferenceEgp).toBe('-604.10');
+    expect(after.exchangeBreakdown[0].exchangeDifferenceEgp).toBe('-604.10');
+    expect(after.exchangeBreakdown[0].repayments).toHaveLength(3);
+  });
+
+  it('exchange breakdown: nothing repaid yet, or no friend at all, is no rows', async () => {
+    const lent = await friendPaidCycle({ repay: false });
+    const none = await cycleWithPartners();
+    const f = (await accounts.cycleFunding(lent.cycle.id)).data.friends!;
+    expect([f.exchangeDifferenceEgp, f.exchangeBreakdown]).toEqual([
+      '0.00',
+      [],
+    ]);
+    expect(
+      (await accounts.cycleFunding(none.cycle.id)).data.friends,
+    ).toBeNull();
   });
 });
