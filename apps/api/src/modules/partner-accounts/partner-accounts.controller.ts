@@ -101,6 +101,19 @@ export class CycleAccountFundingController {
     return this.accounts.cycleFunding(id);
   }
 
+  @Get(':id/partner-money/:partnerUserId')
+  @Roles(...PARTNER_ACCOUNT_ROLES)
+  @ApiOperation({
+    summary:
+      "One partner's money in a cycle: what he paid for it, untied money it drew, into capital, and what is left",
+  })
+  partnerMoney(
+    @Param('id') id: string,
+    @Param('partnerUserId') partnerUserId: string,
+  ) {
+    return this.accounts.partnerMoney(id, partnerUserId);
+  }
+
   @Put(':id/funding-target')
   @Roles(...PARTNER_ACCOUNT_ROLES)
   @ApiOperation({ summary: "Set or clear a cycle's funding target" })

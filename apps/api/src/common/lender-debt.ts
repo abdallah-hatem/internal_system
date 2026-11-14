@@ -165,3 +165,89 @@ export function exchangeDifferenceWhere(
     },
   };
 }
+
+/**
+ * Why the exchange difference is what it is (owner 2026-11-14: the Funding
+ * card's line "must explain WHY"): the repayments `exchangeDifferenceEgp`
+ * sums — the same rows, by the same filter (`exchangeDifferenceWhere`) — one
+ * by one, grouped by the friend's payment they cleared. Each row's
+ * difference is its stored `exchangeDiffEgp` (pounds paid − what it cleared
+ * was worth at his rate), so the rows add up to the card's figure exactly.
+ */
+export async function exchangeBreakdown(
+  db: Pick<Db, 'lenderRepayment'>,
+  cycleId: string,
+) {
+  const rows = await db.lenderRepayment.findMany({
+    where: exchangeDifferenceWhere(cycleId),
+    select: {
+      id: true,
+      paidOn: true,
+      amountEgp: true,
+      rateToEgp: true,
+      cleared: true,
+      exchangeDiffEgp: true,
+      financing: {
+        select: {
+          id: true,
+          currency: true,
+          amount: true,
+          fxRateToEgp: true,
+          amountEgp: true,
+          paidOn: true,
+          createdAt: true,
+          lender: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+  });
+  type Row = (typeof rows)[number];
+  const byFinancing = new Map<
+    string,
+    { financing: Row['financing']; repayments: Row[] }
+  >();
+  for (const r of rows) {
+    const g = byFinancing.get(r.financing.id) ?? {
+      financing: r.financing,
+      repayments: [],
+    };
+    g.repayments.push(r);
+    byFinancing.set(r.financing.id, g);
+  }
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  return [...byFinancing.values()]
+    .sort(
+      (a, b) =>
+        a.financing.paidOn.getTime() - b.financing.paidOn.getTime() ||
+        a.financing.createdAt.getTime() - b.financing.createdAt.getTime(),
+    )
+    .map(({ financing: f, repayments }) => ({
+      financingId: f.id,
+      lender: f.lender.name,
+      currency: f.currency,
+      /** What he paid: in his currency, at his rate, and in pounds. */
+      amount: D(f.amount).toFixed(2),
+      fxRateToEgp: D(f.fxRateToEgp).toString(),
+      amountEgp: D(f.amountEgp).toFixed(2),
+      paidOn: day(f.paidOn),
+      /** Pounds repaid on it. */
+      repaidEgp: repayments
+        .reduce((s, r) => s.add(r.amountEgp), D(0))
+        .toFixed(2),
+      /** Its part of the difference: + a cost, − a gain. */
+      exchangeDifferenceEgp: repayments
+        .reduce((s, r) => s.add(r.exchangeDiffEgp), D(0))
+        .toFixed(2),
+      repayments: repayments.map((r) => ({
+        id: r.id,
+        paidOn: day(r.paidOn),
+        amountEgp: D(r.amountEgp).toFixed(2),
+        rateToEgp: D(r.rateToEgp).toString(),
+        /** His currency cleared by it. */
+        cleared: D(r.cleared).toFixed(2),
+        /** Pounds paid − what it cleared was worth at his rate: + a cost, − a gain. */
+        exchangeDifferenceEgp: D(r.exchangeDiffEgp).toFixed(2),
+      })),
+    }));
+}

@@ -20,6 +20,7 @@ import { recordContributionChange } from '../../common/contribution-ledger';
 import { profitShareOf, profitSplitView } from '../settlements/settlement-math';
 import {
   STANDING_FINANCING,
+  exchangeBreakdown,
   exchangeDifferenceEgp,
   repaidOnCycleEgp,
 } from '../../common/lender-debt';
@@ -34,6 +35,7 @@ import {
   contributionShares,
   equalShares,
   inTargetCurrency,
+  isUntiedMovement,
   lockAccounts,
   potsOf,
   potsTotal,
@@ -361,6 +363,11 @@ export class PartnerAccountsService {
       financings.length > 0
         ? await exchangeDifferenceEgp(this.prisma, cycleId)
         : D(0);
+    // Why it is that figure, repayment by repayment (owner 2026-11-14).
+    const exchangeRows =
+      financings.length > 0
+        ? await exchangeBreakdown(this.prisma, cycleId)
+        : [];
     const still = D(toFund).sub(investorsEgp).sub(partnersEgp);
     const availableOf = (p: (typeof core)[number]) =>
       availableTo(pots.get(p.partnerUserId!)!, cycleId);
@@ -537,6 +544,8 @@ export class PartnerAccountsService {
                 repaidEgp: m2(repaidEgp),
                 /** Pounds repaid − what that cleared at their rates (`exchangeDifferenceEgp`): + a cost, − a gain. */
                 exchangeDifferenceEgp: m2(exchangeEgp),
+                /** Its breakdown: each friend's payment and every standing repayment on it (`exchangeBreakdown`); the rows sum to the figure. */
+                exchangeBreakdown: exchangeRows,
                 /** Each participant's part of it, by the profit split; null when settling could not split. */
                 exchangeSplit: exchangeSplit
                   ? cycle.participants.map((p, i) => ({
@@ -632,6 +641,134 @@ export class PartnerAccountsService {
           basis: split.basis,
           equal: split.equal,
           problem: split.problem,
+        },
+      },
+    };
+  }
+
+  /**
+   * One partner's money in one cycle — the Funding card's Details (owner
+   * 2026-11-14, from an approved mockup): what he paid for this cycle, the
+   * untied money it drew or can still draw, what went into its capital and
+   * what is left. Every figure is the pots' (`potsOf`), never a second sum
+   * of the rules:
+   *
+   * - **paid for this cycle** — his advances on it, reversed ones listed but
+   *   not counted;
+   * - **untied** — his movements tied to no cycle (`isUntiedMovement`), what
+   *   this cycle drew of them (`fromUntied`), what other cycles drew, and what
+   *   is still untied (`untiedAvailable`);
+   * - **total available** = paid for this cycle + untied drawn here + still
+   *   untied; **into capital** = his contributions drawn into it from the
+   *   account; **left** = the total less that, which is this cycle's pot plus
+   *   untied money — exactly what the cycle can still draw (`availableTo`);
+   * - **entered directly** — the part of his contribution not drawn from the
+   *   account, so the totals explain the row's "Put in" (`putInSoFar`).
+   */
+  async partnerMoney(cycleId: string, partnerUserId: string) {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    const cycle = await this.prisma.importCycle.findUnique({
+      where: { id: cycleId },
+      select: { id: true, code: true },
+    });
+    if (!cycle) throw notFound('cycle');
+    // Checked before any query takes it: a malformed id is a 404, never a 500.
+    const holder = await this.holder(partnerUserId);
+    const onCycle = await this.prisma.cycleParticipant.findMany({
+      where: { cycleId, participantType: 'CORE_PARTNER', partnerUserId },
+      select: { contributionAmount: true },
+    });
+    const movements = await this.prisma.partnerAccountMovement.findMany({
+      where: { partnerUserId },
+      include: {
+        cycle: { select: { id: true, code: true } },
+        expenseEntry: { select: { category: true } },
+      },
+      orderBy: [{ occurredOn: 'asc' }, { createdAt: 'asc' }],
+    });
+    const pots = potsOf(movements);
+    const standing = (m: (typeof movements)[number]) => !m.reversedAt;
+    const here = (m: (typeof movements)[number]) =>
+      m.cycleId === cycleId && !isUntiedMovement(m);
+
+    const forCycle = movements.filter((m) => here(m) && m.kind === 'ADVANCE');
+    const forCycleEgp = forCycle
+      .filter(standing)
+      .reduce((s, m) => s.add(m.amountEgp), D(0));
+    const fromAccountEgp = movements
+      .filter((m) => here(m) && m.kind === 'CONTRIBUTION' && standing(m))
+      .reduce((s, m) => s.add(m.amountEgp), D(0));
+
+    const untiedMoves = movements.filter((m) => isUntiedMovement(m));
+    const untiedNetEgp = untiedMoves
+      .filter(standing)
+      .reduce((s, m) => s.add(signedEgp(m)), D(0));
+    const drawnHereEgp = pots.fromUntied.get(cycleId) ?? D(0);
+    const stillUntiedEgp = untiedAvailable(pots);
+    // What every other cycle drew from untied money: its net less this
+    // cycle's draw and what is untied now (raw, so a pre-2026-10-26 negative
+    // balance still adds up).
+    const otherCyclesEgp = untiedNetEgp.sub(drawnHereEgp).sub(pots.untied);
+    const untiedPartEgp = drawnHereEgp.add(stillUntiedEgp);
+
+    const availableEgp = forCycleEgp.add(untiedPartEgp);
+    const potHere = pots.byCycle.get(cycleId) ?? D(0);
+    const contributionEgp = onCycle.reduce(
+      (s, p) => s.add(p.contributionAmount),
+      D(0),
+    );
+    const parts = putInSoFar({
+      contributionEgp,
+      fromAccountEgp,
+      undrawnAdvancesEgp: potHere,
+    });
+
+    return {
+      data: {
+        cycleId: cycle.id,
+        cycleCode: cycle.code,
+        partnerUserId: holder.id,
+        name: holder.name,
+        /** On the cycle as a core partner. */
+        onCycle: onCycle.length > 0,
+        forCycle: {
+          /** His advances on this cycle, oldest first; reversed ones listed, not counted. */
+          movements: forCycle.map((m) => this.movementView(m)),
+          totalEgp: m2(forCycleEgp),
+        },
+        untied: {
+          /** Shown when this cycle drew untied money or can still draw some. */
+          shown: untiedPartEgp.gt(0),
+          /** His movements tied to no cycle, oldest first; reversed ones listed, not counted. */
+          movements: untiedMoves.map((m) => this.movementView(m)),
+          /** What they add up to, signed. */
+          netEgp: m2(untiedNetEgp),
+          /** What this cycle's contributions drew from it (beyond its own advances). */
+          drawnHereEgp: m2(drawnHereEgp),
+          /** What other cycles' contributions drew from it. */
+          otherCyclesEgp: m2(otherCyclesEgp),
+          /** Untied money in his account now, which this cycle may still draw. */
+          stillUntiedEgp: m2(stillUntiedEgp),
+          /** Its part of the total available: drawn here + still untied. */
+          totalEgp: m2(untiedPartEgp),
+        },
+        totals: {
+          /** Paid for this cycle + untied money drawn here or still untied. */
+          availableEgp: m2(availableEgp),
+          /** His contributions to this cycle drawn from his account, as a negative. */
+          intoCapitalEgp: m2(
+            fromAccountEgp.isZero() ? 0 : fromAccountEgp.neg(),
+          ),
+          /** What this cycle can still draw of him: its pot + untied money. */
+          leftEgp: m2(availableEgp.sub(fromAccountEgp)),
+          /** Of it, this cycle's own undrawn advances. */
+          leftForCycleEgp: m2(potHere),
+          /** Of it, untied money. */
+          leftUntiedEgp: m2(stillUntiedEgp),
+          /** His contribution entered by hand, not drawn from the account. */
+          enteredEgp: m2(parts.enteredEgp),
+          /** The Funding card row's "Put in": contribution + undrawn advances. */
+          putInEgp: m2(parts.totalEgp),
         },
       },
     };

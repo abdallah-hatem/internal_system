@@ -153,6 +153,26 @@ export interface Pots {
    * the pots make. Only above zero.
    */
   intoCapital: Map<string, Prisma.Decimal>;
+  /**
+   * What his contributions to each cycle drew beyond that cycle's own
+   * advances — the part that came from untied money (the Funding card's
+   * Details, owner 2026-11-14): max(contributions − advances, 0) per cycle,
+   * the same split the pots make. Only above zero.
+   */
+  fromUntied: Map<string, Prisma.Decimal>;
+}
+
+/**
+ * Which pot a movement belongs to, by the rule `potsOf` applies: an advance
+ * or a contribution with a cycle is that cycle's; everything else — a payout
+ * left in (whatever cycle it came from), an expense he paid, money taken out,
+ * a row written by hand with no cycle — is untied.
+ */
+export function isUntiedMovement(m: {
+  kind: string;
+  cycleId?: string | null;
+}): boolean {
+  return !((m.kind === 'ADVANCE' || m.kind === 'CONTRIBUTION') && m.cycleId);
 }
 
 /** The pots over these movements: the standing ones. */
@@ -207,17 +227,21 @@ export function potsOf(
   }
   const byCycle = new Map<string, Prisma.Decimal>();
   const intoCapital = new Map<string, Prisma.Decimal>();
+  const fromUntied = new Map<string, Prisma.Decimal>();
   for (const id of new Set([...advanced.keys(), ...drawn.keys()])) {
     const own = advanced.get(id) ?? zero;
     const took = drawn.get(id) ?? zero;
     const left = own.sub(took);
     if (left.gt(0)) byCycle.set(id, left);
     // Drawn beyond this cycle's own advances: that came from untied money.
-    else untied = untied.add(left);
+    else {
+      untied = untied.add(left);
+      if (left.lt(0)) fromUntied.set(id, left.neg());
+    }
     const fromOwn = Prisma.Decimal.min(own, took);
     if (fromOwn.gt(0)) intoCapital.set(id, fromOwn);
   }
-  return { untied, byCycle, intoCapital };
+  return { untied, byCycle, intoCapital, fromUntied };
 }
 
 /** His pots added up: his whole balance. */

@@ -12,6 +12,7 @@ import {
   contributionShares,
   equalShares,
   inTargetCurrency,
+  isUntiedMovement,
   potsOf,
   potsTotal,
   putInSoFar,
@@ -218,6 +219,37 @@ describe('the Funding card: into capital, equal shares, covered or short (owner 
     expect(pots.intoCapital.get('c1')?.toFixed(2)).toBe('1000.00');
     // Paid but nothing contributed yet: nothing into capital.
     expect(pots.intoCapital.has('c3')).toBe(false);
+  });
+
+  it('from untied is what a cycle drew beyond its own advances — the rest of into capital, and it adds up to the pots', () => {
+    const pots = potsOf([
+      m('ADVANCE', 50_775, 'c2'),
+      m('ADVANCE', 5_225, 'c2'),
+      m('ADVANCE', 10_000), // tied to no cycle (production's Aug 15)
+      m('CONTRIBUTION', 65_862.26, 'c2'),
+      m('ADVANCE', 1_000, 'c1'),
+      m('CONTRIBUTION', 400, 'c1'),
+    ]);
+    expect(pots.fromUntied.get('c2')?.toFixed(2)).toBe('9862.26');
+    expect(pots.intoCapital.get('c2')?.toFixed(2)).toBe('56000.00');
+    // c1 drew less than it advanced: nothing from untied, 600 still its own.
+    expect(pots.fromUntied.has('c1')).toBe(false);
+    expect(pots.byCycle.get('c1')?.toFixed(2)).toBe('600.00');
+    expect(pots.untied.toFixed(2)).toBe('137.74');
+  });
+
+  it('isUntiedMovement follows the pots: only an advance or a contribution with a cycle is tied', () => {
+    expect(isUntiedMovement({ kind: 'ADVANCE', cycleId: 'c1' })).toBe(false);
+    expect(isUntiedMovement({ kind: 'CONTRIBUTION', cycleId: 'c1' })).toBe(
+      false,
+    );
+    expect(isUntiedMovement({ kind: 'ADVANCE', cycleId: null })).toBe(true);
+    // A payout left in names the cycle it came from, and is still untied.
+    expect(isUntiedMovement({ kind: 'PAYOUT_LEFT_IN', cycleId: 'c1' })).toBe(
+      true,
+    );
+    expect(isUntiedMovement({ kind: 'EXPENSE_PAID' })).toBe(true);
+    expect(isUntiedMovement({ kind: 'WITHDRAWAL' })).toBe(true);
   });
 
   it('production’s cycle 2: a target of 120,000 gives 40,000 each — Abdallah covered with 10,775 over, Shady 30,000 short, Fares 40,000 short', () => {
@@ -686,7 +718,7 @@ describe('who may call the account endpoints (CLAUDE.md §12)', () => {
           handlerOf(PartnerAccountsController, k),
         ] as [object, () => unknown],
     ),
-    ...(['funding', 'target', 'contribute'] as const).map(
+    ...(['funding', 'partnerMoney', 'target', 'contribute'] as const).map(
       (k) =>
         [
           CycleAccountFundingController,
