@@ -594,6 +594,14 @@ export function FundingCard({
                 </span>
                 <span data-testid="share-available" className="hidden text-sm tabular-nums md:block">
                   <Money value={p.availableEgp} />
+                  {num(p.untiedEgp) > 0 && (
+                    <span data-testid="available-split" className="block text-[11px] text-muted-foreground" title={t('untiedTitle')}>
+                      {t.rich('availableSplit', {
+                        own: () => <Money value={p.ownAdvancesEgp} />,
+                        untied: () => <span className="underline decoration-dotted underline-offset-2"><Money value={p.untiedEgp} /></span>,
+                      })}
+                    </span>
+                  )}
                   {num(p.elsewhereEgp) > 0 && (
                     <span data-testid="held-elsewhere" className="block text-[11px] text-muted-foreground">
                       {ta.rich('heldElsewhere', { amount: () => <Money value={p.elsewhereEgp} /> })}
@@ -618,6 +626,11 @@ export function FundingCard({
                 <span className="col-span-2 flex flex-wrap gap-x-4 text-xs text-muted-foreground md:hidden" aria-hidden="true">
                   <span className="tabular-nums">{t('colShare')} <Money value={p.shareEgp} className="text-foreground" /></span>
                   <span className="tabular-nums">{t('colFromAdvances')} <Money value={p.availableEgp} className="text-foreground" /></span>
+                  {num(p.untiedEgp) > 0 && (
+                    <span className="basis-full tabular-nums">
+                      {t.rich('availableSplit', { own: () => <Money value={p.ownAdvancesEgp} />, untied: () => <Money value={p.untiedEgp} /> })}
+                    </span>
+                  )}
                 </span>
               </div>
             );

@@ -375,6 +375,20 @@ describe('production’s cycle 2 (2026-10-26)', () => {
   // UI audit M11 (2026-11-06): at 320 the pill took half the row and, never
   // wrapping, ran back over "Contributed". On a phone it has the row's whole
   // width on a line of its own; from md it is the Status column again.
+  it('money tied to no cycle is named under the amount: 50,775 paid for this cycle · 10,000 in his account; none without it', async () => {
+    const f = cycleTwo();
+    f.partners[0] = { ...f.partners[0], availableEgp: '60775.00', ownAdvancesEgp: '50775.00', untiedEgp: '10000.00' };
+    state.funding = f;
+    wrap();
+    const contributions = await screen.findByTestId('funding-contributions');
+    const rows = within(contributions).getAllByTestId('share-row');
+    expect(text(within(rows[0]).getByTestId('available-split'))).toBe('50,775.00 EGP paid for this cycle · 10,000.00 EGP in his account');
+    expect(within(rows[0]).getByTestId('available-split').getAttribute('title')).toBe(en.fundingCard.untiedTitle);
+    expect(within(rows[1]).queryByTestId('available-split')).toBeNull();
+    expect(within(rows[2]).queryByTestId('available-split')).toBeNull();
+    expect(screen.getAllByText(en.fundingCard.colFromAdvances).length).toBeGreaterThan(0);
+  });
+
   it('on a phone the status pill has a line of its own, never half the row beside the name', async () => {
     wrap();
     const contributions = await screen.findByTestId('funding-contributions');
