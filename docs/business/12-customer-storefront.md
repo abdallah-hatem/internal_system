@@ -252,7 +252,8 @@ right-now figures with nothing saying which. Now two headed groups:
   (with its per-currency line), Stock value (the product page's word since 2026-10-22, the same
   `common/stock-value.ts`), Items in stock, Low stock alerts, Active cycles. Wide: a row of four, then a row of
   three, each filling the width.
-- **This month** second — Revenue, Collected, Net profit, Expenses for **this calendar month in Cairo, from its
+- **This month** second — Revenue, Net profit, Collected, Expenses (net profit right after revenue, which it is worked out
+  from — DECIDED, owner 2026-11-15) for **this calendar month in Cairo, from its
   1st to today**, with a "Profit and loss →" link to Analytics on This month (`/analytics?period=month`). The
   figures are `GET /analytics/dashboard`'s `month` block, computed by `profitFigures` for exactly the days
   Profit and loss's This month asks for (`thisMonthPeriod`: the 1st to today, which is what the API caps P&L's

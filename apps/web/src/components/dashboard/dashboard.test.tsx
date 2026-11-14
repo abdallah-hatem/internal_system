@@ -410,7 +410,7 @@ describe('two groups: Right now, then This month', () => {
     expect(keysIn('dashboard-right-now')).toEqual([
       'cashFromSales', 'receivables', 'owedToLenders', 'stock', 'lowStockAlerts', 'activeCycles',
     ]);
-    expect(keysIn('dashboard-this-month')).toEqual(['revenue', 'collected', 'netProfit', 'expenses']);
+    expect(keysIn('dashboard-this-month')).toEqual(['revenue', 'netProfit', 'collected', 'expenses']);
     // Right now comes first on the page.
     const first = screen.getByTestId('dashboard-right-now');
     const second = screen.getByTestId('dashboard-this-month');

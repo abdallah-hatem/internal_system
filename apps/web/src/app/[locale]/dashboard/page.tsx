@@ -354,9 +354,10 @@ export default function DashboardPage() {
     lowStockAlerts: { label: t('lowStockAlerts'), value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },
     activeCycles: { label: t('activeCycles'), value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },
     // ── This month ──
-    // Sold and collected sit together on purpose: a strong month of selling
-    // with an empty till looks identical to a strong month of collecting if
-    // only one is shown. Net profit subtracts the expenses beside it.
+    // Sold, its profit, then collected (owner 2026-11-15): net profit is worked
+    // out from revenue, so it follows it; collected stays in the same row so a
+    // strong month of selling with an empty till still shows. Order:
+    // THIS_MONTH_TILES.
     revenue: { label: t('revenue'), value: egp(month.revenue), icon: DollarSign, color: 'bg-green-500' },
     collected: { label: t('collected'), value: egp(month.collected), icon: Wallet, color: 'bg-emerald-600' },
     netProfit: { label: t('netProfit'), value: egp(month.netProfit), icon: TrendingUp, color: 'bg-blue-500' },

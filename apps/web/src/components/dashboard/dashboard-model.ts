@@ -86,11 +86,13 @@ export const RIGHT_NOW_TILES = [
 /**
  * This month: this calendar month in Cairo, from the API's `month` block —
  * Analytics' profit and loss This month, figure for figure (rule 11).
+ * Net profit sits right after Revenue because it is worked out from it, not
+ * from what was collected (owner 2026-11-15).
  */
 export const THIS_MONTH_TILES = [
   'revenue',
-  'collected',
   'netProfit',
+  'collected',
   'expenses',
 ] as const satisfies readonly TileKey[];
 
