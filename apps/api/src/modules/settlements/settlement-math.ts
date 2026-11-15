@@ -205,6 +205,47 @@ export function profitShareOf(
   }
 }
 
+/** One participant's part of an amount of profit, as his payout would pay it. */
+export interface ProfitTakeLine {
+  /** His share before any fee. */
+  grossProfit: Prisma.Decimal;
+  /** The fee off it (a temporary investor's only), positive. */
+  investorFee: Prisma.Decimal;
+  /** His part of the investors' fees (a core partner's only). */
+  feeReceived: Prisma.Decimal;
+  /** What is his to take: gross − fee + fee received. */
+  takeable: Prisma.Decimal;
+}
+
+/**
+ * How `amount` of the cycle's profit lands on each participant as money he
+ * may take before settlement (§8, owner 2026-11-16: an investor takes his
+ * profit early too) — `distributeCycleProfit`'s own lines, never a second
+ * split (rule 11): an investor's share net of his fee, a core partner's share
+ * plus his part of those fees, exactly as the payout's PROFIT_SHARE and
+ * INVESTOR_FEE_RECEIVED lines pay them. The lines re-sum to `amount` whenever
+ * there is a core partner to receive the fees.
+ *
+ * Null when settling would refuse to split at all, as `profitShareOf`.
+ */
+export function profitTakeOf(
+  participants: ParticipantInput[],
+  amount: Prisma.Decimal,
+): ProfitTakeLine[] | null {
+  if (participants.length === 0) return null;
+  try {
+    return distributeCycleProfit(participants, amount).lines.map((l) => ({
+      grossProfit: l.grossProfit,
+      investorFee: l.investorFee,
+      feeReceived: l.feeReceived,
+      takeable: l.netProfit.add(l.feeReceived),
+    }));
+  } catch (e) {
+    if (e instanceof BadRequestException) return null;
+    throw e;
+  }
+}
+
 /**
  * What is wrong with an agreed profit split, or null when nothing is (§8).
  * `pcts` is each participant's agreed percentage, null where none is set.

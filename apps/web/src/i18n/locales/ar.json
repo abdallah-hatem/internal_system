@@ -3035,6 +3035,8 @@
     "takenCapital": "رأس مال <amount></amount>",
     "noProfitShare": "ليس له نصيب من الربح",
     "owes": "عليه <amount></amount> من توزيع سابق",
+    "afterFee": "الربح بعد خصم عمولته <amount></amount>",
+    "withFeeReceived": "يشمل <amount></amount> من عمولات المستثمرين",
     "take": "سحب",
     "takeTitle": "سحب أموال من هذه الدورة",
     "takeHint": "يخرج النقد من الشركة الآن، ولا يتغير ربح الدورة. ويُخصم مما يُدفع له عند التسوية.",
