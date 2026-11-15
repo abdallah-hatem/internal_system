@@ -85,7 +85,9 @@ const taken = (id: string, kind: 'PROFIT' | 'CAPITAL', who: string, name: string
 
 /**
  * Abdallah: 20,000 profit and 40,000 capital he can take (60,000 in all), owes
- * 1,500; Setta, an investor: 14,000 of capital and no profit share.
+ * 1,500, 1,125 of his share being investors' fees; Setta, an investor: 9,000
+ * of profit after his 2,250 fee and 14,000 of capital (23,000 in all) —
+ * investors take profit too since 2026-11-16.
  */
 function fixture(over: Partial<TakeMoneyView> = {}): TakeMoneyView {
   return {
@@ -104,7 +106,15 @@ function fixture(over: Partial<TakeMoneyView> = {}): TakeMoneyView {
         userId: 'u-a',
         name: 'Abdallah',
         participantType: 'CORE_PARTNER',
-        profit: { sharePct: '50.0000', shareOfCollectedEgp: '22500.00', takenEgp: '1000.00', owedEgp: '1500.00', availableEgp: '20000.00' },
+        profit: {
+          sharePct: '50.0000',
+          shareOfCollectedEgp: '22500.00',
+          investorFeeEgp: '0.00',
+          feeReceivedEgp: '1125.00',
+          takenEgp: '1000.00',
+          owedEgp: '1500.00',
+          availableEgp: '20000.00',
+        },
         capital: { contributionEgp: '55000.00', recoveredEgp: '40000.00', takenEgp: '0.00', availableEgp: '40000.00' },
         availableEgp: '60000.00',
       },
@@ -112,9 +122,17 @@ function fixture(over: Partial<TakeMoneyView> = {}): TakeMoneyView {
         userId: 'u-m',
         name: 'Setta',
         participantType: 'TEMP_INVESTOR',
-        profit: null,
+        profit: {
+          sharePct: '25.0000',
+          shareOfCollectedEgp: '9000.00',
+          investorFeeEgp: '2250.00',
+          feeReceivedEgp: '0.00',
+          takenEgp: '0.00',
+          owedEgp: '0.00',
+          availableEgp: '9000.00',
+        },
         capital: { contributionEgp: '20000.00', recoveredEgp: '14000.00', takenEgp: '0.00', availableEgp: '14000.00' },
-        availableEgp: '14000.00',
+        availableEgp: '23000.00',
       },
     ],
     taken: [
@@ -167,7 +185,7 @@ async function openTake() {
 }
 
 describe('the card reads the server’s figures', () => {
-  it('per person: profit and capital he can take, taken so far, and the total — the investor without a profit share', async () => {
+  it('per person: profit and capital he can take, taken so far, and the total — the investor’s profit after his fee (2026-11-16)', async () => {
     wrap();
     const card = await screen.findByTestId('take-money-card');
     expect(text(within(card).getByTestId('take-money-collected'))).toBe('45,000.00 EGP');
@@ -181,9 +199,14 @@ describe('the card reads the server’s figures', () => {
     expect(text(within(a).getByTestId('take-owes'))).toBe('Owes 1,500.00 EGP from an earlier payout');
     const m = rowOf('m');
     expect(m.textContent).toContain(en.takeMoney.investor);
-    expect(text(within(m).getByTestId('take-profit-room'))).toBe(en.takeMoney.noProfitShare);
-    expect(text(within(m).getByTestId('take-taken'))).toBe('Capital 0.00 EGP');
-    expect(text(within(m).getByTestId('take-total'))).toBe('14,000.00 EGP');
+    expect(text(m)).not.toContain(en.takeMoney.noProfitShare);
+    expect(text(within(m).getByTestId('take-profit-room'))).toBe('9,000.00 EGP');
+    expect(text(within(m).getByTestId('take-fee'))).toBe('Profit after his fee of 2,250.00 EGP');
+    expect(text(within(m).getByTestId('take-taken'))).toBe('Profit 0.00 EGPCapital 0.00 EGP');
+    expect(text(within(m).getByTestId('take-total'))).toBe('23,000.00 EGP');
+    expect(within(m).queryByTestId('take-fee-received')).toBeNull();
+    expect(text(within(a).getByTestId('take-fee-received'))).toBe('Includes 1,125.00 EGP of investors’ fees');
+    expect(within(a).queryByTestId('take-fee')).toBeNull();
   });
 
   it('one history: each row labelled profit or capital; undone struck through with its reason; settled marked; Undo only on what stands', async () => {
@@ -300,13 +323,17 @@ describe('Take', () => {
     expect(text(within(dialog()).getByTestId('take-split'))).toBe('This take is20,000.00 EGP profit + 0.01 EGP capital');
   });
 
-  it('an investor’s take is capital only', async () => {
+  it('an investor’s take is his profit first, then capital (2026-11-16)', async () => {
     state.userId = 'u-m';
     wrap();
     await openTake();
-    expect(text(within(dialog()).getByTestId('take-rooms'))).toBe('Profit 0.00 EGP · Capital 14,000.00 EGP');
+    expect(text(within(dialog()).getByTestId('take-rooms'))).toBe('Profit 9,000.00 EGP · Capital 14,000.00 EGP');
     typeInto(amountInput(), '5000');
-    expect(text(within(dialog()).getByTestId('take-split'))).toBe('This take is5,000.00 EGP capital');
+    expect(text(within(dialog()).getByTestId('take-split'))).toBe('This take is5,000.00 EGP profit');
+    typeInto(amountInput(), '10000');
+    expect(text(within(dialog()).getByTestId('take-split'))).toBe('This take is9,000.00 EGP profit + 1,000.00 EGP capital');
+    typeInto(amountInput(), '23000.01');
+    expect(within(dialog()).queryByTestId('take-split')).toBeNull();
   });
 
   it('"Take all available" fills his whole total; an amount he typed afterwards is his, not overwritten', async () => {
@@ -338,7 +365,14 @@ describe('Take', () => {
 
   it('nothing left to take: says so, and offers no “take all”', async () => {
     state.view = fixture({
-      people: [{ ...fixture().people[1], capital: { ...fixture().people[1].capital, availableEgp: '0.00' }, availableEgp: '0.00' }],
+      people: [
+        {
+          ...fixture().people[1],
+          profit: { ...fixture().people[1].profit!, availableEgp: '0.00' },
+          capital: { ...fixture().people[1].capital, availableEgp: '0.00' },
+          availableEgp: '0.00',
+        },
+      ],
     });
     state.userId = 'u-m';
     wrap();

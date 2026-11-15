@@ -22,6 +22,16 @@ paid in one step, and **samples by branch** (BUSINESS_LOGIC §4 "Samples by bran
 then "tidy and push dev and merge"): New Order shows the order's branch's samples first, the rest under a collapsed
 "At other branches", tags a sample taken from another branch, regroups when the branch changes; Add all = the order's
 branch only (GUESS); one short heading per samples order instead of a sentence repeating its rows. No migration.
+- **2026-11-16 — an investor takes his profit early too (owner), on `feature/investor-profit-take`, PR to `dev`, not
+  merged:** "Take money from this cycle" shows each investor's profit he can take now — his share of the profit
+  collected net of his fee — and a take uses it first, then capital. `ProfitDrawsService.room` now covers every
+  participant; the figure is `distributeCycleProfit` on the collected profit (new `profitTakeOf` in
+  `settlement-math.ts`), so a partner's includes his part of the investors' fees (GUESS) and the rows add up to the
+  profit collected. `POST /cycles/:id/profit-draws` accepts an investor too. Settlement already took any user's draws
+  off his payout. Card: "Profit after his fee of X" / "Includes X of investors' fees" (en + ar). Tests:
+  `settlement-math.spec.ts` (profitTakeOf, sum check), `take-money.db.spec.ts` (6 new: net of fee and the sum, profit
+  then capital, over available, twice, a loss, settlement pays only the rest — 4,900 out = 4,000 capital + 900 profit),
+  the card's component test; seen to fail on dev's code. No migration.
 - **2026-11-10 — a cycle's Timeline card (owner), on `feature/cycle-timeline`, PR to `dev`, not merged:** after Shipment
   on the cycle page, when each step happened and the days between, and order to selling (or so far). New read
   `GET /cycles/:id/timeline` (`CyclesService.getTimeline`; arithmetic in `common/cycle-timeline.ts`, Cairo calendar

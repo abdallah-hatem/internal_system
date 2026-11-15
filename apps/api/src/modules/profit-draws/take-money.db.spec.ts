@@ -45,6 +45,8 @@ type Seat = {
   who: Person;
   type: 'CORE_PARTNER' | 'TEMP_INVESTOR';
   put: number;
+  /** An investor's fee, percent of his profit. */
+  fee?: number;
 };
 
 suite('one take from a cycle: profit first, then capital (Postgres)', () => {
@@ -143,6 +145,7 @@ suite('one take from a cycle: profit first, then capital (Postgres)', () => {
             partnerUserId: s.type === 'CORE_PARTNER' ? s.who.id : null,
             investorUserId: s.type === 'TEMP_INVESTOR' ? s.who.id : null,
             contributionAmount: s.put,
+            investorFeePct: s.fee ?? null,
             createdAt: new Date(joined + i * 1000),
             updatedAt: new Date(joined + i * 1000),
           },
@@ -334,7 +337,7 @@ suite('one take from a cycle: profit first, then capital (Postgres)', () => {
 
   // ─── The rooms ──────────────────────────────────────────────────────
 
-  it('per person: profit and capital he can take, the total their sum; an investor has capital only', async () => {
+  it('per person: profit and capital he can take, the total their sum — an investor too (2026-11-16)', async () => {
     const { cycle, seats, profit } = await paidCycle();
     const { data } = await draws.takeForCycle(cycle.id);
     expect(data.locked).toBeNull();
@@ -342,12 +345,21 @@ suite('one take from a cycle: profit first, then capital (Postgres)', () => {
     expect(data.recoveredPct).toBe('25.00');
     const [a, s, m] = data.people;
     expect(a.userId).toBe(seats[0].who.id);
+    // 900 of profit, all collected: a quarter each to the partners, half to
+    // the investor, who has no fee here — partners' figures as before.
+    expect(data.collectedProfitEgp).toBe('900.00');
+    expect(profit.toFixed(2)).toBe('225.00');
     expect(a.availableEgp).toBe(profit.add(250).toFixed(2));
     expect(s.profit).not.toBeNull();
     expect(m).toMatchObject({
       participantType: 'TEMP_INVESTOR',
-      profit: null,
-      availableEgp: '500.00',
+      profit: {
+        sharePct: '50.0000',
+        shareOfCollectedEgp: '450.00',
+        investorFeeEgp: '0.00',
+        availableEgp: '450.00',
+      },
+      availableEgp: '950.00',
       capital: { contributionEgp: '2000.00', availableEgp: '500.00' },
     });
     // The same figures as each card's own read: one reckoning, not two.
@@ -441,20 +453,220 @@ suite('one take from a cycle: profit first, then capital (Postgres)', () => {
     expect(await cashOnHand()).toBe(cash);
   });
 
-  it('an investor: capital only, never profit — his total is his capital', async () => {
-    const { cycle, seats } = await paidCycle();
+  // ─── An investor's profit (owner 2026-11-16) ────────────────────────
+
+  /** Two partners at 1,000 and an investor at 2,000 who pays a 20% fee on his profit. */
+  const withFee = async (): Promise<Seat[]> => [
+    { who: await person('Abdallah'), type: 'CORE_PARTNER', put: 1000 },
+    { who: await person('Shady'), type: 'CORE_PARTNER', put: 1000 },
+    {
+      who: await person('Setta', 'TEMP_INVESTOR'),
+      type: 'TEMP_INVESTOR',
+      put: 2000,
+      fee: 20,
+    },
+  ];
+
+  it('an investor can take his share net of his fee; partners theirs plus half the fee; together the profit collected', async () => {
+    const { cycle } = await paidCycle(await withFee());
+    const { data } = await draws.takeForCycle(cycle.id);
+    const [a, s, m] = data.people;
+    // 900 collected: the investor's half is 450, a fifth of it (90) his fee,
+    // so 360 is his; each partner 225 + 45 of the fee = 270.
+    expect(data.collectedProfitEgp).toBe('900.00');
+    expect(m.profit).toMatchObject({
+      sharePct: '50.0000',
+      shareOfCollectedEgp: '360.00',
+      investorFeeEgp: '90.00',
+      feeReceivedEgp: '0.00',
+      availableEgp: '360.00',
+    });
+    expect(m.availableEgp).toBe('860.00');
+    for (const p of [a, s]) {
+      expect(p.profit).toMatchObject({
+        shareOfCollectedEgp: '270.00',
+        investorFeeEgp: '0.00',
+        feeReceivedEgp: '45.00',
+        availableEgp: '270.00',
+      });
+    }
+    // The sum: partners + investor = the profit collected, the fee moved
+    // between them and neither lost nor counted twice.
+    const sum = data.people.reduce(
+      (t, p) => t.add(p.profit!.shareOfCollectedEgp),
+      D(0),
+    );
+    expect(sum.toFixed(2)).toBe(data.collectedProfitEgp);
+    const fees = data.people.reduce(
+      (t, p) => t.add(p.profit!.investorFeeEgp),
+      D(0),
+    );
+    const received = data.people.reduce(
+      (t, p) => t.add(p.profit!.feeReceivedEgp),
+      D(0),
+    );
+    expect(fees.toFixed(2)).toBe(received.toFixed(2));
+  });
+
+  it('an investor takes profit first, then capital — one take, two rows', async () => {
+    const { cycle, seats } = await paidCycle(await withFee());
     const m = seats[2].who;
-    const r = await refusal(take(cycle.id, m, 500.01));
-    expect(r.code).toBe('TAKE_OVER_AVAILABLE');
+    const cash = await cashOnHand();
+    const { data } = await take(cycle.id, m, 460);
+    expect(data.profit?.amountEgp).toBe('360.00');
+    expect(data.capital?.amountEgp).toBe('100.00');
+    expect(await writes(cycle.id)).toEqual({
+      rows: ['DRAW 360.00', 'CAPITAL 100.00'],
+      cash: ['OUTFLOW profit_draw 360.00', 'OUTFLOW capital_back_early 100.00'],
+    });
+    expect(await cashOnHand()).toBe(D(cash).sub(460).toFixed(2));
+    const after = await roomOf(cycle.id, m);
+    expect(after.profit).toMatchObject({
+      takenEgp: '360.00',
+      availableEgp: '0.00',
+    });
+    expect(after.availableEgp).toBe('400.00');
+    // His taking moves nobody else's room.
+    expect((await roomOf(cycle.id, seats[0].who)).profit!.availableEgp).toBe(
+      '270.00',
+    );
+  });
+
+  it('an investor asking a piastre more than his profit and capital: refused, his net profit named, nothing recorded', async () => {
+    const { cycle, seats } = await paidCycle(await withFee());
+    const r = await refusal(take(cycle.id, seats[2].who, 860.01));
+    expect(r).toMatchObject({ status: 400, code: 'TAKE_OVER_AVAILABLE' });
     expect(r.params).toMatchObject({
-      available: '500.00',
-      profit: '0.00',
+      available: '860.00',
+      profit: '360.00',
       capital: '500.00',
     });
-    const { data } = await take(cycle.id, m, 500);
-    expect(data.profit).toBeNull();
-    expect(data.capital?.amountEgp).toBe('500.00');
-    expect((await writes(cycle.id)).rows).toEqual(['CAPITAL 500.00']);
+    // The fee is not his to take: a piastre over his net 360 is refused on
+    // the profit-only path too.
+    expect(
+      (
+        await refusal(
+          draws.create(
+            cycle.id,
+            { partnerUserId: seats[2].who.id, amountEgp: 360.01 },
+            actor,
+          ),
+        )
+      ).code,
+    ).toBe('PROFIT_DRAW_OVER_AVAILABLE');
+    expect(await writes(cycle.id)).toEqual({ rows: [], cash: [] });
+  });
+
+  it('an investor taking twice: the second is cut from what the first left', async () => {
+    const { cycle, seats } = await paidCycle(await withFee());
+    const m = seats[2].who;
+    await take(cycle.id, m, 300);
+    const { data } = await take(cycle.id, m, 100);
+    expect(data.profit?.amountEgp).toBe('60.00');
+    expect(data.capital?.amountEgp).toBe('40.00');
+    expect((await refusal(take(cycle.id, m, 460.01))).code).toBe(
+      'TAKE_OVER_AVAILABLE',
+    );
+    await take(cycle.id, m, 460);
+    expect((await roomOf(cycle.id, m)).availableEgp).toBe('0.00');
+  });
+
+  it('a cycle making a loss: no profit for the investor or anyone — capital only', async () => {
+    const { cycle, seats, pay } = await tradedCycle(await withFee());
+    await prisma.financialTransaction.create({
+      data: {
+        type: 'EXPENSE',
+        category: 'customs',
+        direction: 'OUTFLOW',
+        amount: 5000,
+        currency: 'EGP',
+        cycleId: cycle.id,
+        occurredOn: new Date(`${daysAgo(1)}T00:00:00Z`),
+        reason: 'customs penalty',
+        createdBy: actor,
+      },
+    });
+    await pay(2000);
+    const { data } = await draws.takeForCycle(cycle.id);
+    expect(D(data.profitEgp!).lt(0)).toBe(true);
+    expect(data.collectedProfitEgp).toBe('0.00');
+    for (const p of data.people) {
+      expect(p.profit).toMatchObject({
+        availableEgp: '0.00',
+        investorFeeEgp: '0.00',
+      });
+    }
+    const m = seats[2].who;
+    // The penalty is a cost to fund too, so less of it is recovered yet.
+    const capital = D((await roomOf(cycle.id, m)).capital.availableEgp);
+    expect(capital.gt(0)).toBe(true);
+    const r = await refusal(take(cycle.id, m, capital.add('0.01').toNumber()));
+    expect(r.params).toMatchObject({
+      profit: '0.00',
+      capital: capital.toFixed(2),
+    });
+    const { data: took } = await take(cycle.id, m, capital.toNumber());
+    expect(took.profit).toBeNull();
+    expect(took.capital?.amountEgp).toBe(capital.toFixed(2));
+  });
+
+  it('settling after an investor took profit pays him only the rest — and every pound adds up', async () => {
+    const { cycle, seats } = await paidCycle(await withFee());
+    const m = seats[2].who;
+    await take(cycle.id, m, 460); // 360 profit + 100 capital
+    const calc = (await settlements.calculate(cycle.id, actor)).data!;
+    const lines = await prisma.settlementLine.findMany({
+      where: { settlementId: calc.id },
+      include: { participant: true },
+    });
+    const of = (userId: string) =>
+      lines
+        .filter(
+          (l) =>
+            (l.participant.partnerUserId ?? l.participant.investorUserId) ===
+            userId,
+        )
+        .map((l) => `${l.component} ${Number(l.amount).toFixed(2)}`)
+        .sort();
+    expect(of(m.id)).toEqual(
+      [
+        'CAPITAL_RETURN 2000.00',
+        'PROFIT_SHARE 360.00',
+        'INVESTOR_FEE -90.00',
+        'PROFIT_DRAWN -360.00',
+        'CAPITAL_TAKEN_EARLY -100.00',
+      ].sort(),
+    );
+    await settlements.approve(calc.id, actor);
+    await settlements.markPaid(calc.id, actor, { acceptRemainingStock: true });
+    const payouts = await prisma.financialTransaction.findMany({
+      where: { cycleId: cycle.id, type: 'SETTLEMENT_PAYOUT' },
+      select: { amount: true, reason: true },
+    });
+    const toInvestor = payouts.filter((p) => p.reason?.includes('investor'));
+    expect(toInvestor.map((p) => Number(p.amount).toFixed(2))).toEqual([
+      '1900.00',
+    ]);
+    // Partners: 1,000 back and 270 of profit each (225 + 45 of the fee).
+    expect(
+      payouts
+        .filter((p) => !p.reason?.includes('investor'))
+        .map((p) => Number(p.amount).toFixed(2)),
+    ).toEqual(['1270.00', '1270.00']);
+    // In all: 4,000 of capital and 900 of profit, early and at settlement.
+    const out = payouts.reduce((t, p) => t.add(p.amount), D(460));
+    expect(out.toFixed(2)).toBe('4900.00');
+    // The draws it took off are settled: no longer standing, no longer undone.
+    expect(
+      await prisma.profitDraw.count({
+        where: { cycleId: cycle.id, settledById: null },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.profitDraw.count({
+        where: { kind: 'CARRIED', partnerUserId: m.id },
+      }),
+    ).toBe(0);
   });
 
   it('his profit already taken on its own: a take is all capital', async () => {

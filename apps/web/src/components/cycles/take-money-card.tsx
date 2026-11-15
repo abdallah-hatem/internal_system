@@ -26,9 +26,10 @@ import { AlertTriangle, HandCoins, Plus, Undo2 } from '@/components/ui/icons';
 /**
  * "Take money from this cycle" / «سحب أموال من هذه الدورة» (BUSINESS_LOGIC §8,
  * owner 2026-11-10) — the one card that replaced "Profit taken" and "Capital
- * back early". The rules and the records stay two: profit taken is a core
- * partner's share of the profit customers have paid for; capital taken back is
- * anyone's part of the goods' cost they have paid for. One take uses profit
+ * back early". The rules and the records stay two: profit taken is anyone's
+ * share of the profit customers have paid for — an investor's net of his fee
+ * (owner 2026-11-16); capital taken back is anyone's part of the goods' cost
+ * they have paid for. One take uses profit
  * first, then capital (the order a GUESS, api `common/take-money.ts`), and the
  * server records both parts in one transaction (`POST /cycles/:id/take`).
  *
@@ -38,7 +39,12 @@ import { AlertTriangle, HandCoins, Plus, Undo2 } from '@/components/ui/icons';
 
 export interface TakeProfitRoom {
   sharePct: string | null;
+  /** His part of the profit collected: an investor's net of his fee, a partner's with his part of the fees. */
   shareOfCollectedEgp: string;
+  /** The investor's fee off his part (zero for a partner). */
+  investorFeeEgp?: string;
+  /** A partner's part of the investors' fees (zero for an investor). */
+  feeReceivedEgp?: string;
   takenEgp: string;
   owedEgp: string;
   availableEgp: string;
@@ -55,7 +61,7 @@ export interface TakePerson {
   userId: string;
   name: string;
   participantType: string;
-  /** Null for someone with no share of profit to take (an investor). */
+  /** Null only for someone outside the profit split; an investor has one since 2026-11-16. */
   profit: TakeProfitRoom | null;
   capital: TakeCapitalRoom;
   /** Profit and capital he may take now, together. */
@@ -279,6 +285,16 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
                   </dd>
                 </div>
               </dl>
+              {p.profit && num(p.profit.investorFeeEgp) > 0 && (
+                <p data-testid="take-fee" className="mt-1 text-xs text-muted-foreground">
+                  {t.rich('afterFee', { amount: () => <Money value={p.profit!.investorFeeEgp!} /> })}
+                </p>
+              )}
+              {p.profit && num(p.profit.feeReceivedEgp) > 0 && (
+                <p data-testid="take-fee-received" className="mt-1 text-xs text-muted-foreground">
+                  {t.rich('withFeeReceived', { amount: () => <Money value={p.profit!.feeReceivedEgp!} /> })}
+                </p>
+              )}
               {p.profit && num(p.profit.owedEgp) > 0 && (
                 <p data-testid="take-owes" className="mt-1 text-xs text-destructive">
                   {t.rich('owes', { amount: () => <Money value={p.profit!.owedEgp} /> })}
