@@ -533,7 +533,7 @@ suite('profit taken before settlement (Postgres)', () => {
     expect(row.occurredOn!.toISOString().slice(0, 10)).toBe(daysAgo(2));
   });
 
-  it('only a core partner on the cycle: not an outsider, an investor, a stranger or a typo', async () => {
+  it('only someone on the cycle: not an outsider, a stranger or a typo — an investor who put in nothing has nothing to take', async () => {
     const { cycle, pay } = await tradedCycle();
     await pay(2000);
     const outsider = await partner('Outsider');
@@ -557,9 +557,12 @@ suite('profit taken before settlement (Postgres)', () => {
         updatedAt: new Date(Date.now() - 30_000),
       },
     });
+    // An investor takes profit too since 2026-11-16, but only his own share:
+    // having put in nothing, he has none.
     expect(await refusal(take(cycle.id, investor, 10))).toMatchObject({
-      status: 404,
-      code: 'NOT_FOUND',
+      status: 400,
+      code: 'PROFIT_DRAW_OVER_AVAILABLE',
+      params: { available: '0.00' },
     });
     expect(
       await refusal(take(cycle.id, { id: randomUUID() }, 10)),

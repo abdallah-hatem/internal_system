@@ -3035,6 +3035,8 @@
     "takenCapital": "Capital <amount></amount>",
     "noProfitShare": "No profit share",
     "owes": "Owes <amount></amount> from an earlier payout",
+    "afterFee": "Profit after his fee of <amount></amount>",
+    "withFeeReceived": "Includes <amount></amount> of investors’ fees",
     "take": "Take",
     "takeTitle": "Take money from this cycle",
     "takeHint": "Cash leaves the business now; the cycle’s profit does not change. It comes off what he is paid at settlement.",

@@ -8,7 +8,7 @@ import { SettlementsService } from '../settlements/settlements.service';
 import { CostingService } from '../costing/costing.service';
 import {
   participantInputsOf,
-  profitShareOf,
+  profitTakeOf,
   distributeCycleProfit,
 } from '../settlements/settlement-math';
 import { badRequest, notFound } from '../../common/api-error';
@@ -47,11 +47,10 @@ import type {
 
 type Db = Prisma.TransactionClient;
 
-/** Who is taking: his user id, his name, and whether he may take profit at all. */
+/** Who is taking: his user id and his name. */
 interface Holder {
   id: string;
   name: string;
-  corePartner: boolean;
 }
 
 /** Everything one part of a take needs to be checked and written. */
@@ -82,14 +81,34 @@ const dayDate = (day: string) => new Date(`${day}T00:00:00Z`);
 /** The most a single draw may be: the ledger's columns hold 18,2. */
 const MAX_AMOUNT = new Prisma.Decimal('9999999999999999.99');
 
-/** Each core partner's room to take profit from a cycle right now. */
+/** One person's part of the profit collected, summed over his rows on the cycle. */
+interface TakePart {
+  takeable: Prisma.Decimal;
+  fee: Prisma.Decimal;
+  feeReceived: Prisma.Decimal;
+  pct: Prisma.Decimal;
+}
+
+/**
+ * Each participant's room to take profit from a cycle right now — a core
+ * partner's, or a temporary investor's (owner 2026-11-16).
+ */
 export interface DrawRoom {
+  /** His user, a partner's or an investor's (the draw row's `partnerUserId`). */
   partnerUserId: string;
+  participantType: string;
   name: string;
   /** His share of the split, in percent (4dp); null when there is no basis. */
   sharePct: string | null;
-  /** His share of the profit collected so far. */
+  /**
+   * His part of the profit collected so far, as his payout would pay it: an
+   * investor's net of his fee, a partner's with his part of those fees.
+   */
   shareOfCollectedEgp: string;
+  /** The investor's fee off his part of what is collected (zero for a partner). */
+  investorFeeEgp: string;
+  /** A partner's part of the investors' fees on what is collected (zero for an investor). */
+  feeReceivedEgp: string;
   /** His standing draws on this cycle, not yet settled. */
   drawnEgp: string;
   /** What he still owes from an earlier payout (any cycle). */
@@ -116,9 +135,11 @@ export interface CapitalRoom {
 /**
  * Profit taken before a cycle is settled (BUSINESS_LOGIC §8, owner
  * 2026-11-08) — and since the same day capital taken back early, by any
- * participant, out of what paid sales recovered. A core partner on the cycle takes part of his share of the
- * profit already collected, in cash; the cycle's profit is unchanged, and its
- * settlement takes the draw off his payout (`SettlementsService`).
+ * participant, out of what paid sales recovered. Anyone on the cycle — a core
+ * partner, or since 2026-11-16 an investor, net of his fee — takes part of his
+ * share of the profit already collected, in cash; the cycle's profit is
+ * unchanged, and its settlement takes the draw off his payout
+ * (`SettlementsService`).
  */
 @Injectable()
 export class ProfitDrawsService {
@@ -131,7 +152,7 @@ export class ProfitDrawsService {
 
   // ─── Reading ─────────────────────────────────────────────────────────
 
-  /** The cycle's draws, newest first, and each core partner's room to take more. */
+  /** The cycle's draws, newest first, and each participant's room to take more. */
   async forCycle(cycleId: string) {
     if (!isUuid(cycleId)) throw notFound('cycle');
     const cycle = await this.prisma.importCycle.findUnique({
@@ -198,20 +219,22 @@ export class ProfitDrawsService {
   }
 
   /**
-   * Each core partner's room on the cycle, read through `db` (the
-   * transaction's client when writing, so the draws counted are the ones
-   * the cycle and account locks protect).
+   * Each participant's room to take profit on the cycle — core partners and,
+   * since the owner's 2026-11-16 decision, temporary investors — read through
+   * `db` (the transaction's client when writing, so the draws counted are the
+   * ones the cycle and account locks protect).
    */
   private async room(db: Db | PrismaService, cycleId: string) {
-    const core = await db.cycleParticipant.findMany({
-      where: {
-        cycleId,
-        participantType: 'CORE_PARTNER',
-        partnerUserId: { not: null },
-      },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    // In the split's order, as settling reads them (createdAt), so the
+    // rounding residual lands on the same line it will at settlement.
+    const all = await db.cycleParticipant.findMany({
+      where: { cycleId },
+      orderBy: { createdAt: 'asc' },
       include: {
         partner: {
+          select: { email: true, partner: { select: { displayName: true } } },
+        },
+        investor: {
           select: { email: true, partner: { select: { displayName: true } } },
         },
       },
@@ -220,8 +243,7 @@ export class ProfitDrawsService {
     // The settlement's own arithmetic, never a second one (rule 11).
     let profit: Prisma.Decimal | null = null;
     let problem: string | null = null;
-    const shares = new Map<string, Prisma.Decimal>();
-    const pcts = new Map<string, Prisma.Decimal>();
+    const parts = new Map<string, TakePart>();
     try {
       const projected = await this.settlements.project(cycleId, db);
       if (projected) profit = projected.pnl.grossProfit;
@@ -235,28 +257,35 @@ export class ProfitDrawsService {
       profit === null ? ZERO : collectedProfit(profit, sales.share);
 
     if (profit !== null) {
-      const all = await db.cycleParticipant.findMany({
-        where: { cycleId },
-        orderBy: { createdAt: 'asc' },
-      });
       const inputs = participantInputsOf(all);
       // Each participant's part of what is collected, the way the payout
-      // splits the whole profit — before any investor's fee, which only an
-      // investor pays and he cannot draw.
-      const parts = profitShareOf(inputs, collected);
+      // splits the whole profit: an investor's net of his fee, a partner's
+      // with his part of the investors' fees (§8, 2026-11-16).
+      const lines = profitTakeOf(inputs, collected);
       // The split's percentages do not depend on the amount split.
-      const lines = distributeCycleProfit(inputs, profit).lines;
-      if (parts) {
+      const pcts = lines ? distributeCycleProfit(inputs, profit).lines : [];
+      if (lines) {
         all.forEach((p, i) => {
-          if (p.participantType !== 'CORE_PARTNER' || !p.partnerUserId) return;
-          const userId = p.partnerUserId;
-          shares.set(userId, (shares.get(userId) ?? ZERO).add(parts[i]));
-          pcts.set(userId, (pcts.get(userId) ?? ZERO).add(lines[i].sharePct));
+          const userId = p.partnerUserId ?? p.investorUserId;
+          if (!userId) return;
+          const was = parts.get(userId);
+          parts.set(userId, {
+            takeable: (was?.takeable ?? ZERO).add(lines[i].takeable),
+            fee: (was?.fee ?? ZERO).add(lines[i].investorFee),
+            feeReceived: (was?.feeReceived ?? ZERO).add(lines[i].feeReceived),
+            pct: (was?.pct ?? ZERO).add(pcts[i].sharePct),
+          });
         });
       }
     }
 
-    const userIds = [...new Set(core.map((c) => c.partnerUserId as string))];
+    const userIds = [
+      ...new Set(
+        all
+          .map((p) => p.partnerUserId ?? p.investorUserId)
+          .filter((u): u is string => !!u),
+      ),
+    ];
     const standing = userIds.length
       ? await db.profitDraw.findMany({
           where: {
@@ -271,10 +300,11 @@ export class ProfitDrawsService {
 
     const seen = new Set<string>();
     const partners: DrawRoom[] = [];
-    for (const c of core) {
-      const userId = c.partnerUserId as string;
-      if (seen.has(userId)) continue;
+    for (const c of all) {
+      const userId = c.partnerUserId ?? c.investorUserId;
+      if (!userId || seen.has(userId)) continue;
       seen.add(userId);
+      const who = c.partner ?? c.investor;
       const mine = standing.filter((s) => s.partnerUserId === userId);
       const drawn = mine
         .filter((s) => s.kind === 'DRAW')
@@ -282,13 +312,17 @@ export class ProfitDrawsService {
       const owed = mine
         .filter((s) => s.kind === 'CARRIED')
         .reduce((s, r) => s.add(r.amountEgp), ZERO);
-      const share = shares.get(userId) ?? ZERO;
+      const part = parts.get(userId);
+      const share = part?.takeable ?? ZERO;
       const left = share.sub(drawn).sub(owed);
       partners.push({
         partnerUserId: userId,
-        name: c.partner?.partner?.displayName ?? c.partner?.email ?? userId,
-        sharePct: pcts.get(userId)?.toFixed(4) ?? null,
+        participantType: c.participantType,
+        name: who?.partner?.displayName ?? who?.email ?? userId,
+        sharePct: part?.pct.toFixed(4) ?? null,
         shareOfCollectedEgp: m2(share),
+        investorFeeEgp: m2(part?.fee ?? ZERO),
+        feeReceivedEgp: m2(part?.feeReceived ?? ZERO),
         drawnEgp: m2(drawn),
         owedEgp: m2(owed),
         availableEgp: m2(left.gt(0) ? left : ZERO),
@@ -362,7 +396,8 @@ export class ProfitDrawsService {
    * Both rooms per participant, and everything taken, in one read — the
    * cycle page's "Take money from this cycle" card (§8, owner 2026-11-10).
    * Made of the two reads above, never a third reckoning of either room
-   * (rule 11): profit is a core partner's only, capital everyone's.
+   * (rule 11): profit and capital, everyone's — an investor's profit net of
+   * his fee (owner 2026-11-16).
    */
   async takeForCycle(cycleId: string) {
     const { data: profit } = await this.forCycle(cycleId);
@@ -376,11 +411,13 @@ export class ProfitDrawsService {
         userId: c.userId,
         name: c.name,
         participantType: c.participantType,
-        /** Null for someone with no share of profit to take (an investor). */
+        /** Null only for someone not in the profit split at all. */
         profit: p
           ? {
               sharePct: p.sharePct,
               shareOfCollectedEgp: p.shareOfCollectedEgp,
+              investorFeeEgp: p.investorFeeEgp,
+              feeReceivedEgp: p.feeReceivedEgp,
               takenEgp: p.drawnEgp,
               owedEgp: p.owedEgp,
               availableEgp: profitAvailable,
@@ -547,7 +584,10 @@ export class ProfitDrawsService {
     };
   }
 
-  /** A core partner takes part of his share of the profit collected so far. */
+  /**
+   * Someone on the cycle — a core partner, or an investor since 2026-11-16 —
+   * takes part of his share of the profit collected so far.
+   */
   async create(cycleId: string, dto: CreateProfitDrawDto, actorId: string) {
     if (!isUuid(cycleId)) throw notFound('cycle');
     if (!isUuid(dto.partnerUserId)) throw notFound('partner');
@@ -555,7 +595,7 @@ export class ProfitDrawsService {
     assertNotFuture(dto.drawnOn, 'PROFIT_DRAWN');
     const day = dto.drawnOn ? businessDay(dto.drawnOn) : businessToday();
     const holder = await this.holderOf(dto.partnerUserId);
-    if (!holder || !holder.corePartner) throw notFound('partner');
+    if (!holder) throw notFound('partner');
 
     const created = await this.prisma.$transaction(
       async (tx) => {
@@ -612,13 +652,13 @@ export class ProfitDrawsService {
             { partner: holder.name, cycle: cycle.code },
           );
         }
-        // Profit is a core partner's on this cycle only, and only while the
-        // split has a basis; otherwise his profit room is nothing.
-        const profit = holder.corePartner ? await this.room(tx, cycleId) : null;
-        const profitMine =
-          profit && !profit.problem
-            ? profit.partners.find((p) => p.partnerUserId === holder.id)
-            : undefined;
+        // Profit is anyone's on the cycle — a partner's or an investor's, net
+        // of his fee (owner 2026-11-16) — while the split has a basis;
+        // otherwise his profit room is nothing.
+        const profit = await this.room(tx, cycleId);
+        const profitMine = !profit.problem
+          ? profit.partners.find((p) => p.partnerUserId === holder.id)
+          : undefined;
         const profitRoom = new Prisma.Decimal(profitMine?.availableEgp ?? 0);
         const capitalRoomNow = new Prisma.Decimal(capMine.availableEgp);
 
@@ -639,19 +679,18 @@ export class ProfitDrawsService {
           );
         }
 
-        const drawn =
-          split.profit.gt(0) && profit
-            ? await this.writeProfit(tx, {
-                id: randomUUID(),
-                cycle,
-                holder,
-                room: profit,
-                amount: split.profit,
-                day,
-                note: dto.note,
-                actorId,
-              })
-            : null;
+        const drawn = split.profit.gt(0)
+          ? await this.writeProfit(tx, {
+              id: randomUUID(),
+              cycle,
+              holder,
+              room: profit,
+              amount: split.profit,
+              day,
+              note: dto.note,
+              actorId,
+            })
+          : null;
         const takenBack = split.capital.gt(0)
           ? await this.writeCapital(tx, {
               id: randomUUID(),
@@ -686,23 +725,18 @@ export class ProfitDrawsService {
     };
   }
 
-  /** The person taking: his name as the office knows him, and whether he is a core partner. */
+  /** The person taking: his name as the office knows him. */
   private async holderOf(userId: string): Promise<Holder | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
-        role: true,
         email: true,
         partner: { select: { displayName: true } },
       },
     });
     if (!user) return null;
-    return {
-      id: user.id,
-      name: user.partner?.displayName ?? user.email,
-      corePartner: user.role === 'CORE_PARTNER' && !!user.partner,
-    };
+    return { id: user.id, name: user.partner?.displayName ?? user.email };
   }
 
   /**
@@ -723,24 +757,24 @@ export class ProfitDrawsService {
   }
 
   /**
-   * Profit taken: he is a core partner on the cycle, the split has a basis,
-   * and the amount is within his room — then its cash row and its draw.
-   * `room` was read through `tx`, under the locks `openForTaking` took.
+   * Profit taken: he is on the cycle — a core partner or an investor (owner
+   * 2026-11-16) — the split has a basis, and the amount is within his room —
+   * then its cash row and its draw. `room` was read through `tx`, under the
+   * locks `openForTaking` took.
    */
   private async writeProfit(tx: Db, w: Write<DrawRoomRead>) {
     const { cycle, holder, room, amount } = w;
     const onCycle = await tx.cycleParticipant.findFirst({
       where: {
         cycleId: cycle.id,
-        participantType: 'CORE_PARTNER',
-        partnerUserId: holder.id,
+        OR: [{ partnerUserId: holder.id }, { investorUserId: holder.id }],
       },
       select: { id: true },
     });
     if (!onCycle) {
       throw badRequest(
         'PROFIT_DRAW_NOT_ON_CYCLE',
-        `${holder.name} is not a core partner on ${cycle.code}, so has no share of its profit to take.`,
+        `${holder.name} is not on ${cycle.code}, so has no share of its profit to take.`,
         { partner: holder.name, cycle: cycle.code },
       );
     }

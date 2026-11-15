@@ -3,6 +3,7 @@ import {
   distributeCycleProfit,
   percentagesOf,
   profitSplitView,
+  profitTakeOf,
   summarizeCyclePnl,
   ParticipantInput,
 } from './settlement-math';
@@ -577,5 +578,62 @@ describe('the Funding card’s percentages, every participant, by largest remain
         expect(p.sub(exact).abs().lt('0.01')).toBe(true);
       });
     }
+  });
+});
+
+describe('profitTakeOf — what each one may take of the profit before settling (owner 2026-11-16)', () => {
+  // Two partners at 1,000 each and an investor at 2,000 with a 20% fee: the
+  // investor's share is half, a fifth of it his fee, split between the two.
+  const people = [
+    partner('A', 1000),
+    partner('B', 1000),
+    investor('M', 2000, 20),
+  ];
+
+  it('an investor takes his share net of his fee; each partner his share plus half the fee', () => {
+    const [a, b, m] = profitTakeOf(people, D('1234.56'))!;
+    expect(m.grossProfit.toFixed(2)).toBe('617.28');
+    expect(m.investorFee.toFixed(2)).toBe('123.46');
+    expect(m.takeable.toFixed(2)).toBe('493.82');
+    expect(a.takeable.toFixed(2)).toBe('370.37');
+    expect(b.takeable.toFixed(2)).toBe('370.37');
+    expect(a.feeReceived.add(b.feeReceived).toFixed(2)).toBe('123.46');
+  });
+
+  it('partners + investor re-sum to the profit being split — nothing lost to the fee, nothing made up', () => {
+    for (const amount of ['1234.56', '0.01', '0.03', '99999.99', '7', '0.05']) {
+      const lines = profitTakeOf(people, D(amount))!;
+      const sum = lines.reduce((s, l) => s.add(l.takeable), D(0));
+      expect(sum.toFixed(2)).toBe(D(amount).toFixed(2));
+    }
+  });
+
+  it('what the payout pays as profit, line by line: PROFIT_SHARE + INVESTOR_FEE_RECEIVED', () => {
+    const d = distributeCycleProfit(people, D('90000'));
+    const lines = profitTakeOf(people, D('90000'))!;
+    d.lines.forEach((l, i) =>
+      expect(lines[i].takeable.toFixed(2)).toBe(
+        l.netProfit.add(l.feeReceived).toFixed(2),
+      ),
+    );
+    expect(lines.map((l) => l.takeable.toFixed(2))).toEqual([
+      '27000.00',
+      '27000.00',
+      '36000.00',
+    ]);
+  });
+
+  it('nothing collected: nothing to take, no fee', () => {
+    const lines = profitTakeOf(people, D(0))!;
+    expect(
+      lines.every((l) => l.takeable.isZero() && l.investorFee.isZero()),
+    ).toBe(true);
+  });
+
+  it('no basis to split on: null, never a neutral-looking zero', () => {
+    expect(
+      profitTakeOf([partner('A', 0), investor('M', 0, 20)], D(100)),
+    ).toBeNull();
+    expect(profitTakeOf([], D(100))).toBeNull();
   });
 });
