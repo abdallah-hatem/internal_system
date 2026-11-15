@@ -115,7 +115,7 @@ test.describe('Dashboard tiles open their lists', () => {
     await page.setViewportSize(PHONE);
     await login(page);
     const a = await tile(page, 'revenue').boundingBox();
-    const b = await tile(page, 'collected').boundingBox();
+    const b = await tile(page, 'netProfit').boundingBox(); // beside Revenue since 2026-11-15
     expect(a && b).toBeTruthy();
     expect(Math.abs(a!.y - b!.y)).toBeLessThan(2); // same row
     expect(a!.height).toBeGreaterThanOrEqual(44);
