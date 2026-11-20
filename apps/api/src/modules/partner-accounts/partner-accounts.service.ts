@@ -17,7 +17,11 @@ import {
 } from '../../common/dates';
 import { parseCurrencyCode, parseRateToEgp } from '../../common/fx-rate';
 import { recordContributionChange } from '../../common/contribution-ledger';
-import { profitShareOf, profitSplitView } from '../settlements/settlement-math';
+import {
+  agreedSplitIsEqual,
+  profitShareOf,
+  profitSplitView,
+} from '../settlements/settlement-math';
 import {
   STANDING_FINANCING,
   exchangeBreakdown,
@@ -33,6 +37,7 @@ import {
   availableTo,
   balanceOf,
   contributionShares,
+  equalShareGap,
   equalShares,
   inTargetCurrency,
   isUntiedMovement,
@@ -393,6 +398,21 @@ export class PartnerAccountsService {
           p.customProfitPct === null ? null : D(p.customProfitPct),
       })),
     );
+    // Everyone shares equally by the agreed split, investors too (owner
+    // 2026-11-20): how far each one's contribution is from an equal share of
+    // what funds the cycle — the card's own figure, `shares.ofEgp`.
+    const equalGap = agreedSplitIsEqual(
+      cycle.participants.map((p) =>
+        p.customProfitPct === null ? null : D(p.customProfitPct),
+      ),
+    )
+      ? equalShareGap({
+          ofEgp: shares.ofEgp,
+          participants: cycle.participants.map((p) => ({
+            contributionEgp: p.contributionAmount,
+          })),
+        })
+      : null;
     const personName = (p: (typeof cycle.participants)[number]) =>
       p.partner?.partner?.displayName ??
       p.investor?.partner?.displayName ??
@@ -642,6 +662,35 @@ export class PartnerAccountsService {
           equal: split.equal,
           problem: split.problem,
         },
+        /**
+         * The agreed split gives everyone the same share (§8, owner
+         * 2026-11-20): each one's equal share of what funds the cycle, what
+         * he contributed and the difference — over, short or even. Null
+         * otherwise. Display only.
+         */
+        equalShares: equalGap
+          ? {
+              basis: shares.basis,
+              ofEgp: m2(equalGap.ofEgp),
+              lines: cycle.participants.map((p, i) => {
+                const line = equalGap.lines[i];
+                return {
+                  participantId: p.id,
+                  participantType: p.participantType,
+                  name: personName(p),
+                  shareEgp: m2(line.share),
+                  contributedEgp: m2(line.contributed),
+                  /** Contributed less share: + over, − short. */
+                  differenceEgp: m2(line.difference),
+                  state: line.difference.gt(0)
+                    ? ('OVER' as const)
+                    : line.difference.lt(0)
+                      ? ('SHORT' as const)
+                      : ('EVEN' as const),
+                };
+              }),
+            }
+          : null,
       },
     };
   }

@@ -1243,3 +1243,111 @@ describe('while it loads, if it cannot, and in Arabic', () => {
     expect(pill.querySelector('[data-slot="money"]')?.getAttribute('dir')).toBe('ltr');
   });
 });
+
+/**
+ * CYC-2026-0002 on 2026-11-20 (owner: "we 4 share everything equally so 25%
+ * contribution each" — "this must be shown"): three partners at 65,862.26,
+ * Mohammed Youssef (temporary investor) at 59,200, split saved 25% each; the
+ * cost to fund 256,786.78 once leg 2's handover freight is in.
+ */
+function cycleTwoEqual(): AccountFunding {
+  const two = cycleTwo();
+  const names = ['Abdallah', 'Shady', 'Fares'];
+  const line = (id: string, name: string, type: string, share: string, contributed: string, diff: string, st: 'OVER' | 'SHORT' | 'EVEN') => ({
+    participantId: `p-${id}`, participantType: type, name, shareEgp: share, contributedEgp: contributed, differenceEgp: diff, state: st,
+  });
+  return {
+    ...two,
+    target: null,
+    toFundEgp: '256786.78',
+    investorsEgp: '59200.00',
+    partners: ['a', 's', 'f'].map((id, i) => ({
+      ...partnerRow(id, names[i], '65862.26', '137.74', '137.74', '65862.26'),
+      stillToGiveEgp: '0.00',
+    })),
+    shares: { basis: 'COST_TO_FUND', ofEgp: '256786.78', partnersEgp: '197586.78', stillEgp: '0.00', agreed: true },
+    participants: [
+      ...two.participants.map((p) => ({ ...p, contributionEgp: '65862.26', customProfitPct: '25.00', profitPct: '25.00' })),
+      { participantId: 'p-y', participantType: 'TEMP_INVESTOR', name: 'Mohammed Youssef', contributionEgp: '59200.00', customProfitPct: '25.00', investorFeePct: '0.00', profitPct: '25.00' },
+    ],
+    profitSplit: { basis: 'CUSTOM_SPLIT', equal: false, problem: null },
+    equalShares: {
+      basis: 'COST_TO_FUND',
+      ofEgp: '256786.78',
+      lines: [
+        line('a', 'Abdallah', 'CORE_PARTNER', '64196.69', '65862.26', '1665.57', 'OVER'),
+        line('s', 'Shady', 'CORE_PARTNER', '64196.69', '65862.26', '1665.57', 'OVER'),
+        line('f', 'Fares', 'CORE_PARTNER', '64196.69', '65862.26', '1665.57', 'OVER'),
+        line('y', 'Mohammed Youssef', 'TEMP_INVESTOR', '64196.71', '59200.00', '-4996.71', 'SHORT'),
+      ],
+    },
+  };
+}
+
+describe('everyone shares equally: the gap to an equal share (owner 2026-11-20)', () => {
+  it('production’s cycle 2: four equal shares of 256,786.78, Youssef short, each partner over, and one line settling it — the investor is a share, not "their own money"', async () => {
+    state.funding = cycleTwoEqual();
+    wrap();
+    const section = await screen.findByTestId('equal-shares');
+    expect(text(section.querySelector('h3'))).toContain('4 equal shares of');
+    expect(text(section.querySelector('h3'))).toContain('256,786.78');
+    const rows = within(section).getAllByTestId('equal-row');
+    expect(rows.map((r) => [r.dataset.state, text(within(r).getByTestId('equal-share')), text(within(r).getByTestId('share-status'))])).toEqual([
+      ['OVER', expect.stringContaining('64,196.69'), '1,665.57 EGP over'],
+      ['OVER', expect.stringContaining('64,196.69'), '1,665.57 EGP over'],
+      ['OVER', expect.stringContaining('64,196.69'), '1,665.57 EGP over'],
+      ['SHORT', expect.stringContaining('64,196.71'), '4,996.71 EGP short'],
+    ]);
+    expect(text(within(rows[3]).getByTestId('equal-contributed'))).toContain('59,200.00');
+    const settle = text(screen.getByTestId('equal-settle'));
+    expect(settle).toMatch(/^To make it equal: Mohammed Youssef pays [^;]*4,996.71[^;]*; Abdallah, Shady, and Fares each take back [^.]*1,665.57[^.]* to their accounts\.$/);
+    // The old rows are gone: no "not a share" line for him, no second set of partner shares.
+    const contributions = screen.getByTestId('funding-contributions');
+    expect(contributions.textContent).not.toContain(en.fundingCard.investorOwnMoney);
+    expect(within(contributions).queryAllByTestId('share-row')).toHaveLength(0);
+    expect(within(contributions).queryAllByTestId('investor-row')).toHaveLength(0);
+    expect(text(contributions)).toContain(en.fundingCard.equal.hint.slice(0, 40));
+  });
+
+  it('nobody over or short reads "everyone has put in his equal share"; one partner over on his own takes back to his account', async () => {
+    const even = cycleTwoEqual();
+    even.equalShares!.lines = even.equalShares!.lines.map((l) => ({ ...l, contributedEgp: l.shareEgp, differenceEgp: '0.00', state: 'EVEN' as const }));
+    state.funding = even;
+    wrap();
+    expect(text(await screen.findByTestId('equal-settle'))).toBe(en.fundingCard.equal.allEven);
+    expect(screen.getAllByTestId('equal-row').every((r) => text(within(r).getByTestId('share-status')) === 'even')).toBe(true);
+    cleanup();
+
+    const one = cycleTwoEqual();
+    one.equalShares!.lines = [
+      { ...one.equalShares!.lines[0], differenceEgp: '100.00', state: 'OVER' },
+      { ...one.equalShares!.lines[1], differenceEgp: '-100.00', state: 'SHORT' },
+    ];
+    state.funding = one;
+    wrap();
+    expect(text(await screen.findByTestId('equal-settle'))).toMatch(/^To make it equal: Shady pays [^;]*100.00[^;]*; Abdallah takes back [^.]*100.00[^.]* to his account\.$/);
+  });
+
+  it('no equal split: the contributions table is as it was, with no equal-shares section', async () => {
+    wrap();
+    await screen.findByTestId('funding-card');
+    expect(screen.queryByTestId('equal-shares')).toBeNull();
+    expect(screen.getAllByTestId('share-row')).toHaveLength(3);
+  });
+
+  it('in Arabic: the heading, the pills and the settling line are Arabic, figures left-to-right', async () => {
+    state.funding = cycleTwoEqual();
+    wrap('ar');
+    const section = await screen.findByTestId('equal-shares');
+    expect(section.textContent).not.toMatch(/(fundingCard|equal)\.[a-zA-Z]/);
+    expect(text(section.querySelector('h3'))).toContain('بالتساوي');
+    const pills = within(section).getAllByTestId('share-status');
+    expect(text(pills[0])).toContain('زيادة');
+    expect(text(pills[3])).toContain('ينقصه');
+    const settle = text(screen.getByTestId('equal-settle'));
+    expect(settle).toContain('لتصبح متساوية:');
+    expect(settle).toContain('يدفع Mohammed Youssef');
+    expect(settle).toContain('يسترد كلٌّ من');
+    expect(pills[3].querySelector('[data-slot="money"]')?.getAttribute('dir')).toBe('ltr');
+  });
+});

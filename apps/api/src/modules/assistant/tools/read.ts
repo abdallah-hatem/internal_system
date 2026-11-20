@@ -325,6 +325,14 @@ export function registerReadTools(
         shipment: {
           accounted: shipment.accounted,
           totals: shipment.totals,
+          // Handed to the forwarder on a UAE leg in handovers and not arrived
+          // yet: on the way to Egypt, though `atOrigin` still counts them
+          // (§1, 2026-11-20). Per product nobody knows which they are.
+          handedOver: {
+            notLeftYet: shipment.handedOver.notLeft,
+            withForwarder: shipment.handedOver.withForwarder,
+            handoversWithNoCount: shipment.handedOver.withForwarderUnknown,
+          },
           products: shipment.lines.map((l) => ({
             purchaseOrderItemId: l.purchaseOrderItemId,
             product: l.productName ?? null,
@@ -388,8 +396,13 @@ export function registerReadTools(
         },
       };
       const t = shipment.totals;
+      const h = shipment.handedOver;
+      const forwarder =
+        h.withForwarder > 0 || h.withForwarderUnknown > 0
+          ? `${h.withForwarder}${h.withForwarderUnknown > 0 ? ' (and a number not known)' : ''} with the forwarder, `
+          : '';
       return answer(
-        `Cycle ${c.code}, ${c.status}. Shipment: ${t.atOrigin} not left yet, ${t.onTheWay} on the way, ${t.waiting} waiting to be received, ${t.received} received, ${t.lost} lost, of ${t.ordered} ordered.`,
+        `Cycle ${c.code}, ${c.status}. Shipment: ${h.notLeft} not left yet, ${forwarder}${t.onTheWay} on the way, ${t.waiting} waiting to be received, ${t.received} received, ${t.lost} lost, of ${t.ordered} ordered.`,
         data,
       );
     },

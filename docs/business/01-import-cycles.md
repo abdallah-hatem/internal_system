@@ -448,4 +448,21 @@ sometimes even how many — is known only as each batch arrives and is counted. 
 | The screen | The leg's block on the cycle page: route and a pill "Freight 53.68 AED a piece · estimate" (or final); a box per handover — "Handover N · date · pieces (or pieces not known) · amount · forwarder · paid by …", a pill "110 of 150 arrived" / "40 arrived so far" / "All arrived", a bar when the count is known, what is owed to the partner who paid, its arrivals (date · products ×qty · total), Record arrival and All arrived; a footer "Still in the UAE · with the forwarder · arrived" and Hand over goods. In Arabic a handover is «إرسالية» (a delivery stays «تسليمة», a payment «دفعة»). | DECIDED (Arabic wording GUESS) |
 | The assistant | Its `add_shipping_leg`, `record_departure` and `record_delivery` reach the same refusals on a leg in handovers (`LEG_USES_HANDOVERS`); no handover tools yet. | GUESS |
 
+**DECIDED 2026-11-20 (owner: "fix wording") — handed-over goods are with the forwarder, not "not left yet".** *Built
+2026-11-20 on `fix/handover-wording-and-funding-gap`, PR to `dev`, not merged.* Production's CYC-2026-0002 read "0 of
+400 in stock · 400 not left yet" with "In UAE 400" on the goods cards, while the leg card said "Still in the UAE 0 ·
+with the forwarder 400": a handover writes no departure lines (above), so the shipment's position counts every piece
+handed over and not arrived as waiting at the UAE. Every place that counts goods now says what the leg card says.
+
+| Rule | Now | Status |
+|---|---|---|
+| One definition | `handedOver` (`common/leg-handovers.ts`), on `GET /cycles/:id/shipment`: **with the forwarder** = the pieces open handovers with a count still have to bring (`toCome`, summed — arrivals and All-arrived losses come off); **not known** = how many open handovers have no count; **not left** = the position's `atOrigin` less those with the forwarder. Per handover leg, the leg card's own `stillInUae` / `withForwarder`. The position itself is unchanged (guards, costing and the status walk read it). | DECIDED (the agent's, rule 11) |
+| The totals line | "0 of 400 in stock · 400 with the forwarder · 0 on the way · 0 lost": "N not left yet" only for goods nobody has handed over; "N with the forwarder", "N + not known with the forwarder" or "with the forwarder: not known". | DECIDED (wording GUESS) |
+| The goods cards | The pieces with the forwarder move from **In UAE** to **To Egypt** in the totals (CYC-2026-0002: In UAE 0, To Egypt 400); a handover with no count adds "+ a number not known with the forwarder" under To Egypt. | DECIDED |
+| Per product | A handover has no products, so which products are with the forwarder is known only as they arrive. The per-product numbers stay as the position has them, under a title that says so: **"In UAE or with the forwarder"** (goods cards' table and phone cards, and the handover leg's own product table instead of "Not left"), and a note: "400 pieces are with the forwarder, on the way to Egypt. Which products they are is known only as they arrive…". | DECIDED (owner's brief); wording GUESS |
+| The timeline | A handover leg shows "the rest still to leave" only while pieces are still in the UAE and not handed over. With an open handover that has no count nothing is said to wait — it may hold the rest. | GUESS |
+| The assistant | `get_cycle` carries `handedOver` (not left, with the forwarder, handovers with no count) and its sentence says "N with the forwarder". | GUESS |
+| The status | Unchanged: the first handover already moves the cycle to In transit to Egypt (L3). | DECIDED |
+| Arabic | «مع الشاحن» (the leg card's word), «في الإمارات أو مع الشاحن» for the per-product title. | GUESS |
+
 ---

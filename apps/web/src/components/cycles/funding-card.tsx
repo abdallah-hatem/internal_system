@@ -170,6 +170,27 @@ export interface AccountFunding {
     equal: boolean;
     problem: 'PARTIAL_CUSTOM_SPLIT' | 'SPLIT_NOT_100' | null;
   };
+  /**
+   * The agreed split gives everyone the same share, investors too (owner
+   * 2026-11-20): each one's equal share of what funds the cycle, what he
+   * contributed, and the difference. Null otherwise; display only.
+   */
+  equalShares?: EqualShares | null;
+}
+
+export interface EqualShares {
+  basis: 'TARGET' | 'COST_TO_FUND' | 'REPAID' | 'PUT_IN';
+  ofEgp: string;
+  lines: {
+    participantId: string;
+    participantType: string;
+    name: string;
+    shareEgp: string;
+    contributedEgp: string;
+    /** Contributed less share: + over, − short. */
+    differenceEgp: string;
+    state: 'OVER' | 'SHORT' | 'EVEN';
+  }[];
 }
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -575,6 +596,10 @@ export function FundingCard({
 
       {/* ── 2. Contributions ──────────────────────────────────────────── */}
       <div data-testid="funding-contributions" className="mt-5 border-t border-border pt-4">
+        {data.equalShares ? (
+          <EqualSharesRows gap={data.equalShares} />
+        ) : (
+        <>
         <SectionHeading first>
           {nothingToShare
             ? t('contributionsNothing')
@@ -675,6 +700,8 @@ export function FundingCard({
             </div>
           ))}
         </div>
+        </>
+        )}
 
         {/* Each one's share of the cycle (owner 2026-10-27): everyone on it, investors too, at the
             profit split's own percentages (`profitSplitView`) — never a second sum over the partners. */}
@@ -707,7 +734,7 @@ export function FundingCard({
           <ExchangeLine friends={friends} names={friendNames} />
         )}
 
-        <p className="mt-2 text-xs text-muted-foreground">{t('sharesHint')}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{data.equalShares ? t('equal.hint') : t('sharesHint')}</p>
         {(canContribute || canEdit) && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {canContribute && !contributeDone && (
@@ -951,6 +978,101 @@ function SectionHeading({ children, first }: { children: ReactNode; first?: bool
     <h3 className={cn('mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground', !first && 'mt-4')}>
       {children}
     </h3>
+  );
+}
+
+/**
+ * Everyone shares equally by the agreed split, investors too (owner
+ * 2026-11-20: "we 4 share everything equally so 25% contribution each" —
+ * "this must be shown"): each one's equal share of what funds the cycle, what
+ * he contributed, over / short / even, and one line saying what would make it
+ * equal. Every figure is the server's (`equalShareGap`); nothing is recorded.
+ */
+function EqualSharesRows({ gap }: { gap: EqualShares }) {
+  const t = useTranslations('fundingCard');
+  const locale = useLocale();
+  const abs = (v: string) => Math.abs(num(v));
+  const short = gap.lines.filter((l) => l.state === 'SHORT');
+  const over = gap.lines.filter((l) => l.state === 'OVER');
+  const overPartners = over.filter((l) => l.participantType === 'CORE_PARTNER');
+  const overOthers = over.filter((l) => l.participantType !== 'CORE_PARTNER');
+  // Partners over by the same figure read as one: "A, B and C each take back X".
+  const together = overPartners.length > 1 && overPartners.every((l) => l.differenceEgp === overPartners[0].differenceEgp);
+  const parts: ReactNode[] = [
+    ...short.map((l) => (
+      <span key={`p-${l.participantId}`}>{t.rich('equal.pays', { name: l.name, amount: () => <Money value={abs(l.differenceEgp)} /> })}</span>
+    )),
+    ...(together
+      ? [
+          <span key="each">
+            {t.rich('equal.takesBackEach', {
+              names: lenderList(overPartners.map((l) => l.name), locale),
+              amount: () => <Money value={abs(overPartners[0].differenceEgp)} />,
+            })}
+          </span>,
+        ]
+      : overPartners.map((l) => (
+          <span key={`t-${l.participantId}`}>{t.rich('equal.takesBack', { name: l.name, amount: () => <Money value={abs(l.differenceEgp)} /> })}</span>
+        ))),
+    ...overOthers.map((l) => (
+      <span key={`i-${l.participantId}`}>{t.rich('equal.takesBackInvestor', { name: l.name, amount: () => <Money value={abs(l.differenceEgp)} /> })}</span>
+    )),
+  ];
+  return (
+    <div data-testid="equal-shares">
+      <SectionHeading first>
+        {t.rich('equal.heading', { count: gap.lines.length, amount: () => <Money value={gap.ofEgp} /> })}
+      </SectionHeading>
+      <div className="divide-y divide-border">
+        <ColumnHeads cols={[t('colName'), t('equal.colShare'), t('equal.colContributed'), t('equal.colDifference')]} />
+        {gap.lines.map((l) => (
+          <div key={l.participantId} data-testid="equal-row" data-state={l.state} className={ROW}>
+            <span className="min-w-0">
+              <bdi className="block truncate font-medium text-foreground">{l.name}</bdi>
+              {l.participantType !== 'CORE_PARTNER' && (
+                <span className="block text-[11px] text-muted-foreground">{t('equal.investor')}</span>
+              )}
+            </span>
+            <span data-testid="equal-share" className="hidden text-sm tabular-nums md:block">
+              <Money value={l.shareEgp} />
+            </span>
+            <span data-testid="equal-contributed" className="hidden text-sm tabular-nums md:block">
+              <Money value={l.contributedEgp} />
+            </span>
+            <span className="col-span-2 justify-self-start md:col-span-1">
+              <StatusPill short={l.state === 'SHORT'}>
+                {l.state === 'SHORT'
+                  ? t.rich('short', { amount: () => <Money value={abs(l.differenceEgp)} /> })
+                  : l.state === 'OVER'
+                    ? t.rich('equal.over', { amount: () => <Money value={abs(l.differenceEgp)} /> })
+                    : t('equal.even')}
+              </StatusPill>
+            </span>
+            {/* A phone has no column titles: the two figures, labelled, on their own line. */}
+            <span className="col-span-2 flex flex-wrap gap-x-4 text-xs text-muted-foreground md:hidden" aria-hidden="true">
+              <span className="tabular-nums">{t('equal.colShare')} <Money value={l.shareEgp} className="text-foreground" /></span>
+              <span className="tabular-nums">{t('equal.colContributed')} <Money value={l.contributedEgp} className="text-foreground" /></span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <p data-testid="equal-settle" className="mt-2 rounded-lg bg-muted/50 px-3 py-2 text-sm text-foreground">
+        {parts.length === 0 ? (
+          t('equal.allEven')
+        ) : (
+          <>
+            {t('equal.settleIntro')}{' '}
+            {parts.map((part, i) => (
+              <span key={i}>
+                {i > 0 && t('equal.separator')}
+                {part}
+              </span>
+            ))}
+            {t('equal.end')}
+          </>
+        )}
+      </p>
+    </div>
   );
 }
 
