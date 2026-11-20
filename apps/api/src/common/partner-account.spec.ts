@@ -808,6 +808,47 @@ describe('equal shares for everyone, investors included (owner 2026-11-20)', () 
     ).toBe('0.00');
   });
 
+  it('a cost added after a friend paid is in the shares: of the cost to fund when it is more', () => {
+    // CYC-2026-0002 (owner 2026-11-20): put in 256,786.78 (three partners at
+    // 65,862.26 and Youssef 59,200); leg 2's freight then doubled to 8,000 AED
+    // at 14.8, so the cost to fund is 315,986.78 and 59,200 is still unpaid.
+    const people = [65862.26, 65862.26, 65862.26, 59200].map((c) => ({
+      contributionEgp: c,
+    }));
+    const gap = equalShareGap({
+      ofEgp: '256786.78',
+      costToFundEgp: '315986.78',
+      participants: people,
+    })!;
+    expect(gap.ofEgp.toFixed(2)).toBe('315986.78');
+    expect(gap.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '78996.69',
+      '78996.69',
+      '78996.69',
+      '78996.71',
+    ]);
+    expect(gap.lines.map((l) => l.difference.toFixed(2))).toEqual([
+      '-13134.43',
+      '-13134.43',
+      '-13134.43',
+      '-19796.71',
+    ]);
+    // Everyone short, by exactly what is still to pay.
+    expect(
+      gap.lines
+        .reduce((s, l) => s.add(l.difference), new Prisma.Decimal(0))
+        .toFixed(2),
+    ).toBe('-59200.00');
+    // The card's own figure stands when it is the larger.
+    expect(
+      equalShareGap({
+        ofEgp: 300,
+        costToFundEgp: 200,
+        participants: people.slice(0, 2),
+      })!.ofEgp.toFixed(2),
+    ).toBe('300.00');
+  });
+
   it('nothing to share, or one person, is no gap; a negative contribution counts as nothing put in', () => {
     const two = [{ contributionEgp: 10 }, { contributionEgp: 10 }];
     expect(equalShareGap({ ofEgp: 0, participants: two })).toBeNull();

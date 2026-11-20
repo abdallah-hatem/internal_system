@@ -578,6 +578,13 @@ export function contributionShares(args: {
  */
 export function equalShareGap(args: {
   ofEgp: Prisma.Decimal.Value;
+  /**
+   * The cycle's whole cost to fund. On a cycle a friend paid, the card's own
+   * figure is what was repaid him or put in so far, which leaves out a cost
+   * added later and not yet paid — CYC-2026-0002's second 4,000 AED of leg 2
+   * freight (owner 2026-11-20). The shares are of whichever is more.
+   */
+  costToFundEgp?: Prisma.Decimal.Value;
   participants: { contributionEgp: Prisma.Decimal.Value }[];
 }): {
   ofEgp: Prisma.Decimal;
@@ -587,10 +594,10 @@ export function equalShareGap(args: {
     difference: Prisma.Decimal;
   }[];
 } | null {
-  const of = new Prisma.Decimal(args.ofEgp).toDecimalPlaces(
-    2,
-    Prisma.Decimal.ROUND_HALF_UP,
-  );
+  const of = Prisma.Decimal.max(
+    args.ofEgp,
+    args.costToFundEgp ?? 0,
+  ).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
   if (args.participants.length < 2 || of.lte(0)) return null;
   const shares = equalShares(of, args.participants.length);
   return {
