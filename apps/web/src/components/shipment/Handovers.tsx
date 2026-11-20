@@ -541,13 +541,30 @@ export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cy
           </div>
         )}
         <p data-testid="handover-freight-hint" className="mt-1 text-xs text-muted-foreground">
-          {currency !== 'EGP' && rates[currency] != null && (
+          {/* The sum the form saves, at the rate typed here (owner 2026-11-20:
+              "I typed 14.8 it shows 15.2 as current"). The Exchange rates
+              page's rate follows only when it differs, named as that page's. */}
+          {Number.isFinite(inEgp) && amount !== '' && (
             <>
-              <CurrentRateHint currency={currency} rate={rates[currency]} />
-              {' · '}
+              {currency !== 'EGP' && (
+                <>
+                  {t.rich('freightTimesRate', {
+                    amount,
+                    currency,
+                    rate,
+                    ltr: (run) => <bdi dir="ltr">{run}</bdi>,
+                  })}{' '}
+                </>
+              )}
+              <Money value={inEgp.toFixed(2)} />
             </>
           )}
-          {Number.isFinite(inEgp) && amount !== '' && <Money value={inEgp.toFixed(2)} />}
+          {currency !== 'EGP' && rates[currency] != null && Number(rate) !== Number(rates[currency]) && (
+            <>
+              {' · '}
+              <CurrentRateHint currency={currency} rate={rates[currency]} />
+            </>
+          )}
         </p>
       </div>
 
