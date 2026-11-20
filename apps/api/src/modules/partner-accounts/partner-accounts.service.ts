@@ -408,6 +408,7 @@ export class PartnerAccountsService {
     )
       ? equalShareGap({
           ofEgp: shares.ofEgp,
+          costToFundEgp: toFund,
           participants: cycle.participants.map((p) => ({
             contributionEgp: p.contributionAmount,
           })),
