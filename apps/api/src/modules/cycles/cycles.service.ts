@@ -45,7 +45,11 @@ import {
   assertLendersRepaid,
 } from '../../common/lender-debt';
 import { lossesWithRefunds } from '../../common/loss-refunds';
-import { freightIsEstimate, legHandovers } from '../../common/leg-handovers';
+import {
+  freightIsEstimate,
+  handedOver,
+  legHandovers,
+} from '../../common/leg-handovers';
 import { owedOn } from '../../common/lender-math';
 import { legLeavesFrom } from '../../common/cycle-routes';
 import {
@@ -299,6 +303,12 @@ export class CyclesService {
         ...position,
         /** A leg in handovers whose freight is not final yet (§2, 2026-11-20). */
         freightEstimate: freightIsEstimate(cycle, position),
+        /**
+         * Pieces handed to the forwarder and not arrived yet (§1, 2026-11-20):
+         * on the way to Egypt, not "not left yet" — `atOrigin` counts them
+         * there because a handover writes no departure lines (`handedOver`).
+         */
+        handedOver: handedOver(cycle, position),
         legs: position.legs.map((p) => {
           const leg = legMeta.get(p.legId)!;
           return {
@@ -479,6 +489,17 @@ export class CyclesService {
     ]);
 
     const positionByLeg = new Map(position.legs.map((l) => [l.legId, l]));
+    // A leg in handovers: what was handed to the forwarder has left, though
+    // no departure line says so (§1, 2026-11-20). An open handover with no
+    // count may hold the rest, so nothing reads as still to leave (GUESS).
+    const handed = new Map(
+      handedOver(cycle, position).legs.map((l) => [l.legId, l]),
+    );
+    const waitingToLeave = (legId: string, atOrigin: number) => {
+      const h = handed.get(legId);
+      if (!h) return atOrigin > 0;
+      return h.stillInUae > 0 && h.withForwarderUnknown === 0;
+    };
     const historyBegan = startOfBusinessDay(STATUS_HISTORY_BEGAN);
     const timeline = cycleTimeline({
       originType: cycle.originType,
@@ -492,7 +513,7 @@ export class CyclesService {
           destination: leg.destination,
           departures: leg.departures.map((d) => positionDay(d.departedOn)),
           deliveries: leg.deliveries.map((d) => positionDay(d.arrivedOn)),
-          waitingToLeave: (p?.atOrigin ?? 0) > 0,
+          waitingToLeave: waitingToLeave(leg.id, p?.atOrigin ?? 0),
           complete: !!p?.arrivedOn,
         };
       }),

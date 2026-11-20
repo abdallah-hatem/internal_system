@@ -10,6 +10,7 @@ import {
   availableTo,
   balanceOf,
   contributionShares,
+  equalShareGap,
   equalShares,
   inTargetCurrency,
   isUntiedMovement,
@@ -17,7 +18,10 @@ import {
   potsTotal,
   putInSoFar,
 } from './partner-account';
-import { profitShareOf } from '../modules/settlements/settlement-math';
+import {
+  agreedSplitIsEqual,
+  profitShareOf,
+} from '../modules/settlements/settlement-math';
 import {
   CycleAccountFundingController,
   PartnerAccountsController,
@@ -754,5 +758,70 @@ describe('who may call the account endpoints (CLAUDE.md §12)', () => {
     for (const [cls, handler] of endpoints) {
       expect(guard.canActivate(ctx(cls, handler, 'CORE_PARTNER'))).toBe(true);
     }
+  });
+});
+
+describe('equal shares for everyone, investors included (owner 2026-11-20)', () => {
+  const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
+
+  it('an agreed split is equal when every one is within a hundredth of 100 ÷ n and they make 100', () => {
+    expect(agreedSplitIsEqual(['25', '25', '25', '25'].map(D))).toBe(true);
+    expect(agreedSplitIsEqual(['33.33', '33.33', '33.34'].map(D))).toBe(true);
+    expect(agreedSplitIsEqual(['50', '50'].map(D))).toBe(true);
+    expect(agreedSplitIsEqual(['30', '30', '20', '20'].map(D))).toBe(false);
+    expect(agreedSplitIsEqual(['33.32', '33.32', '33.36'].map(D))).toBe(false);
+    // Partial, off 100, a single participant, nobody, no split at all.
+    expect(agreedSplitIsEqual([D(25), D(25), D(25), null])).toBe(false);
+    expect(agreedSplitIsEqual(['25', '25', '25', '24.99'].map(D))).toBe(false);
+    expect(agreedSplitIsEqual([D(100)])).toBe(false);
+    expect(agreedSplitIsEqual([])).toBe(false);
+    expect(agreedSplitIsEqual([null, null, null])).toBe(false);
+  });
+
+  it('CYC-2026-0002: quarters of 256,786.78 sum to it exactly, the last (Youssef) taking the odd piastre; the differences cancel', () => {
+    const gap = equalShareGap({
+      ofEgp: '256786.78',
+      participants: [
+        { contributionEgp: '65862.26' },
+        { contributionEgp: '65862.26' },
+        { contributionEgp: '65862.26' },
+        { contributionEgp: '59200' },
+      ],
+    })!;
+    expect(gap.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '64196.69',
+      '64196.69',
+      '64196.69',
+      '64196.71',
+    ]);
+    expect(gap.lines.map((l) => l.difference.toFixed(2))).toEqual([
+      '1665.57',
+      '1665.57',
+      '1665.57',
+      '-4996.71',
+    ]);
+    expect(gap.lines.reduce((s, l) => s.add(l.share), D(0)).toFixed(2)).toBe(
+      '256786.78',
+    );
+    expect(
+      gap.lines.reduce((s, l) => s.add(l.difference), D(0)).toFixed(2),
+    ).toBe('0.00');
+  });
+
+  it('nothing to share, or one person, is no gap; a negative contribution counts as nothing put in', () => {
+    const two = [{ contributionEgp: 10 }, { contributionEgp: 10 }];
+    expect(equalShareGap({ ofEgp: 0, participants: two })).toBeNull();
+    expect(equalShareGap({ ofEgp: -5, participants: two })).toBeNull();
+    expect(
+      equalShareGap({ ofEgp: 100, participants: [{ contributionEgp: 100 }] }),
+    ).toBeNull();
+    const gap = equalShareGap({
+      ofEgp: 100,
+      participants: [{ contributionEgp: -20 }, { contributionEgp: 120 }],
+    })!;
+    expect(gap.lines.map((l) => l.difference.toFixed(2))).toEqual([
+      '-50.00',
+      '70.00',
+    ]);
   });
 });

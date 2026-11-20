@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
+import ar from '@/i18n/locales/ar.json';
 import { ToastProvider } from '@/components/ui/toast';
 import CycleDetailsPage from '@/app/[locale]/cycles/[cycleId]/details/page';
 
@@ -100,10 +101,10 @@ beforeEach(() => {
   state.batches = [{ id: 'b-1', productId: 'p-pad', receivedQty: '15', remainingQty: '9', product: { name: 'Brake pad' } }];
 });
 
-function wrap() {
+function wrap(locale: 'en' | 'ar' = 'en') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <NextIntlClientProvider locale="en" messages={en} timeZone="Africa/Cairo">
+    <NextIntlClientProvider locale={locale} messages={locale === 'ar' ? ar : en} timeZone="Africa/Cairo">
       <QueryClientProvider client={client}>
         <ToastProvider>
           <CycleDetailsPage />
@@ -232,5 +233,126 @@ describe('where the goods are, at the top of cycle details', () => {
     await screen.findByTestId('cycle-status');
     await screen.findByTestId('shipment-panel');
     expect(screen.queryByTestId('goods-location')).toBeNull();
+  });
+
+  // ─── Leg 2 in handovers (owner 2026-11-20: "fix wording") ─────────────────
+
+  /**
+   * CYC-2026-0002's shape: everything reached Ajman; leg 2 is in handovers,
+   * so per product the position still reads every piece as waiting in the
+   * UAE (a handover names no products). `handedOver` is the server's count
+   * of what is with the forwarder.
+   */
+  const handoverShipment = (handedOver: { withForwarder: number; withForwarderUnknown: number; notLeft: number }) => ({
+    cycleId: 'c-1', code: 'CYC-1', status: 'IN_TRANSIT_TO_EGYPT', accounted: false,
+    totals: { ordered: 50, received: 0, lost: 0, atOrigin: 50, onTheWay: 0, waiting: 0 }, lines,
+    handedOver: { ...handedOver, legs: [] },
+    legs: [
+      leg(1, false, '2026-09-01', [
+        legLine('poi-pad', { entered: 40, delivered: 40 }),
+        legLine('poi-chain', { entered: 10, delivered: 10 }),
+      ]),
+      {
+        ...leg(2, true, '2026-11-20', [
+          { ...legLine('poi-pad', { entered: 40, received: 0, waiting: 0 }), atOrigin: 40 },
+          { ...legLine('poi-chain', { entered: 10, received: 0, waiting: 0 }), atOrigin: 10 },
+        ]),
+        atOrigin: 50,
+        usesHandovers: true,
+        // The leg card's own summary — the figures the totals and cards must agree with.
+        handovers: {
+          legId: 'leg-2', handovers: [], freightEgp: '59200.00', freightByCurrency: [{ currency: 'AED', amount: '4000.00' }],
+          covered: 50, pieces: 50, legCostEgp: '59200.00', perPieceEgp: '1184.00', perPiece: null, final: false,
+          stillInUae: handedOver.notLeft, withForwarder: handedOver.withForwarder,
+          withForwarderUnknown: handedOver.withForwarderUnknown, arrived: 0,
+        },
+      },
+    ],
+  });
+
+  /** The handover leg's product table, in the Shipment card. */
+  const legHeaders = () => {
+    const leg2 = screen.getAllByTestId('shipment-leg').find((l) => l.dataset.legSequence === '2')!;
+    return within(leg2).getAllByRole('columnheader').map((h) => h.textContent);
+  };
+
+  const totalsLine = async () => (await screen.findByTestId('shipment-totals')).textContent;
+
+  it('everything handed over with a count: the cards put it on the way to Egypt, not in the UAE, and the totals line says "with the forwarder", not "not left yet"', async () => {
+    state.batches = [];
+    state.shipment = handoverShipment({ withForwarder: 50, withForwarderUnknown: 0, notLeft: 0 });
+    wrap();
+    expect(await cards()).toMatchObject({ inChina: '0', toUae: '0', inUae: '0', toEgypt: '50', inEgypt: '0' });
+    const line = await totalsLine();
+    expect(line).toContain('50 with the forwarder');
+    expect(line).not.toContain('not left yet');
+    // No "0 on the way" beside them: nothing else is on the way.
+    expect(line).not.toContain('on the way');
+    // The leg card says the same, and its product table does not say "Not left".
+    expect(screen.getByTestId('handovers-footer').textContent).toContain(`${en.handovers.withForwarder} 50`);
+    expect(legHeaders()).toContain(en.shipment.atOriginOrForwarderCol);
+    expect(legHeaders()).not.toContain(en.shipment.atOriginCol);
+    // Per product nobody knows which are with the forwarder: the column says so, and a note explains.
+    const section = screen.getByTestId('goods-location');
+    const table = within(section).getByTestId('location-table');
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toContain(en.goodsLocation.inUaeOrForwarder);
+    const pad = within(table).getAllByTestId('location-row').find((r) => r.dataset.product === 'Brake pad')!;
+    expect(pad.querySelector('[data-place="inUae"]')!.textContent).toBe('40');
+    expect(within(section).getByTestId('location-forwarder-note').textContent).toBe(
+      en.goodsLocation.forwarderNote.replace('{count}', '50'),
+    );
+    // The phone's product cards use the same title.
+    const phone = within(section).getAllByTestId('location-product-card')[0];
+    expect(phone.textContent).toContain(en.goodsLocation.inUaeOrForwarder);
+    expect(within(section).queryByTestId('location-forwarder-unknown')).toBeNull();
+  });
+
+  it('a handover with no count: nothing moves to Egypt, the card and the totals line say "not known", the rest is still not left', async () => {
+    state.batches = [];
+    state.shipment = handoverShipment({ withForwarder: 0, withForwarderUnknown: 1, notLeft: 50 });
+    wrap();
+    expect(await cards()).toMatchObject({ inUae: '50', toEgypt: '0' });
+    const section = screen.getByTestId('goods-location');
+    expect(within(section).getByTestId('location-forwarder-unknown').textContent).toBe(en.goodsLocation.toEgyptPlusUnknown);
+    expect(within(section).getByTestId('location-forwarder-note').textContent).toBe(en.goodsLocation.forwarderNoteUnknown);
+    const line = await totalsLine();
+    expect(line).toContain('50 not left yet');
+    expect(line).toContain(en.shipment.withForwarderNotKnown);
+  });
+
+  it('part handed over: 20 with the forwarder, 30 not left — the cards and the totals line agree', async () => {
+    state.batches = [];
+    state.shipment = handoverShipment({ withForwarder: 20, withForwarderUnknown: 0, notLeft: 30 });
+    wrap();
+    expect(await cards()).toMatchObject({ inUae: '30', toEgypt: '20' });
+    const line = await totalsLine();
+    expect(line).toContain('30 not left yet');
+    expect(line).toContain('20 with the forwarder');
+  });
+
+  it('no handover leg: the titles and the totals line are as they were', async () => {
+    wrap();
+    const section = await screen.findByTestId('goods-location');
+    const headers = within(within(section).getByTestId('location-table')).getAllByRole('columnheader').map((h) => h.textContent);
+    expect(headers).toContain(en.goodsLocation.inUae);
+    expect(headers).not.toContain(en.goodsLocation.inUaeOrForwarder);
+    expect(within(section).queryByTestId('location-forwarder-note')).toBeNull();
+    expect(screen.queryByTestId('totals-with-forwarder')).toBeNull();
+  });
+
+  it('in Arabic: «مع الشاحن» on the totals line and the column, the note in Arabic', async () => {
+    state.batches = [];
+    state.shipment = handoverShipment({ withForwarder: 50, withForwarderUnknown: 0, notLeft: 0 });
+    wrap('ar');
+    expect(await cards()).toMatchObject({ inUae: '0', toEgypt: '50' });
+    const line = await totalsLine();
+    expect(line).toContain('مع الشاحن');
+    expect(line).not.toContain('لم تغادر بعد');
+    expect(legHeaders()).toContain(ar.shipment.atOriginOrForwarderCol);
+    const section = screen.getByTestId('goods-location');
+    expect(within(within(section).getByTestId('location-table')).getAllByRole('columnheader').map((h) => h.textContent)).toContain(
+      ar.goodsLocation.inUaeOrForwarder,
+    );
+    expect(within(section).getByTestId('location-forwarder-note').textContent).toContain('مع الشاحن');
   });
 });

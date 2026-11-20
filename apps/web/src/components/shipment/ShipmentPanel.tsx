@@ -34,6 +34,7 @@ import { UndoRefundDialog } from './UndoRefundDialog';
 import {
   FROZEN_STATUSES,
   RECEIVING_STATUSES,
+  anyWithForwarder,
   hasWaitingToLeave,
   inHandovers,
   isWaiting,
@@ -140,6 +141,11 @@ function useLegColumns(
   ordered: Map<string, number>,
   /** The counts this leg shows (`legCounts`); every one when absent — the placeholder. */
   counts?: LegCount[],
+  /**
+   * A leg in handovers (§1, 2026-11-20): per product, what has not arrived may
+   * be in the UAE or with the forwarder — nobody knows which until it comes.
+   */
+  handover = false,
 ): Column<LegLine>[] {
   const t = useTranslations('shipment');
   const { formatNumber } = useNumberFormat();
@@ -158,7 +164,9 @@ function useLegColumns(
       cell: (line) => <LatinText>{productNames[line.purchaseOrderItemId]}</LatinText>,
     },
     count('ordered', 'line-ordered', t('ordered'), '5.5rem', (l) => ordered.get(l.purchaseOrderItemId) ?? 0),
-    count('atOrigin', 'line-at-origin', t('atOriginCol'), '5rem', (l) => num(l.atOrigin)),
+    handover
+      ? count('atOrigin', 'line-at-origin', t('atOriginOrForwarderCol'), '9.5rem', (l) => num(l.atOrigin))
+      : count('atOrigin', 'line-at-origin', t('atOriginCol'), '5rem', (l) => num(l.atOrigin)),
     count('delivered', 'line-delivered', t('delivered'), '5.5rem', (l) => l.delivered),
     count('received', 'line-received', t('receivedCol'), '5.5rem', (l) => l.received),
     count('waiting', 'line-waiting', t('waiting'), '6rem', (l) => l.waiting),
@@ -284,6 +292,9 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
   const canAddLeg = may.createLeg && !frozen && !!nextLeg;
   const canReceive = RECEIVING_STATUSES.includes(status);
   const legs = shipment.legs ?? [];
+  // What has not been handed to anyone; an older server sends no `handedOver`.
+  const handed = shipment.handedOver;
+  const notLeft = handed ? handed.notLeft : (shipment.totals.atOrigin ?? 0);
   const legById = (id: string) => legs.find((l) => l.legId === id);
 
   // A last-leg delivery the cycle has not caught up with yet: receiving opens at
@@ -373,8 +384,22 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
                 b: (chunks) => <span className="font-semibold text-foreground">{chunks}</span>,
               })}
             </span>
-            {(shipment.totals.atOrigin ?? 0) > 0 && <span>{t('notLeftCount', { count: shipment.totals.atOrigin ?? 0 })}</span>}
-            <span>{t('onTheWayCount', { count: shipment.totals.onTheWay })}</span>
+            {/* Handed to the forwarder is not "not left yet" (§1, 2026-11-20): the
+                server's `handedOver` says how many, as the leg card does. */}
+            {notLeft > 0 && <span data-testid="totals-not-left">{t('notLeftCount', { count: notLeft })}</span>}
+            {handed && anyWithForwarder(handed) && (
+              <span data-testid="totals-with-forwarder">
+                {handed.withForwarderUnknown > 0
+                  ? handed.withForwarder > 0
+                    ? t('withForwarderCountPlus', { count: handed.withForwarder })
+                    : t('withForwarderNotKnown')
+                  : t('withForwarderCount', { count: handed.withForwarder })}
+              </span>
+            )}
+            {/* Nothing known on the way beside goods with the forwarder: their line says it. */}
+            {(shipment.totals.onTheWay > 0 || !anyWithForwarder(handed)) && (
+              <span>{t('onTheWayCount', { count: shipment.totals.onTheWay })}</span>
+            )}
             {shipment.totals.waiting > 0 && <span>{t('toReceiveCount', { count: shipment.totals.waiting })}</span>}
             <span>{t('lostCount', { count: shipment.totals.lost })}</span>
           </p>
@@ -578,7 +603,8 @@ function LegBlock({
   const losses = leg.losses ?? [];
   const counts = legCounts(leg);
   const shows = (c: LegCount) => counts.includes(c);
-  const columns = useLegColumns(productNames, ordered, counts);
+  const handover = inHandovers(leg);
+  const columns = useLegColumns(productNames, ordered, counts, handover);
   // A leg still asking for something opens; a finished one is one line until asked.
   const [expanded, setExpanded] = useState(() => legNeedsAttention(leg));
   const detailsId = `leg-details-${leg.legId}`;
@@ -586,7 +612,6 @@ function LegBlock({
   const ownCurrency = meta?.currency && meta.currency !== 'EGP' && meta.amount != null ? meta.currency : null;
   // A UAE leg in handovers (§1, 2026-11-20): its goods go and come through
   // its handovers, so the plain departure and delivery are not offered.
-  const handover = inHandovers(leg);
   const shownStatus = handover ? handoverLegStatus(leg) : leg.status;
 
   return (
@@ -736,7 +761,9 @@ function LegBlock({
             <p className="break-words text-sm font-medium text-foreground">{productNames[line.purchaseOrderItemId]}</p>
             <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
               <Stat id="line-ordered" label={t('ordered')} value={ordered.get(line.purchaseOrderItemId) ?? 0} />
-              {shows('atOrigin') && <Stat id="line-at-origin" label={t('atOriginCol')} value={num(line.atOrigin)} />}
+              {shows('atOrigin') && (
+                <Stat id="line-at-origin" label={t(handover ? 'atOriginOrForwarderCol' : 'atOriginCol')} value={num(line.atOrigin)} />
+              )}
               <Stat id="line-delivered" label={t('delivered')} value={line.delivered} />
               {shows('onTheWay') && <Stat id="line-on-the-way" label={t('onTheWay')} value={line.onTheWay} />}
               {shows('received') && <Stat id="line-received" label={t('receivedCol')} value={line.received} />}

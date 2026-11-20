@@ -274,6 +274,22 @@ export function customSplitProblem(
   return null;
 }
 
+/**
+ * Whether an agreed (custom) profit split gives every participant the same
+ * share (§8, owner 2026-11-20: "we 4 share everything equally so 25%
+ * contribution each"): every participant has a percentage, they add up to
+ * 100, there are at least two, and each is within a hundredth of 100 ÷ n —
+ * so thirds stored as 33.33 / 33.33 / 33.34 count as equal (GUESS: the
+ * largest-remainder rounding the card itself shows). Investors count like
+ * anyone else: an agreed split names everybody on the cycle.
+ */
+export function agreedSplitIsEqual(pcts: (Prisma.Decimal | null)[]): boolean {
+  if (pcts.length < 2 || customSplitProblem(pcts) !== null) return false;
+  if (pcts.some((p) => p === null)) return false;
+  const each = HUNDRED.div(pcts.length);
+  return pcts.every((p) => p!.sub(each).abs().lt('0.01'));
+}
+
 /** `customSplitProblem`, refused with its code. */
 export function assertCustomSplit(pcts: (Prisma.Decimal | null)[]): void {
   const problem = customSplitProblem(pcts);

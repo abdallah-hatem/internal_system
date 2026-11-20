@@ -248,6 +248,62 @@ export function handoverPiecesCap(
   return units(Math.max(0, milli(atOrigin) - others));
 }
 
+/**
+ * Where the goods of a cycle's handover legs are, in the leg card's own words
+ * (§1, owner 2026-11-20: "fix wording"). A handover writes no departure lines
+ * — its goods leave and arrive together, on its arrivals — so the shipment's
+ * position reads every piece handed over and not yet arrived as still
+ * waiting at the UAE (`atOrigin`). They are not: they are with the
+ * forwarder, on the way to Egypt. This is the one place that says so; the
+ * shipment's totals line, the goods cards and the timeline read it.
+ *
+ * - `withForwarder`: the pieces open handovers with a count still have to
+ *   bring (their `toCome`, summed);
+ * - `withForwarderUnknown`: open handovers given no count — an unknown number
+ *   more is with the forwarder ("+ not known", as the leg card says);
+ * - `notLeft`: what the shipment calls waiting at a leg's origin, less the
+ *   pieces with the forwarder — goods nobody has handed over.
+ *
+ * Per product nothing changes: a handover has no products, so which ones are
+ * with the forwarder is known only as they arrive.
+ */
+export interface HandedOver {
+  withForwarder: number;
+  withForwarderUnknown: number;
+  notLeft: number;
+  /** Per handover leg: its pieces still in the UAE (`stillInUae`) and the two above. */
+  legs: {
+    legId: string;
+    stillInUae: number;
+    withForwarder: number;
+    withForwarderUnknown: number;
+  }[];
+}
+
+export function handedOver(
+  cycle: LoadedShipment,
+  position: ShipmentPosition,
+): HandedOver {
+  const legs = cycle.shippingLegs
+    .map((l) => legHandovers(cycle, position, l.id))
+    .filter((s) => s !== null)
+    .map((s) => ({
+      legId: s.legId,
+      stillInUae: s.stillInUae,
+      withForwarder: s.withForwarder,
+      withForwarderUnknown: s.withForwarderUnknown,
+    }));
+  const withForwarder = legs.reduce((s, l) => s + milli(l.withForwarder), 0);
+  return {
+    withForwarder: units(withForwarder),
+    withForwarderUnknown: legs.reduce((s, l) => s + l.withForwarderUnknown, 0),
+    notLeft: units(
+      Math.max(0, milli(position.totals.atOrigin) - withForwarder),
+    ),
+    legs,
+  };
+}
+
 /** Whether any of a cycle's legs is in handovers and its freight is not final yet. */
 export function freightIsEstimate(
   cycle: LoadedShipment,

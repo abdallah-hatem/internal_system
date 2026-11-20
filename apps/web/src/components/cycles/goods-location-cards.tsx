@@ -66,7 +66,7 @@ type ProductRow = ReturnType<typeof locateGoods>['products'][number];
  * — which takes what is left and wraps to two lines — then Ordered and a
  * column per place. Counts never cut.
  */
-function useLocationColumns(places: Place[], fmt: (n: number) => string): Column<ProductRow>[] {
+function useLocationColumns(places: Place[], fmt: (n: number) => string, forwarder = false): Column<ProductRow>[] {
   const t = useTranslations('goodsLocation');
   const locale = useLocale();
   return [
@@ -82,7 +82,7 @@ function useLocationColumns(places: Place[], fmt: (n: number) => string): Column
       cell: (p) => fmt(p.ordered),
     },
     ...places.map((place): Column<ProductRow> => ({
-      key: place, header: t(place), width: PLACE_WIDTH[place], align: 'end', className: 'tabular-nums text-foreground',
+      key: place, header: placeLabel(t, place, forwarder), width: place === 'inUae' && forwarder ? '9.5rem' : PLACE_WIDTH[place], align: 'end', className: 'tabular-nums text-foreground',
       cellProps: () => ({ 'data-place': place }), skeleton: { kind: 'text', share: 'w-1/3' },
       cell: (p) => (
         <>
@@ -96,6 +96,15 @@ function useLocationColumns(places: Place[], fmt: (n: number) => string): Column
       ),
     })),
   ];
+}
+
+/**
+ * A place's title per product. With goods at the forwarder (§1, 2026-11-20)
+ * nobody knows which products they are until they arrive, so per product
+ * In UAE holds both.
+ */
+function placeLabel(t: ReturnType<typeof useTranslations<'goodsLocation'>>, place: Place, forwarder: boolean): string {
+  return place === 'inUae' && forwarder ? t('inUaeOrForwarder') : t(place);
 }
 
 /**
@@ -140,9 +149,11 @@ export function GoodsLocationCards({
     () => locateGoods({ originType, shipment, batches, transfers }),
     [originType, shipment, batches, transfers],
   );
+  const forwarder = located.withForwarder > 0 || located.withForwarderUnknown > 0;
   const locationColumns = useLocationColumns(
     placesFor(located.direct, located.totals),
     (n) => formatNumber(n, { maximumFractionDigits: 3 }),
+    forwarder,
   );
   if (!shipment || (located.products.length === 0 && located.fromCycles.length === 0)) return null;
 
@@ -176,6 +187,11 @@ export function GoodsLocationCards({
                           {t('notCheckedIn', { count: fmt(totals.notCheckedIn) })}
                         </p>
                       )}
+                      {place === 'toEgypt' && located.withForwarderUnknown > 0 && (
+                        <p data-testid="location-forwarder-unknown" className="mt-0.5 text-xs text-muted-foreground">
+                          {t('toEgyptPlusUnknown')}
+                        </p>
+                      )}
                   </div>
                 </div>
               );
@@ -206,7 +222,7 @@ export function GoodsLocationCards({
                   </div>
                   {places.map((place) => (
                     <div key={place}>
-                      <dt className="text-muted-foreground">{t(place)}</dt>
+                      <dt className="text-muted-foreground">{placeLabel(t, place, forwarder)}</dt>
                       <dd data-place={place} className="font-medium tabular-nums text-foreground">{fmt(p[place])}</dd>
                     </div>
                   ))}
@@ -217,6 +233,13 @@ export function GoodsLocationCards({
               </li>
             ))}
           </ul>
+          {forwarder && (
+            <p data-testid="location-forwarder-note" className="text-xs text-muted-foreground">
+              {located.withForwarder > 0
+                ? t('forwarderNote', { count: fmt(located.withForwarder) })
+                : t('forwarderNoteUnknown')}
+            </p>
+          )}
           {located.products.length > PHONE_FIRST_PRODUCTS && (
             <button
               type="button"

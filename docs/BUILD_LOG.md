@@ -5,6 +5,13 @@ feature by feature at the owner's word, each on its own branch, merged and shipp
 Goal (current, 2026-10-27): the "Next up" list below, top first.
 
 ## Current stage
+- **2026-11-20 — handover wording and the equal-shares gap (owner), on `fix/handover-wording-and-funding-gap`, PR to
+  `dev`, not merged:** pieces handed to the forwarder read "with the forwarder" / To Egypt everywhere the cycle page
+  counts goods (`handedOver` in `common/leg-handovers.ts`, on the shipment; totals line, goods cards, per-product
+  title "In UAE or with the forwarder", timeline, assistant). The Funding card shows each participant's gap to an
+  equal share when the agreed split is equal for all, investors included (`agreedSplitIsEqual`, `equalShareGap`,
+  `equalShares` on `account-funding`): CYC-2026-0002 → 256,786.78, Youssef 4,996.71 short, partners 1,665.57 over.
+  No migration. Builds on `feature/leg-handovers` (merged into `dev` as PR #9). BUSINESS_LOGIC §1, §8.
 - **2026-11-20 — leg 2 in handovers (owner), on `feature/leg-handovers`, PR to `dev`, not merged:** a UAE leg goes in
   lots handed to the forwarder with their own freight (pieces if known, paid by the business or a partner); arrivals
   counted per product from their handover; All arrived loses the missing pieces at full cost. A handover is a
