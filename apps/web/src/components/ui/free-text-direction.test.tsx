@@ -107,7 +107,7 @@ describe('the current-rate hint (M6)', () => {
     expect(run.getAttribute('dir')).toBe('ltr');
     expect(run.textContent).toBe('1 CNY = 7.06');
     // The Arabic words stay outside it, in the sentence's own direction.
-    expect(screen.getByTestId('hint').textContent).toBe('السعر الحالي: 1 CNY = 7.06 جنيه');
+    expect(screen.getByTestId('hint').textContent).toBe('صفحة أسعار الصرف: 1 CNY = 7.06 جنيه');
   });
 
   it('in English the same run, the same words', async () => {
@@ -118,6 +118,6 @@ describe('the current-rate hint (M6)', () => {
       </NextIntlClientProvider>,
     );
     expect(screen.getByTestId('hint').querySelector('bdi[dir="ltr"]')?.textContent).toBe('1 AED = 13.85');
-    expect(screen.getByTestId('hint').textContent).toBe('Current rate: 1 AED = 13.85 EGP');
+    expect(screen.getByTestId('hint').textContent).toBe('Exchange rates page: 1 AED = 13.85 EGP');
   });
 });

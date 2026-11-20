@@ -277,6 +277,25 @@ describe('Hand over goods', () => {
     expect((within(dlg).getByLabelText(en.handovers.piecesIfKnown) as HTMLInputElement).value).toBe('300');
   });
 
+  it('the hint shows the sum saved at the rate typed, and names the page rate only when it differs', async () => {
+    // Owner 2026-11-20: "I typed 14.8 it shows 15.2 as current and calculate 14.8".
+    wrap(<HandOverDialog leg={leg()} cycleId="c-1" onClose={() => {}} />);
+    const dlg = await screen.findByTestId('hand-over-dialog');
+    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightPaid)), { target: { value: '4000' } });
+    const rateBox = within(dlg).getByLabelText(/Rate to EGP for AED/) as HTMLInputElement;
+    await waitFor(() => expect(rateBox.value).toBe('15.2'));
+    const hint = () => within(dlg).getByTestId('handover-freight-hint').textContent ?? '';
+    // At the page's own rate there is nothing to tell apart: only the sum.
+    expect(hint()).toContain('4000 AED × 15.2 =');
+    expect(hint()).toContain('60,800.00');
+    expect(hint()).not.toContain('Exchange rates page');
+    fireEvent.change(rateBox, { target: { value: '14.8' } });
+    expect(hint()).toContain('4000 AED × 14.8 =');
+    expect(hint()).toContain('59,200.00');
+    expect(hint()).toContain('Exchange rates page: 1 AED = 15.2 EGP');
+    expect(hint()).not.toMatch(/Current rate/);
+  });
+
   it('without a freight it sends nothing', async () => {
     wrap(<HandOverDialog leg={leg()} cycleId="c-1" onClose={() => {}} />);
     const dlg = await screen.findByTestId('hand-over-dialog');
