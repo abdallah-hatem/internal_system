@@ -21,8 +21,15 @@ import {
   syncLegStatuses,
   type LoadedShipment,
 } from '../../common/shipment-load';
-import type { ShipmentPosition } from '../../common/shipment-position';
-import { handoverPiecesCap, legHandovers } from '../../common/leg-handovers';
+import {
+  positionDay,
+  type ShipmentPosition,
+} from '../../common/shipment-position';
+import {
+  handoverFreight,
+  handoverPiecesCap,
+  legHandovers,
+} from '../../common/leg-handovers';
 import {
   recordPartnerFreightIn,
   removePartnerFreightIn,
@@ -56,10 +63,18 @@ import {
  *
  * Every write takes the cycle's lock, reads the shipment under it, writes,
  * then sets the leg's cost from its handovers (`syncFreight`): the freight
- * paid so far spread over the pieces it covers, re-costing the cycle through
- * the leg re-cost (§2, 2026-10-17) — the same function a leg edit uses — or
+ * so far spread over the pieces it covers, re-costing the cycle through the
+ * leg re-cost (§2, 2026-10-17) — the same function a leg edit uses — or
  * refusing with its LEG_COST_LOCKED_* code. Nothing is ever booked as an
  * expense instead.
+ *
+ * A handover's freight is paid in parts (§2, owner 2026-11-20): its total,
+ * and payments of it — on the day, by the business, a core partner (owed to
+ * him, §18) or an investor in the cycle (his contribution, a name only) —
+ * each at the rate got. The rest is counted at the Exchange rates page's
+ * rate, taken again on every change to the leg's freight (a handover, a
+ * correction of its freight, a payment recorded, corrected or undone, or
+ * "Count at today's rate").
  */
 
 type Tx = Prisma.TransactionClient;
@@ -75,12 +90,50 @@ const asDate = (day: string) => new Date(`${day}T00:00:00Z`);
 export interface HandoverInput {
   handedOverOn: string;
   providerId?: string | null;
+  /** The lot's freight in full. */
   freightAmount: number | string;
   freightCurrency?: string;
+  /** The rate got for what is paid now; left out, the Exchange rates page's. */
   freightRateToEgp?: number | string;
+  /**
+   * Paid now, on the handover day (2026-11-20). Left out: all of it, as
+   * before; 0: nothing yet. Less than the freight leaves the rest to pay.
+   */
+  paidAmount?: number | string | null;
   pieces?: number | null;
+  /** Who paid what is paid now; left out, the business. */
   paidByUserId?: string | null;
   note?: string;
+}
+
+/** PUT /shipping/handovers/:id — its day, forwarder, freight in full, pieces. */
+export interface HandoverUpdateInput {
+  handedOverOn?: string;
+  providerId?: string | null;
+  freightAmount?: number | string;
+  freightCurrency?: string;
+  pieces?: number | null;
+  note?: string;
+}
+
+/** A payment of a handover's freight (§2, 2026-11-20). */
+export interface FreightPaymentInput {
+  paidOn: string;
+  /** In the handover's currency. */
+  amount: number | string;
+  /** The rate got; left out, the Exchange rates page's. */
+  rateToEgp?: number | string;
+  /** Left out or null: the business. */
+  paidByUserId?: string | null;
+  note?: string;
+}
+
+/** Who paid a payment: the business (null), a core partner, or an investor in the cycle. */
+interface Payer {
+  id: string;
+  name: string;
+  /** A partner is owed it (§18); an investor's is his contribution — no debt. */
+  kind: 'PARTNER' | 'INVESTOR';
 }
 
 export interface ArrivalInput {
@@ -133,9 +186,16 @@ export class HandoversService {
   /**
    * The freight: zero or more (a free lot is allowed, GUESS), in a currency
    * the business keeps a rate for, at the rate on the day — given, or today's
-   * from the Exchange rates page (§22), as a leg's cost is.
+   * from the Exchange rates page (§22), as a leg's cost is. The rate is what
+   * is paid now; the rest is counted at the page's (`syncFreight`).
    */
-  private async freight(db: Tx, input: HandoverInput): Promise<Freight> {
+  private async freight(
+    db: Tx,
+    input: Pick<
+      HandoverInput,
+      'freightAmount' | 'freightCurrency' | 'freightRateToEgp'
+    >,
+  ): Promise<Freight> {
     const amount = D(input.freightAmount);
     if (
       input.freightAmount === undefined ||
@@ -166,18 +226,7 @@ export class HandoversService {
       }
       rate = D(1);
     } else if (!rate) {
-      const known = await db.currencyRate.findUnique({
-        where: { code: currency },
-        select: { rateToEgp: true },
-      });
-      if (!known || known.rateToEgp === null) {
-        throw badRequest(
-          'NO_RATE_RECORDED',
-          `No exchange rate has been recorded for ${currency}.`,
-          { currency },
-        );
-      }
-      rate = D(known.rateToEgp);
+      rate = await this.pageRate(db, currency);
     }
     return {
       amount: amount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
@@ -189,24 +238,160 @@ export class HandoversService {
     };
   }
 
-  /** Who paid: the business (null), or an active core partner — never anyone else. */
-  private async payer(db: Tx, value: unknown, freight: Freight) {
-    if (value === undefined || value === null || value === '') return null;
-    if (typeof value !== 'string' || !isUuid(value)) {
+  /** Today's rate on the Exchange rates page (§22); EGP is 1. */
+  private async pageRate(db: Tx, currency: string) {
+    if (currency === 'EGP') return D(1);
+    const known = await db.currencyRate.findUnique({
+      where: { code: currency },
+      select: { rateToEgp: true },
+    });
+    if (!known || known.rateToEgp === null) {
       throw badRequest(
-        'LEDGER_PAYER_NOT_PARTNER',
-        'An expense can be paid by the business or by one of the core partners; that is neither.',
+        'NO_RATE_RECORDED',
+        `No exchange rate has been recorded for ${currency}.`,
+        { currency },
       );
     }
-    const partner = await expensePayer(db, value);
-    if (freight.amount.isZero()) {
+    return D(known.rateToEgp);
+  }
+
+  /**
+   * Who paid a payment of the freight (§2, §18 — 2026-11-20): the business
+   * (null); an active core partner, who is then owed it in its currency; or
+   * an investor in this cycle — his money is his capital contribution,
+   * already on the Funding card, so it is his name on the payment and no debt
+   * (GUESS). Anyone else is refused, coded.
+   */
+  private async payer(
+    db: Tx,
+    cycleId: string,
+    value: unknown,
+    amount: Prisma.Decimal,
+  ): Promise<Payer | null> {
+    if (value === undefined || value === null || value === '') return null;
+    const refuse = () =>
+      badRequest(
+        'FREIGHT_PAYER_NOT_ON_CYCLE',
+        'Freight is paid by the business, a core partner, or an investor in this cycle; that is none of them.',
+      );
+    if (typeof value !== 'string' || !isUuid(value)) throw refuse();
+    const user = await db.user.findUnique({
+      where: { id: value },
+      select: {
+        id: true,
+        role: true,
+        email: true,
+        partner: { select: { displayName: true } },
+      },
+    });
+    if (!user) throw refuse();
+    let payer: Payer;
+    if (user.role === 'CORE_PARTNER') {
+      payer = { ...(await expensePayer(db, value)), kind: 'PARTNER' };
+    } else {
+      const investor = await db.cycleParticipant.findFirst({
+        where: { cycleId, investorUserId: value },
+        select: { id: true },
+      });
+      if (!investor) throw refuse();
+      payer = {
+        id: user.id,
+        name: user.partner?.displayName ?? user.email,
+        kind: 'INVESTOR',
+      };
+    }
+    if (!amount.gt(0)) {
       throw badRequest(
         'HANDOVER_PAID_BY_NOTHING_PAID',
-        `No freight was paid on this handover, so ${partner.name} cannot have paid it.`,
-        { partner: partner.name },
+        `No freight was paid on this handover, so ${payer.name} cannot have paid it.`,
+        { partner: payer.name },
       );
     }
-    return partner;
+    return payer;
+  }
+
+  /** An amount of a payment: a number above zero, kept to the piastre. */
+  private paymentAmount(value: unknown) {
+    if (value === undefined || value === null || value === '') {
+      throw badRequest('VALIDATION_FAILED', 'amount must be a number.', {
+        fields: 'amount',
+      });
+    }
+    const amount = D(
+      typeof value === 'number' || typeof value === 'string' ? value : NaN,
+    );
+    if (!amount.isFinite()) {
+      throw badRequest('VALIDATION_FAILED', 'amount must be a number.', {
+        fields: 'amount',
+      });
+    }
+    if (!amount.gt(0)) {
+      throw badRequest(
+        'AMOUNT_NOT_POSITIVE',
+        'A payment must be more than zero.',
+      );
+    }
+    return amount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  }
+
+  /** A payment's day: a real day, not in the future, not before the handover. */
+  private paymentDay(value: unknown, handedOverOn: string) {
+    if (
+      typeof value !== 'string' ||
+      !value ||
+      Number.isNaN(new Date(value).getTime())
+    ) {
+      throw badRequest('VALIDATION_FAILED', 'paidOn must be a date.', {
+        fields: 'paidOn',
+      });
+    }
+    assertNotFuture(value, 'FREIGHT_PAID');
+    const day = businessDay(value);
+    if (day < handedOverOn) {
+      throw badRequest(
+        'FREIGHT_PAYMENT_BEFORE_HANDOVER',
+        `Freight paid on ${day} cannot be for goods handed over on ${handedOverOn}.`,
+        { day, handedOverOn },
+      );
+    }
+    return day;
+  }
+
+  /** The rate got for a payment: given (above zero), or the page's; EGP is 1. */
+  private async paymentRate(db: Tx, currency: string, value: unknown) {
+    const given = parseRateToEgp(value);
+    if (currency === 'EGP') {
+      if (given && !given.eq(1)) {
+        throw badRequest(
+          'BASE_CURRENCY_RATE_FIXED',
+          'EGP is the base currency — its rate is 1 by definition and cannot be changed.',
+          { currency: 'EGP' },
+        );
+      }
+      return D(1);
+    }
+    return given ?? this.pageRate(db, currency);
+  }
+
+  /** More than is still to pay of a handover's freight is refused. */
+  private assertNotOverpaid(
+    toPay: Prisma.Decimal,
+    amount: Prisma.Decimal,
+    currency: string,
+    handover: number,
+  ) {
+    if (amount.gt(toPay)) {
+      throw badRequest(
+        'FREIGHT_PAYMENT_EXCEEDS_UNPAID',
+        `Only ${toPay.toFixed(2)} ${currency} of handover ${handover}'s freight is still to pay, so ${amount.toFixed(2)} cannot be paid on it.`,
+        {
+          toPay: toPay.toFixed(2),
+          currency,
+          asked: amount.toFixed(2),
+          handover,
+        },
+      );
+    }
   }
 
   private async provider(db: Tx, value: unknown) {
@@ -273,6 +458,27 @@ export class HandoversService {
     return h.leg.cycleId;
   }
 
+  private async cycleOfPayment(id: string) {
+    if (!isUuid(id)) throw notFound('freightPayment');
+    const p = await this.prisma.handoverFreightPayment.findUnique({
+      where: { id },
+      select: { handover: { select: { leg: { select: { cycleId: true } } } } },
+    });
+    if (!p) throw notFound('freightPayment');
+    return p.handover.leg.cycleId;
+  }
+
+  /** A payment by id within this cycle's handovers. */
+  private paymentIn(cycle: LoadedShipment, id: string) {
+    for (const leg of cycle.shippingLegs) {
+      for (const h of leg.departures) {
+        const p = h.freightPayments.find((x) => x.id === id);
+        if (h.handover && p) return { leg, handover: h, payment: p };
+      }
+    }
+    throw notFound('freightPayment');
+  }
+
   // ─── The leg's freight ────────────────────────────────────────────────
 
   /**
@@ -281,7 +487,13 @@ export class HandoversService {
    * leg re-cost — or is refused with its LEG_COST_LOCKED_* code, which rolls
    * the whole write back: nothing is booked as an expense instead.
    */
-  private async syncFreight(tx: Tx, cycleId: string, legId: string) {
+  private async syncFreight(
+    tx: Tx,
+    cycleId: string,
+    legId: string,
+    countRestAtPageRate = false,
+  ) {
+    await this.countRest(tx, legId, countRestAtPageRate);
     const { cycle, position } = await this.loaded(tx, cycleId);
     const s = this.summary(cycle, position, legId);
     const row = await tx.shippingLeg.findUniqueOrThrow({
@@ -326,6 +538,55 @@ export class HandoversService {
       newAmountEgp: target.toFixed(2),
       batches: recosted,
     };
+  }
+
+  /**
+   * Each handover's freight in pounds as costed (§2, 2026-11-20): its
+   * payments' pounds + what is still to pay × the rate it is counted at. On a
+   * change to the leg's freight that rate is taken again from the Exchange
+   * rates page, so the estimate follows the page then; otherwise it stays.
+   */
+  private async countRest(tx: Tx, legId: string, atPageRate: boolean) {
+    const rows = await tx.shipmentDeparture.findMany({
+      where: { legId, handover: true },
+      select: {
+        id: true,
+        freightAmount: true,
+        freightCurrency: true,
+        freightRateToEgp: true,
+        freightAmountEgp: true,
+        freightPayments: {
+          select: {
+            id: true,
+            paidOn: true,
+            amount: true,
+            rateToEgp: true,
+            amountEgp: true,
+            paidByUserId: true,
+            note: true,
+          },
+        },
+      },
+    });
+    const rates = new Map<string, Prisma.Decimal>();
+    for (const h of rows) {
+      let rate = D(h.freightRateToEgp ?? 1);
+      if (atPageRate && handoverFreight(h).toPay.gt(0)) {
+        const c = h.freightCurrency ?? 'EGP';
+        if (!rates.has(c)) rates.set(c, await this.pageRate(tx, c));
+        rate = rates.get(c)!;
+      }
+      const f = handoverFreight({ ...h, freightRateToEgp: rate });
+      if (
+        !rate.eq(D(h.freightRateToEgp ?? 1)) ||
+        !f.egp.eq(D(h.freightAmountEgp))
+      ) {
+        await tx.shipmentDeparture.update({
+          where: { id: h.id },
+          data: { freightRateToEgp: rate, freightAmountEgp: f.egp },
+        });
+      }
+    }
   }
 
   /** After a write: the stored leg statuses, the status walk, the audit row. */
@@ -405,7 +666,27 @@ export class HandoversService {
         );
       }
       const freight = await this.freight(tx, input);
-      const partner = await this.payer(tx, input.paidByUserId, freight);
+      // What is paid now (§2, 2026-11-20): all of it unless said, never more.
+      const paidNow =
+        input.paidAmount === undefined
+          ? freight.amount
+          : input.paidAmount === null || input.paidAmount === ''
+            ? D(0)
+            : D(input.paidAmount);
+      if (!paidNow.isFinite()) {
+        throw badRequest('VALIDATION_FAILED', 'paidAmount must be a number.', {
+          fields: 'paidAmount',
+        });
+      }
+      if (paidNow.isNegative()) {
+        throw badRequest(
+          'AMOUNT_NOT_POSITIVE',
+          'A payment must be more than zero.',
+        );
+      }
+      const paid = paidNow.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      this.assertNotOverpaid(freight.amount, paid, freight.currency, 1);
+      const payer = await this.payer(tx, cycleId, input.paidByUserId, paid);
       const forwarder = await this.provider(tx, input.providerId);
 
       // What could have been handed over that day: everything that had
@@ -447,27 +728,28 @@ export class HandoversService {
           handover: true,
           freightAmount: freight.amount,
           freightCurrency: freight.currency,
+          // The rest's rate and the pounds are set by syncFreight below.
           freightRateToEgp: freight.rate,
           freightAmountEgp: freight.amountEgp,
           pieces,
           providerId: forwarder?.id ?? null,
-          paidByUserId: partner?.id ?? null,
+          // Who paid is each payment's now (2026-11-20).
+          paidByUserId: null,
         },
       });
-      if (partner) {
-        await recordPartnerFreightIn(tx, {
-          handoverId: handover.id,
+      if (paid.gt(0)) {
+        await this.writePayment(tx, {
           cycleId,
-          partner,
-          currency: freight.currency,
-          amount: freight.amount,
-          rate: freight.rate,
-          amountEgp: freight.amountEgp,
+          handoverId: handover.id,
           day,
+          amount: paid,
+          currency: freight.currency,
+          rate: freight.rate,
+          payer,
           actorId,
         });
       }
-      const recost = await this.syncFreight(tx, cycleId, legId);
+      const recost = await this.syncFreight(tx, cycleId, legId, true);
       const done = await this.finish(
         tx,
         cycleId,
@@ -493,12 +775,16 @@ export class HandoversService {
 
   /**
    * PUT /shipping/handovers/:id — correct a handover: its day, forwarder,
-   * freight, piece count or who paid. The freight may be corrected at any
-   * time it can still re-cost (a late bill); the day and the count only while
-   * it is open, never past what has already arrived from it. A partner's
-   * debt for it is replaced only while nothing of it was repaid.
+   * freight in full, piece count. The freight may be corrected at any time it
+   * can still re-cost (a late bill), never below what was already paid of it
+   * (`HANDOVER_FREIGHT_BELOW_PAID`), and its currency only while nothing is
+   * paid in the old one. The day and the count only while it is open, never
+   * past what has already arrived from it; a payment made on the old day
+   * ("paid now") moves with it, one dated before the new day refuses it.
+   * What was paid, at what rate and by whom is each payment's — corrected on
+   * the payment (`PUT /shipping/freight-payments/:id`).
    */
-  async update(id: string, input: HandoverInput, actorId: string) {
+  async update(id: string, input: HandoverUpdateInput, actorId: string) {
     const cycleId = await this.cycleOfHandover(id);
     const out = await this.prisma.$transaction(async (tx) => {
       await lockCycle(tx, cycleId);
@@ -507,6 +793,7 @@ export class HandoversService {
       const { leg, handover: h } = this.handoverIn(cycle, id);
       const before = await tx.shipmentDeparture.findUniqueOrThrow({
         where: { id },
+        include: { freightPayments: true },
       });
       const summary = this.summary(cycle, position, leg.id);
       const mine = summary.handovers.find((x) => x.id === id)!;
@@ -532,7 +819,21 @@ export class HandoversService {
           { day: firstArrival, handedOverOn: day },
         );
       }
+      // Paid on the handover day: paid with it, so it moves with it.
+      const movesWith = mine.payments.filter(
+        (p) => p.paidOn === mine.handedOverOn,
+      );
       if (day !== mine.handedOverOn) {
+        const earlier = mine.payments.find(
+          (p) => p.paidOn !== mine.handedOverOn && p.paidOn < day,
+        );
+        if (earlier) {
+          throw badRequest(
+            'FREIGHT_PAYMENT_BEFORE_HANDOVER',
+            `Freight was paid on ${earlier.paidOn}, before ${day}; correct that payment first.`,
+            { day: earlier.paidOn, handedOverOn: day },
+          );
+        }
         // What it brought must have reached the UAE by the new day.
         const own = h.lines.map((l) => ({
           purchaseOrderItemId: l.purchaseOrderItemId,
@@ -568,44 +869,51 @@ export class HandoversService {
         }
       }
 
+      const currency =
+        parseCurrencyCode(input.freightCurrency) ??
+        before.freightCurrency ??
+        'EGP';
+      const paid = D(mine.freightPaid);
+      if (currency !== before.freightCurrency && paid.gt(0)) {
+        throw badRequest(
+          'HANDOVER_FREIGHT_CURRENCY_HAS_PAYMENTS',
+          `${mine.freightPaid} ${mine.freightCurrency} of handover ${mine.number}'s freight is paid in ${mine.freightCurrency}; undo those payments to change its currency.`,
+          {
+            handover: mine.number,
+            paid: mine.freightPaid,
+            currency: mine.freightCurrency,
+          },
+        );
+      }
       const freight = await this.freight(tx, {
         freightAmount:
           input.freightAmount ?? (before.freightAmount?.toString() as string),
-        freightCurrency:
-          input.freightCurrency ?? before.freightCurrency ?? 'EGP',
+        freightCurrency: currency,
+        // The rest is counted at the page's; a rate here is no payment's.
         freightRateToEgp:
-          input.freightRateToEgp ??
-          (input.freightCurrency &&
-          input.freightCurrency !== before.freightCurrency
+          currency === 'EGP'
             ? undefined
-            : before.freightRateToEgp?.toString()),
-        handedOverOn: day,
+            : currency === before.freightCurrency
+              ? before.freightRateToEgp?.toString()
+              : undefined,
       });
-      const paidBy =
-        input.paidByUserId === undefined
-          ? before.paidByUserId
-          : input.paidByUserId;
-      const partner = await this.payer(tx, paidBy, freight);
+      if (freight.amount.lt(paid)) {
+        throw badRequest(
+          'HANDOVER_FREIGHT_BELOW_PAID',
+          `${mine.freightPaid} ${mine.freightCurrency} of handover ${mine.number}'s freight is already paid, so it cannot be ${freight.amount.toFixed(2)}.`,
+          {
+            handover: mine.number,
+            paid: mine.freightPaid,
+            asked: freight.amount.toFixed(2),
+            currency: mine.freightCurrency,
+          },
+        );
+      }
       const forwarder =
         input.providerId === undefined
           ? { id: before.providerId }
           : await this.provider(tx, input.providerId);
 
-      // His debt follows the freight, its day and who paid.
-      const debtMoved =
-        (before.paidByUserId ?? null) !== (partner?.id ?? null) ||
-        !D(before.freightAmount).eq(freight.amount) ||
-        before.freightCurrency !== freight.currency ||
-        !D(before.freightRateToEgp).eq(freight.rate) ||
-        day !== mine.handedOverOn;
-      if (debtMoved) {
-        await removePartnerFreightIn(
-          tx,
-          id,
-          `Handover of ${mine.handedOverOn} corrected`,
-          actorId,
-        );
-      }
       const updated = await tx.shipmentDeparture.update({
         where: { id },
         data: {
@@ -615,26 +923,45 @@ export class HandoversService {
           freightAmount: freight.amount,
           freightCurrency: freight.currency,
           freightRateToEgp: freight.rate,
-          freightAmountEgp: freight.amountEgp,
           pieces,
           providerId: forwarder?.id ?? null,
-          paidByUserId: partner?.id ?? null,
         },
       });
-      if (debtMoved && partner) {
-        await recordPartnerFreightIn(tx, {
-          handoverId: id,
-          cycleId,
-          partner,
-          currency: freight.currency,
-          amount: freight.amount,
-          rate: freight.rate,
-          amountEgp: freight.amountEgp,
-          day,
-          actorId,
-        });
+      if (day !== mine.handedOverOn) {
+        for (const p of movesWith) {
+          // His debt is dated the day he paid: it moves with the payment.
+          const row = before.freightPayments.find((x) => x.id === p.id)!;
+          const payer = await this.payer(tx, cycleId, row.paidByUserId, D(1));
+          await removePartnerFreightIn(
+            tx,
+            p.id,
+            `Handover of ${mine.handedOverOn} moved to ${day}`,
+            actorId,
+          );
+          await tx.handoverFreightPayment.update({
+            where: { id: p.id },
+            data: { paidOn: asDate(day) },
+          });
+          if (payer?.kind === 'PARTNER') {
+            await recordPartnerFreightIn(tx, {
+              handoverId: id,
+              paymentId: p.id,
+              cycleId,
+              partner: payer,
+              currency: freight.currency,
+              amount: D(row.amount),
+              rate: D(row.rateToEgp),
+              amountEgp: D(row.amountEgp),
+              day,
+              actorId,
+            });
+          }
+        }
       }
-      const recost = await this.syncFreight(tx, cycleId, leg.id);
+      const freightMoved =
+        !D(before.freightAmount).eq(freight.amount) ||
+        before.freightCurrency !== freight.currency;
+      const recost = await this.syncFreight(tx, cycleId, leg.id, freightMoved);
       const done = await this.finish(
         tx,
         cycleId,
@@ -658,8 +985,8 @@ export class HandoversService {
    * DELETE /shipping/handovers/:id — a handover recorded by mistake. Refused
    * once a batch arrived from it (undo those first) or it was marked all
    * arrived, when the cycle's status says the leg left and it is the leg's
-   * only departure (DEPARTURE_IN_USE, as any departure), or when the partner
-   * who paid it has been repaid on it.
+   * only departure (DEPARTURE_IN_USE, as any departure), or when a partner
+   * who paid its freight has been repaid on it. Its payments go with it.
    */
   async remove(id: string, actorId: string) {
     const cycleId = await this.cycleOfHandover(id);
@@ -690,12 +1017,14 @@ export class HandoversService {
         throw badRequest('DEPARTURE_IN_USE', block.english, { why: block.why });
       }
       const toPreparing = undoReturnsToPreparing(cycle, position, id);
-      await removePartnerFreightIn(
-        tx,
-        id,
-        `Handover of ${mine.handedOverOn} undone`,
-        actorId,
-      );
+      for (const p of mine.payments) {
+        await removePartnerFreightIn(
+          tx,
+          p.id,
+          `Handover of ${mine.handedOverOn} undone`,
+          actorId,
+        );
+      }
       await tx.shipmentDeparture.delete({ where: { id } });
       await this.syncFreight(tx, cycleId, leg.id);
       const back = toPreparing
@@ -721,6 +1050,309 @@ export class HandoversService {
       data: { id, deleted: true },
       cycleStatus: out.back?.cycleStatus ?? null,
     };
+  }
+
+  // ─── Freight payments (§2, owner 2026-11-20) ──────────────────────────
+
+  /** Write one payment and, when a core partner paid it, what the business owes him. */
+  private async writePayment(
+    tx: Tx,
+    input: {
+      cycleId: string;
+      handoverId: string;
+      day: string;
+      amount: Prisma.Decimal;
+      currency: string;
+      rate: Prisma.Decimal;
+      payer: Payer | null;
+      note?: string;
+      actorId: string;
+    },
+  ) {
+    const amountEgp = input.amount
+      .mul(input.rate)
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    const payment = await tx.handoverFreightPayment.create({
+      data: {
+        departureId: input.handoverId,
+        paidOn: asDate(input.day),
+        amount: input.amount,
+        rateToEgp: input.rate,
+        amountEgp,
+        paidByUserId: input.payer?.id ?? null,
+        note: input.note?.trim() || null,
+        createdBy: input.actorId,
+      },
+    });
+    if (input.payer?.kind === 'PARTNER') {
+      await recordPartnerFreightIn(tx, {
+        handoverId: input.handoverId,
+        paymentId: payment.id,
+        cycleId: input.cycleId,
+        partner: input.payer,
+        currency: input.currency,
+        amount: input.amount,
+        rate: input.rate,
+        amountEgp,
+        day: input.day,
+        actorId: input.actorId,
+      });
+    }
+    return payment;
+  }
+
+  /**
+   * POST /shipping/handovers/:id/freight-payments — some or all of what is
+   * still to pay of a handover's freight, paid on a day at the rate got.
+   * Refused: more than is still to pay, a day in the future or before the
+   * handover, a payer who is not the business, a core partner or an investor
+   * in the cycle, a closed cycle — and a re-cost that is locked
+   * (LEG_COST_LOCKED_*), with nothing written.
+   */
+  async addPayment(
+    handoverId: string,
+    input: FreightPaymentInput,
+    actorId: string,
+  ) {
+    const cycleId = await this.cycleOfHandover(handoverId);
+    const amount = this.paymentAmount(input.amount);
+    const out = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, cycleId);
+      const { cycle, position } = await this.loaded(tx, cycleId);
+      assertOpen(cycle);
+      const { leg } = this.handoverIn(cycle, handoverId);
+      const mine = this.summary(cycle, position, leg.id).handovers.find(
+        (x) => x.id === handoverId,
+      )!;
+      const day = this.paymentDay(input.paidOn, mine.handedOverOn);
+      this.assertNotOverpaid(
+        D(mine.freightToPay),
+        amount,
+        mine.freightCurrency,
+        mine.number,
+      );
+      const rate = await this.paymentRate(
+        tx,
+        mine.freightCurrency,
+        input.rateToEgp,
+      );
+      const payer = await this.payer(tx, cycleId, input.paidByUserId, amount);
+      const payment = await this.writePayment(tx, {
+        cycleId,
+        handoverId,
+        day,
+        amount,
+        currency: mine.freightCurrency,
+        rate,
+        payer,
+        note: input.note,
+        actorId,
+      });
+      const recost = await this.syncFreight(tx, cycleId, leg.id, true);
+      const done = await this.finish(
+        tx,
+        cycleId,
+        actorId,
+        {
+          action: 'CREATE',
+          entityType: 'HandoverFreightPayment',
+          entityId: payment.id,
+          afterJson: { ...payment, recost },
+        },
+        false,
+      );
+      return { payment, ...done };
+    });
+    await this.announce(cycleId, actorId, out);
+    return { data: out.payment };
+  }
+
+  /**
+   * PUT /shipping/freight-payments/:id — correct a payment: its day, amount,
+   * rate or who paid. The same refusals as recording one, the amount judged
+   * against what is still to pay with this payment taken off. A partner's
+   * debt for it is replaced only while nothing of it was repaid
+   * (`FINANCING_HAS_REPAYMENTS`).
+   */
+  async updatePayment(
+    id: string,
+    input: Partial<FreightPaymentInput>,
+    actorId: string,
+  ) {
+    const cycleId = await this.cycleOfPayment(id);
+    const out = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, cycleId);
+      const { cycle, position } = await this.loaded(tx, cycleId);
+      assertOpen(cycle);
+      const { leg, handover, payment: was } = this.paymentIn(cycle, id);
+      const mine = this.summary(cycle, position, leg.id).handovers.find(
+        (x) => x.id === handover.id,
+      )!;
+      const amount =
+        input.amount === undefined
+          ? D(was.amount)
+          : this.paymentAmount(input.amount);
+      const day =
+        input.paidOn === undefined
+          ? positionDay(was.paidOn)
+          : this.paymentDay(input.paidOn, mine.handedOverOn);
+      this.assertNotOverpaid(
+        D(mine.freightToPay).add(D(was.amount)),
+        amount,
+        mine.freightCurrency,
+        mine.number,
+      );
+      const rate =
+        input.rateToEgp === undefined
+          ? D(was.rateToEgp)
+          : await this.paymentRate(tx, mine.freightCurrency, input.rateToEgp);
+      const payer = await this.payer(
+        tx,
+        cycleId,
+        input.paidByUserId === undefined
+          ? was.paidByUserId
+          : input.paidByUserId,
+        amount,
+      );
+      const amountEgp = amount
+        .mul(rate)
+        .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      const moved =
+        !amount.eq(D(was.amount)) ||
+        !rate.eq(D(was.rateToEgp)) ||
+        day !== positionDay(was.paidOn) ||
+        (payer?.id ?? null) !== was.paidByUserId;
+      // Nothing moved (a note): what he is owed stays as it was.
+      if (moved) {
+        await removePartnerFreightIn(
+          tx,
+          id,
+          `Freight payment of ${positionDay(was.paidOn)} corrected`,
+          actorId,
+        );
+      }
+      const updated = await tx.handoverFreightPayment.update({
+        where: { id },
+        data: {
+          paidOn: asDate(day),
+          amount,
+          rateToEgp: rate,
+          amountEgp,
+          paidByUserId: payer?.id ?? null,
+          note: input.note === undefined ? was.note : input.note.trim() || null,
+        },
+      });
+      if (moved && payer?.kind === 'PARTNER') {
+        await recordPartnerFreightIn(tx, {
+          handoverId: handover.id,
+          paymentId: id,
+          cycleId,
+          partner: payer,
+          currency: mine.freightCurrency,
+          amount,
+          rate,
+          amountEgp,
+          day,
+          actorId,
+        });
+      }
+      const recost = await this.syncFreight(tx, cycleId, leg.id, true);
+      const done = await this.finish(
+        tx,
+        cycleId,
+        actorId,
+        {
+          action: 'UPDATE',
+          entityType: 'HandoverFreightPayment',
+          entityId: id,
+          beforeJson: was,
+          afterJson: { ...updated, recost },
+        },
+        false,
+      );
+      return { updated, ...done };
+    });
+    await this.announce(cycleId, actorId, out);
+    return { data: out.updated };
+  }
+
+  /**
+   * DELETE /shipping/freight-payments/:id — a payment recorded by mistake.
+   * Its amount is to pay again, counted at the page's rate. Refused while a
+   * partner who paid it has been repaid on it (`FINANCING_HAS_REPAYMENTS`),
+   * or when the re-cost is locked (LEG_COST_LOCKED_*).
+   */
+  async removePayment(id: string, actorId: string) {
+    const cycleId = await this.cycleOfPayment(id);
+    const out = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, cycleId);
+      const { cycle } = await this.loaded(tx, cycleId);
+      assertOpen(cycle);
+      const { leg, payment } = this.paymentIn(cycle, id);
+      await removePartnerFreightIn(
+        tx,
+        id,
+        `Freight payment of ${positionDay(payment.paidOn)} undone`,
+        actorId,
+      );
+      await tx.handoverFreightPayment.delete({ where: { id } });
+      const recost = await this.syncFreight(tx, cycleId, leg.id, true);
+      return this.finish(
+        tx,
+        cycleId,
+        actorId,
+        {
+          action: 'DELETE',
+          entityType: 'HandoverFreightPayment',
+          entityId: id,
+          beforeJson: payment,
+          afterJson: { recost },
+        },
+        false,
+      );
+    });
+    await this.announce(cycleId, actorId, out);
+    return { data: { id, deleted: true } };
+  }
+
+  /**
+   * POST /shipping/legs/:id/freight/recount — count what is still to pay at
+   * today's rate on the Exchange rates page (§2, GUESS 2026-11-20). A change
+   * to the page restates nothing by itself (§22); the card says when the
+   * page has moved since, and this brings the estimate to it, re-costing as
+   * any freight change does.
+   */
+  async recount(legId: string, actorId: string) {
+    const cycleId = await this.cycleOfLeg(legId);
+    const out = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, cycleId);
+      const { cycle } = await this.loaded(tx, cycleId);
+      assertOpen(cycle);
+      const leg = this.legFor(cycle, legId);
+      if (!leg.usesHandovers) {
+        throw badRequest(
+          'LEG_NOT_IN_HANDOVERS',
+          `${where(leg)} is not recorded in handovers; record its deliveries instead.`,
+          { leg: where(leg) },
+        );
+      }
+      const recost = await this.syncFreight(tx, cycleId, legId, true);
+      const done = await this.finish(
+        tx,
+        cycleId,
+        actorId,
+        {
+          action: 'UPDATE',
+          entityType: 'ShippingLeg',
+          entityId: legId,
+          afterJson: { recountedAtPageRate: true, recost },
+        },
+        false,
+      );
+      return { recost, ...done };
+    });
+    await this.announce(cycleId, actorId, out);
+    return { data: { legId, recost: out.recost } };
   }
 
   // ─── Arrivals ─────────────────────────────────────────────────────────

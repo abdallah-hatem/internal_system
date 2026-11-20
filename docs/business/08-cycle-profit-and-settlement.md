@@ -569,6 +569,18 @@ friend's repayments already hold.
 | Why the exchange difference | The exchange line on a cycle a friend paid gets a **How** link opening one row per standing repayment: day, pounds paid, rate, his currency cleared, and the difference against the rate he paid at ("628.90 gained — rate 15.0443 below 15.20", "24.80 lost — rate 15.2675 above 15.20", "No difference"), under one sentence of how it works, with **On net** — the card's figure. From `exchangeBreakdown` (`common/lender-debt.ts`): the same rows by the same filter as `exchangeDifferenceEgp` (reversed repayments and removed payments out), each row its stored `exchangeDiffEgp`, so they sum to the figure exactly. Production's cycle 2: 12,999.13 AED at 15.2 = 197,586.78; 0 / −628.90 / +24.80 / +299.39 = −304.71, a gain. | Owner 2026-11-14: the line "must explain WHY". |
 | The line's wording | "the rate fell since he paid" was only true on net; it now says "on net, you paid {X} less (or more) than it cost the cycle". | Owner 2026-11-14. |
 
+### Settling while a handover's freight is still to pay — GUESS 2026-11-20, on `feature/handover-freight-payments`, not merged
+
+The owner was told the correction of CYC-2026-0002's freight (4,000 AED still to pay) must happen before
+settlement. A settlement is **not calculated, not approved, and the cycle not moved to Settlement** while any
+handover's freight is to pay: `HANDOVER_FREIGHT_UNPAID` ("CYC-2026-0002 still has 4000.00 AED of handover freight to
+pay; record that payment before settling"), from one helper (`assertHandoverFreightPaid`, `common/leg-handovers.ts`)
+called by `calculate`, `approve` and the transition. Refusing the draft too matters: a draft settlement locks the
+leg's cost (`LEG_COST_LOCKED_SETTLEMENT`), so the payment could not be recorded after it. Meanwhile the leg's cost
+carries what is to pay at the Exchange rates page's rate, so the Funding card's cost to fund and equal shares, Take
+money and the settlement preview read the estimate (CYC-2026-0002 with 4,000 at 15.2 to pay: cost to fund 317,586.78,
+four equal shares of it).
+
 ### Everyone shares equally: the gap to an equal share on the Funding card — DECIDED 2026-11-20 (owner: "this must be shown"), on `fix/handover-wording-and-funding-gap`, not merged, details GUESSED where marked
 
 The owner, 2026-11-20: "for cycle 2 we want mohammed youssef to join as a temp investor, and we 4 share everything

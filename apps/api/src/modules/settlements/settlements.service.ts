@@ -1,4 +1,7 @@
-import { cycleFreightIsEstimate } from '../../common/leg-handovers';
+import {
+  assertHandoverFreightPaid,
+  cycleFreightIsEstimate,
+} from '../../common/leg-handovers';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -688,6 +691,10 @@ export class SettlementsService {
     // 2026-10-18): they are neither sold nor on the shelf, so the profit
     // would be a guess.
     await assertCycleHasNoSamplesOut(this.prisma, cycleId, cycle.code);
+    // Nor while a handover's freight is still to pay (§2, GUESS 2026-11-20):
+    // the profit would be split on an estimate, and a draft settlement locks
+    // the leg's cost, so the payment could not be recorded after it.
+    await assertHandoverFreightPaid(this.prisma, cycleId, cycle.code);
 
     // Any running cost still waiting goes to the cycles running now — this
     // one among them — before its figures are worked out (§8, 2026-11-08).
@@ -937,6 +944,14 @@ export class SettlementsService {
         select: { code: true },
       });
       await assertLendersRepaid(
+        tx,
+        settlement.cycleId,
+        cycle?.code ?? settlement.cycleId,
+      );
+      // And no handover freight still to pay (§2, GUESS 2026-11-20): what is
+      // unpaid is costed at a rate nobody has paid, so the split would be of
+      // an estimate. The transition to Settlement runs the same helper.
+      await assertHandoverFreightPaid(
         tx,
         settlement.cycleId,
         cycle?.code ?? settlement.cycleId,

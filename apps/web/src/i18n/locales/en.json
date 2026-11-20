@@ -1654,7 +1654,8 @@
       "customerBranch": "Branch",
       "partner": "Partner",
       "accountMovement": "Account entry",
-      "handover": "Handover"
+      "handover": "Handover",
+      "freightPayment": "Freight payment"
     },
     "generic": "Something went wrong. Please try again.",
     "ACCOUNT_INACTIVE": "This account is not active.",
@@ -2007,7 +2008,13 @@
     "HANDOVER_NOT_ALL_ARRIVED": "Handover {handover} is not marked all arrived.",
     "HANDOVER_LOSS_UNDO_ALL_ARRIVED": "These pieces were marked lost when their handover was marked all arrived. Undo All arrived on that handover instead.",
     "LEG_HANDOVERS_PER_PIECE": "{leg} goes in handovers, whose freight is shared per piece; it cannot be charged by weight.",
-    "LEG_COST_FROM_HANDOVERS": "The cost of {leg} is the freight of its handovers; correct a handover's freight instead."
+    "LEG_COST_FROM_HANDOVERS": "The cost of {leg} is the freight of its handovers; correct a handover's freight instead.",
+    "FREIGHT_PAYMENT_EXCEEDS_UNPAID": "Only {toPay} {currency} of handover {handover}'s freight is still to pay, so {asked} cannot be paid on it.",
+    "FREIGHT_PAYMENT_BEFORE_HANDOVER": "Freight paid on {day} cannot be for goods handed over on {handedOverOn}.",
+    "FREIGHT_PAYER_NOT_ON_CYCLE": "Freight is paid by the business, a core partner, or an investor in this cycle; that is none of them.",
+    "HANDOVER_FREIGHT_BELOW_PAID": "{paid} {currency} of handover {handover}'s freight is already paid, so it cannot be {asked}.",
+    "HANDOVER_FREIGHT_CURRENCY_HAS_PAYMENTS": "{paid} {currency} of handover {handover}'s freight is paid in {currency}; undo those payments to change its currency.",
+    "HANDOVER_FREIGHT_UNPAID": "{cycle} still has {amount} {currency} of handover freight to pay; record that payment before settling."
   },
   "requests": {
     "tabs": {
@@ -2305,7 +2312,8 @@
       "LenderPlan": "Repayment plan",
       "AssistantChat": "Assistant chat",
       "CustomerBranch": "Customer branch",
-      "PartnerAccountMovement": "Partner account entry"
+      "PartnerAccountMovement": "Partner account entry",
+      "HandoverFreightPayment": "Freight payment"
     },
     "dateField": {
       "PROFIT_DRAWN": "The date profit was taken",
@@ -2327,7 +2335,8 @@
       "ACCOUNT_WITHDRAWN": "The date money was taken out of an account",
       "ACCOUNT_CONTRIBUTED": "The date of a contribution from an account",
       "CAPITAL_TAKEN_BACK": "The date capital was taken back",
-      "MONEY_TAKEN": "The date money was taken from a cycle"
+      "MONEY_TAKEN": "The date money was taken from a cycle",
+      "FREIGHT_PAID": "The date freight was paid"
     },
     "country": {
       "CN": "China",
@@ -3358,6 +3367,38 @@
     "listSeparator": ", ",
     "paid": "<amount></amount> paid",
     "wholeLegAtEstimate": "≈ <amount></amount> for all {count} at the estimate",
-    "nothingPaidYet": "No freight paid yet"
+    "nothingPaidYet": "No freight paid yet",
+    "freight": "Freight",
+    "paidRow": "Paid {date} · by <who></who>",
+    "theBusiness": "the business",
+    "toPayRow": "To pay · rate not known yet",
+    "today": "(today)",
+    "recordPayment": "Record payment",
+    "undoPayment": "Undo payment",
+    "undoPaymentTitle": "Undo freight payment",
+    "undoPaymentConfirm": "This payment is removed and its amount is to pay again, counted at the Exchange rates page's rate until it is paid. If a partner paid it, what the business owed him for it is removed too.",
+    "undonePayment": "Payment undone",
+    "freightPaidPill": "Freight paid · <amount></amount>",
+    "paidAndToPay": "<b><paid></paid> paid</b> · <toPay></toPay> to pay",
+    "soFar": "≈ <amount></amount> so far · to pay counted at {rate} until paid",
+    "pageMoved": "The Exchange rates page now says 1 {currency} = {rate} EGP; the rest to pay is still counted at {counted}.",
+    "recount": "Count at today's rate",
+    "recounted": "Counted at today's rate",
+    "recountFailed": "Could not count it again.",
+    "freightForLot": "Freight for this lot",
+    "paidNow": "Paid now",
+    "leftToPay": "<amount></amount> left to pay later. Its rate is asked when you pay it.",
+    "paidNowMore": "Paid now cannot be more than the freight.",
+    "paidByInvestorHint": "His money is his contribution to this cycle: nothing is owed to him for it.",
+    "investorTag": "investor",
+    "paymentTitle": "Record freight payment",
+    "paymentHint": "Handover {n} · <amount></amount> still to pay",
+    "paidOn": "Paid on",
+    "amount": "Amount",
+    "lessLeavesRest": "Less than {amount} leaves the rest still to pay",
+    "rateGot": "Rate you got",
+    "paymentRecorded": "Payment recorded",
+    "paymentFailed": "Could not record the payment.",
+    "amountRequired": "Say how much was paid."
   }
 }

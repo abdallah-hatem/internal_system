@@ -1654,7 +1654,8 @@
       "customerBranch": "الفرع",
       "partner": "الشريك",
       "accountMovement": "قيد الحساب",
-      "handover": "الإرسالية"
+      "handover": "الإرسالية",
+      "freightPayment": "سداد الشحن"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -2007,7 +2008,13 @@
     "HANDOVER_NOT_ALL_ARRIVED": "لم يُسجّل الإرسالية {handover} بأن كله وصل.",
     "HANDOVER_LOSS_UNDO_ALL_ARRIVED": "سُجّلت هذه القطع مفقودة عند تسجيل وصول كل إرساليتها. تراجع عن «وصل الكل» في تلك الإرسالية بدلًا من ذلك.",
     "LEG_HANDOVERS_PER_PIECE": "تُشحن {leg} على إرساليات يُوزّع شحنها بالقطعة؛ لا يمكن احتسابها بالوزن.",
-    "LEG_COST_FROM_HANDOVERS": "تكلفة {leg} هي شحن إرسالياتها؛ صحّح شحن الإرسالية بدلًا من ذلك."
+    "LEG_COST_FROM_HANDOVERS": "تكلفة {leg} هي شحن إرسالياتها؛ صحّح شحن الإرسالية بدلًا من ذلك.",
+    "FREIGHT_PAYMENT_EXCEEDS_UNPAID": "المتبقي للسداد من شحن الإرسالية {handover} هو {toPay} {currency} فقط، فلا يمكن سداد {asked}.",
+    "FREIGHT_PAYMENT_BEFORE_HANDOVER": "شحن دُفع في {day} لا يمكن أن يكون لبضاعة سُلِّمت للشاحن في {handedOverOn}.",
+    "FREIGHT_PAYER_NOT_ON_CYCLE": "يدفع الشحنَ النشاطُ أو شريكٌ أساسي أو مستثمرٌ في هذه الدورة، وهذا ليس أياً منهم.",
+    "HANDOVER_FREIGHT_BELOW_PAID": "دُفع {paid} {currency} من شحن الإرسالية {handover} بالفعل، فلا يمكن أن يكون {asked}.",
+    "HANDOVER_FREIGHT_CURRENCY_HAS_PAYMENTS": "دُفع {paid} {currency} من شحن الإرسالية {handover} بعملة {currency}؛ تراجع عن هذه المبالغ لتغيير عملته.",
+    "HANDOVER_FREIGHT_UNPAID": "ما زال على {cycle} شحن إرساليات للسداد قدره {amount} {currency}؛ سجّل سداده قبل التسوية."
   },
   "requests": {
     "tabs": {
@@ -2305,7 +2312,8 @@
       "LenderPlan": "خطة سداد",
       "AssistantChat": "محادثة المساعد",
       "CustomerBranch": "فرع عميل",
-      "PartnerAccountMovement": "حركة في حساب شريك"
+      "PartnerAccountMovement": "حركة في حساب شريك",
+      "HandoverFreightPayment": "سداد شحن"
     },
     "dateField": {
       "PROFIT_DRAWN": "تاريخ سحب الأرباح",
@@ -2327,7 +2335,8 @@
       "ACCOUNT_WITHDRAWN": "تاريخ السحب من الحساب",
       "ACCOUNT_CONTRIBUTED": "تاريخ المساهمة من الحساب",
       "CAPITAL_TAKEN_BACK": "تاريخ استرداد رأس المال",
-      "MONEY_TAKEN": "تاريخ سحب الأموال من الدورة"
+      "MONEY_TAKEN": "تاريخ سحب الأموال من الدورة",
+      "FREIGHT_PAID": "تاريخ سداد الشحن"
     },
     "country": {
       "CN": "الصين",
@@ -3358,6 +3367,38 @@
     "listSeparator": "، ",
     "paid": "مدفوع <amount></amount>",
     "wholeLegAtEstimate": "≈ <amount></amount> لكل الـ {count} بالتقدير",
-    "nothingPaidYet": "لم يُدفع شحن بعد"
+    "nothingPaidYet": "لم يُدفع شحن بعد",
+    "freight": "الشحن",
+    "paidRow": "دُفع {date} · من <who></who>",
+    "theBusiness": "النشاط",
+    "toPayRow": "للسداد · السعر غير معروف بعد",
+    "today": "(اليوم)",
+    "recordPayment": "تسجيل سداد",
+    "undoPayment": "التراجع عن السداد",
+    "undoPaymentTitle": "التراجع عن سداد الشحن",
+    "undoPaymentConfirm": "يُحذف هذا السداد ويعود مبلغه للسداد، محسوباً بسعر صفحة أسعار الصرف حتى يُسدَّد. وإن كان قد دفعه شريك، يُحذف ما كان النشاط مديناً له به.",
+    "undonePayment": "تم التراجع عن السداد",
+    "freightPaidPill": "الشحن مدفوع · <amount></amount>",
+    "paidAndToPay": "<b><paid></paid> مدفوع</b> · <toPay></toPay> للسداد",
+    "soFar": "≈ <amount></amount> حتى الآن · ما يُسدَّد محسوب بسعر {rate} حتى سداده",
+    "pageMoved": "صفحة أسعار الصرف الآن: 1 {currency} = {rate} جنيه؛ وما زال الباقي للسداد محسوباً بسعر {counted}.",
+    "recount": "احسبه بسعر اليوم",
+    "recounted": "حُسب بسعر اليوم",
+    "recountFailed": "تعذّر حسابه من جديد.",
+    "freightForLot": "شحن هذه الإرسالية",
+    "paidNow": "المدفوع الآن",
+    "leftToPay": "يتبقى <amount></amount> للسداد لاحقاً. يُسأل عن سعره عند سداده.",
+    "paidNowMore": "لا يمكن أن يزيد المدفوع الآن عن الشحن.",
+    "paidByInvestorHint": "ماله هو مساهمته في هذه الدورة: لا يُدان له بشيء عنه.",
+    "investorTag": "مستثمر",
+    "paymentTitle": "تسجيل سداد الشحن",
+    "paymentHint": "الإرسالية {n} · <amount></amount> متبقٍ للسداد",
+    "paidOn": "تاريخ السداد",
+    "amount": "المبلغ",
+    "lessLeavesRest": "أقل من {amount} يُبقي الباقي للسداد",
+    "rateGot": "السعر الذي حصلت عليه",
+    "paymentRecorded": "تم تسجيل السداد",
+    "paymentFailed": "تعذّر تسجيل السداد.",
+    "amountRequired": "اذكر المبلغ المدفوع."
   }
 }

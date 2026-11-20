@@ -24,10 +24,15 @@ import { STANDING_REPAYMENT } from './lender-debt';
  * repaying him is the lender's own repayment (`LendersService.repay`, the
  * `lender-math` arithmetic).
  *
- * The ledger is a friend's too: money in (`lender_financing`) on the handover
- * day — the freight is booked out with the goods at receipt as every leg's
+ * The ledger is a friend's too: money in (`lender_financing`) on the day he
+ * paid — the freight is booked out with the goods at receipt as every leg's
  * cost is, and this says whose money paid it — and money out on each
  * repayment. No business cash left on the day he paid.
+ *
+ * Since 2026-11-20 a handover's freight is paid in parts: the debt is one
+ * payment's (`freightPaymentId`) — its amount, rate and day — still naming
+ * the handover, so a lot paid half by Shady and half by Fares owes each his
+ * own half.
  */
 
 type Db = Prisma.TransactionClient;
@@ -61,18 +66,19 @@ async function partnerLender(
   });
 }
 
-/** Record that `partner` paid this handover's freight: the business owes it to him, in its currency. */
+/** Record that `partner` paid this payment of a handover's freight: the business owes it to him, in its currency. */
 export async function recordPartnerFreightIn(
   tx: Db,
   input: {
     handoverId: string;
+    paymentId: string;
     cycleId: string;
     partner: { id: string; name: string };
     currency: string;
     amount: Prisma.Decimal;
     rate: Prisma.Decimal;
     amountEgp: Prisma.Decimal;
-    /** The handover day, YYYY-MM-DD. */
+    /** The day he paid, YYYY-MM-DD. */
     day: string;
     actorId: string;
   },
@@ -94,7 +100,7 @@ export async function recordPartnerFreightIn(
       cycleId: input.cycleId,
       relatedType: 'LENDER_FINANCING',
       relatedId: id,
-      reason: `${input.partner.name} paid ${formatMoney(input.amount)} ${input.currency} of freight handed over on ${input.day}`,
+      reason: `${input.partner.name} paid ${formatMoney(input.amount)} ${input.currency} of handover freight on ${input.day}`,
       occurredOn: paidOn,
       createdBy: input.actorId,
     },
@@ -104,6 +110,7 @@ export async function recordPartnerFreightIn(
       id,
       lenderId: lender.id,
       departureId: input.handoverId,
+      freightPaymentId: input.paymentId,
       cycleId: input.cycleId,
       currency: input.currency,
       amount: input.amount,
@@ -117,20 +124,21 @@ export async function recordPartnerFreightIn(
 }
 
 /**
- * Take back what the business owed him for a handover's freight — the
- * handover undone, its freight or payer corrected. Only while nothing of it
- * was repaid (`FINANCING_HAS_REPAYMENTS`, as removing a friend's payment):
- * reverse those repayments first. The ledger inflow is balanced on its own
- * day and the row is kept, marked removed, as a friend's is (§9).
+ * Take back what the business owed him for a payment of a handover's freight
+ * — the payment or its handover undone, its amount, rate, day or payer
+ * corrected. Only while nothing of it was repaid (`FINANCING_HAS_REPAYMENTS`,
+ * as removing a friend's payment): reverse those repayments first. The ledger
+ * inflow is balanced on its own day and the row is kept, marked removed, as a
+ * friend's is (§9).
  */
 export async function removePartnerFreightIn(
   tx: Db,
-  handoverId: string,
+  paymentId: string,
   reason: string,
   actorId: string,
 ) {
   const f = await tx.lenderFinancing.findFirst({
-    where: { departureId: handoverId, removedAt: null },
+    where: { freightPaymentId: paymentId, removedAt: null },
     include: {
       repayments: { where: STANDING_REPAYMENT, select: { id: true } },
       lender: { select: { name: true } },
@@ -172,9 +180,10 @@ export async function removePartnerFreightIn(
       removedBy: actorId,
       removalReason: reason,
       removalTransactionId: balancing.id,
-      // Let go of the handover, which may be deleted next; the reason says
-      // which it was.
+      // Let go of the handover and the payment, which may be deleted next;
+      // the reason says which it was.
       departureId: null,
+      freightPaymentId: null,
     },
   });
 }

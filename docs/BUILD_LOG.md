@@ -5,6 +5,14 @@ feature by feature at the owner's word, each on its own branch, merged and shipp
 Goal (current, 2026-10-27): the "Next up" list below, top first.
 
 ## Current stage
+- **2026-11-20 — a handover's freight paid in parts (owner, mockup approved), on `feature/handover-freight-payments`,
+  PR to `dev`, not merged:** `handover_freight_payments` (migration `20261120180000_handover_freight_payments`,
+  additive, backfills one payment per existing handover so nothing changes); the rest to pay counted at the Exchange
+  rates page's rate on each freight change (`countRest` in `HandoversService.syncFreight`, Count at today's rate);
+  payments recorded, corrected (`PUT /shipping/freight-payments/:id`) and undone; a partner's debt per payment; an
+  investor named as paying is his contribution (no debt); settlement refused while freight is to pay. Card, Hand over
+  form (Paid now) and Record freight payment as the mockup. To set production's Handover 1 to 4,000 paid @14.8 by
+  Youssef after shipping: edit its backfilled payment through the API. BUSINESS_LOGIC §2, §1, §8, §18.
 - **2026-11-20 — handover wording and the equal-shares gap (owner), on `fix/handover-wording-and-funding-gap`, PR to
   `dev`, not merged:** pieces handed to the forwarder read "with the forwarder" / To Egypt everywhere the cycle page
   counts goods (`handedOver` in `common/leg-handovers.ts`, on the shipment; totals line, goods cards, per-product

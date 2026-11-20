@@ -24,7 +24,9 @@ import { HandoversService } from './handovers.service';
 import {
   AllArrivedDto,
   CreateArrivalDto,
+  CreateFreightPaymentDto,
   CreateHandoverDto,
+  UpdateFreightPaymentDto,
   UpdateHandoverDto,
 } from './dto/handover.dto';
 import {
@@ -74,11 +76,56 @@ export class ShippingController {
     @Body() body: UpdateHandoverDto,
     @CurrentUser() user: { id: string },
   ) {
-    return this.handovers.update(
-      id,
-      body as Parameters<HandoversService['update']>[1],
-      user.id,
-    );
+    return this.handovers.update(id, body, user.id);
+  }
+
+  // A handover's freight paid in parts (§2, owner 2026-11-20). Core partners
+  // only, as every handover write: a payment re-costs the cycle and a
+  // partner's is money owed to him (rule 12).
+
+  @Post('handovers/:id/freight-payments')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: "Record a payment of a handover's freight" })
+  addFreightPayment(
+    @Param('id') id: string,
+    @Body() body: CreateFreightPaymentDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.handovers.addPayment(id, body, user.id);
+  }
+
+  @Put('freight-payments/:id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Correct a freight payment' })
+  updateFreightPayment(
+    @Param('id') id: string,
+    @Body() body: UpdateFreightPaymentDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.handovers.updatePayment(id, body, user.id);
+  }
+
+  @Delete('freight-payments/:id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Undo a freight payment recorded by mistake' })
+  removeFreightPayment(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.handovers.removePayment(id, user.id);
+  }
+
+  @Post('legs/:id/freight/recount')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({
+    summary: "Count a leg's unpaid freight at today's Exchange rates page rate",
+  })
+  recountFreight(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.handovers.recount(id, user.id);
   }
 
   @Delete('handovers/:id')

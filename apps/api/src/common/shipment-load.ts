@@ -50,6 +50,19 @@ const SHIPMENT_SELECT = {
           providerId: true,
           paidByUserId: true,
           allArrivedOn: true,
+          // Its freight paid in parts (§2, owner 2026-11-20).
+          freightPayments: {
+            orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }],
+            select: {
+              id: true,
+              paidOn: true,
+              amount: true,
+              rateToEgp: true,
+              amountEgp: true,
+              paidByUserId: true,
+              note: true,
+            },
+          },
           lines: {
             select: { id: true, purchaseOrderItemId: true, qty: true },
           },

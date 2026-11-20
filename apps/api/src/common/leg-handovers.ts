@@ -1,5 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; freight in EGP must not become a float
 import { Prisma } from '@prisma/client';
+import { badRequest } from './api-error';
 import { loadShipment, type LoadedShipment } from './shipment-load';
 import { positionDay, type ShipmentPosition } from './shipment-position';
 
@@ -23,6 +24,13 @@ import { positionDay, type ShipmentPosition } from './shipment-position';
  *   are losses naming it, at full landed unit cost (§2), their products said
  *   by the partner.
  *
+ * A handover's freight is paid in parts (§2, owner 2026-11-20): its total
+ * (`freightAmount`, in its currency) and the payments made of it, each at
+ * the rate actually got. What is not paid yet is counted at the rate stored
+ * on the handover (`freightRateToEgp`) — the Exchange rates page's at the
+ * last change to the leg's freight — and makes the leg's cost an estimate
+ * until it is paid.
+ *
  * This file is the arithmetic, and pure: what a leg's handovers add up to and
  * what its freight per piece is. The service loads, locks and writes.
  */
@@ -37,6 +45,54 @@ const milli = (q: Prisma.Decimal.Value | null | undefined) =>
 const units = (m: number) => m / 1000;
 
 type Leg = LoadedShipment['shippingLegs'][number];
+type HandoverRow = Leg['departures'][number];
+
+/** One payment of a handover's freight, as a screen and the service read it. */
+export interface FreightPaymentSummary {
+  id: string;
+  paidOn: string;
+  /** In the handover's currency. */
+  amount: string;
+  rateToEgp: string;
+  amountEgp: string;
+  /** Null: the business. */
+  paidByUserId: string | null;
+  note: string | null;
+}
+
+/**
+ * What a handover's freight comes to (§2, 2026-11-20): what was paid, at the
+ * rates got, and what is still to pay, at the rate the rest is counted at.
+ * The pounds are each payment's own plus the rest × that rate, half up.
+ */
+export function handoverFreight(
+  h: Pick<
+    HandoverRow,
+    'freightAmount' | 'freightCurrency' | 'freightRateToEgp' | 'freightPayments'
+  >,
+) {
+  const total = D(h.freightAmount);
+  const paid = h.freightPayments.reduce((s, p) => s.add(D(p.amount)), ZERO);
+  const paidEgp = h.freightPayments.reduce(
+    (s, p) => s.add(D(p.amountEgp)),
+    ZERO,
+  );
+  const rest = total.sub(paid);
+  const toPay = rest.gt(0) ? rest : ZERO;
+  const currency = h.freightCurrency ?? 'EGP';
+  const rate = currency === 'EGP' ? D(1) : D(h.freightRateToEgp ?? 1);
+  const toPayEgp = toPay.gt(0) ? money(toPay.mul(rate)) : ZERO;
+  return {
+    total,
+    currency,
+    paid,
+    paidEgp,
+    toPay,
+    toPayRate: rate,
+    toPayEgp,
+    egp: paidEgp.add(toPayEgp),
+  };
+}
 
 export interface HandoverSummary {
   id: string;
@@ -44,12 +100,22 @@ export interface HandoverSummary {
   number: number;
   handedOverOn: string;
   pieces: number | null;
+  /** The lot's freight in full, in its currency. */
   freightAmount: string;
   freightCurrency: string;
+  /** The rate the part still to pay is counted at (§2, 2026-11-20). */
   freightRateToEgp: string;
+  /** The freight in pounds as costed: paid + still to pay at that rate. */
   freightAmountEgp: string;
+  /** Paid so far, in its currency and in pounds at the rates got. */
+  freightPaid: string;
+  freightPaidEgp: string;
+  /** Still to pay, in its currency, and ≈ in pounds at `freightRateToEgp`. */
+  freightToPay: string;
+  freightToPayEgp: string;
+  /** Its payments, oldest first. */
+  payments: FreightPaymentSummary[];
   providerId: string | null;
-  paidByUserId: string | null;
   /** Pieces that arrived from it so far. */
   arrived: number;
   /** Pieces of its count that never came, marked lost at All arrived. */
@@ -75,10 +141,25 @@ export interface HandoverSummary {
 export interface LegHandovers {
   legId: string;
   handovers: HandoverSummary[];
-  /** Freight paid on every handover, in pounds at each one's rate. */
+  /**
+   * The handovers' freight in pounds: what was paid at the rates got, and
+   * what is still to pay at the rate it is counted at (§2, 2026-11-20).
+   */
   freightEgp: string;
-  /** Freight per currency, when the handovers were paid in more than one. */
+  /** Freight per currency, in full, when the handovers were paid in more than one. */
   freightByCurrency: { currency: string; amount: string }[];
+  /** Paid so far, per currency. */
+  paidByCurrency: { currency: string; amount: string }[];
+  /**
+   * Still to pay, per currency, the rate it is counted at and ≈ pounds.
+   * Empty once every handover's freight is paid.
+   */
+  toPayByCurrency: {
+    currency: string;
+    amount: string;
+    rateToEgp: string;
+    amountEgp: string;
+  }[];
   /** Every handover's `covered`, summed. */
   covered: number;
   /** The pieces the leg will carry in the end: everything the cycle ordered. */
@@ -95,7 +176,10 @@ export interface LegHandovers {
   perPieceEgp: string | null;
   /** The same in the handovers' currency, when they share one. */
   perPiece: { amount: string; currency: string } | null;
-  /** Every handover All arrived and every piece accounted for: the cost will not move again. */
+  /**
+   * Every handover All arrived, every piece accounted for and every freight
+   * paid: the cost will not move again.
+   */
   final: boolean;
   /** Still in the UAE, not handed over to anyone with a known count. */
   stillInUae: number;
@@ -152,17 +236,30 @@ export function legHandovers(
     const losses = leg.losses.filter((x) => x.departureId === h.id);
     const lost = losses.reduce((s, x) => s + milli(x.qty), 0);
     const counted = h.pieces === null ? null : h.pieces * 1000;
+    const f = handoverFreight(h);
     return {
       id: h.id,
       number: i + 1,
       handedOverOn: positionDay(h.departedOn),
       pieces: h.pieces,
-      freightAmount: D(h.freightAmount).toFixed(2),
-      freightCurrency: h.freightCurrency ?? 'EGP',
-      freightRateToEgp: D(h.freightRateToEgp ?? 1).toFixed(4),
-      freightAmountEgp: D(h.freightAmountEgp).toFixed(2),
+      freightAmount: f.total.toFixed(2),
+      freightCurrency: f.currency,
+      freightRateToEgp: f.toPayRate.toFixed(4),
+      freightAmountEgp: f.egp.toFixed(2),
+      freightPaid: f.paid.toFixed(2),
+      freightPaidEgp: f.paidEgp.toFixed(2),
+      freightToPay: f.toPay.toFixed(2),
+      freightToPayEgp: f.toPayEgp.toFixed(2),
+      payments: h.freightPayments.map((p) => ({
+        id: p.id,
+        paidOn: positionDay(p.paidOn),
+        amount: D(p.amount).toFixed(2),
+        rateToEgp: D(p.rateToEgp).toFixed(4),
+        amountEgp: D(p.amountEgp).toFixed(2),
+        paidByUserId: p.paidByUserId,
+        note: p.note,
+      })),
       providerId: h.providerId,
-      paidByUserId: h.paidByUserId,
       arrived: units(arrived),
       lost: units(lost),
       covered: units(counted ?? arrived),
@@ -175,11 +272,29 @@ export function legHandovers(
     };
   });
 
-  const freight = rows.reduce((s, h) => s.add(D(h.freightAmountEgp)), ZERO);
+  const freights = rows.map(handoverFreight);
+  const freight = freights.reduce((s, f) => s.add(f.egp), ZERO);
   const byCurrency = new Map<string, Prisma.Decimal>();
-  for (const h of rows) {
-    const c = h.freightCurrency ?? 'EGP';
-    byCurrency.set(c, (byCurrency.get(c) ?? ZERO).add(D(h.freightAmount)));
+  const paidBy = new Map<string, Prisma.Decimal>();
+  const toPayBy = new Map<
+    string,
+    { amount: Prisma.Decimal; rate: Prisma.Decimal; egp: Prisma.Decimal }
+  >();
+  for (const f of freights) {
+    const c = f.currency;
+    byCurrency.set(c, (byCurrency.get(c) ?? ZERO).add(f.total));
+    if (f.paid.gt(0)) {
+      paidBy.set(c, (paidBy.get(c) ?? ZERO).add(f.paid));
+    }
+    if (f.toPay.gt(0)) {
+      const was = toPayBy.get(c);
+      toPayBy.set(c, {
+        amount: (was?.amount ?? ZERO).add(f.toPay),
+        // One leg's handovers are counted together, at one rate per currency.
+        rate: was?.rate ?? f.toPayRate,
+        egp: (was?.egp ?? ZERO).add(f.toPayEgp),
+      });
+    }
   }
   const covered = handovers.reduce((s, h) => s + milli(h.covered), 0);
   const pieces = milli(position.totals.ordered);
@@ -214,6 +329,16 @@ export function legHandovers(
       currency,
       amount: a.toFixed(2),
     })),
+    paidByCurrency: [...paidBy.entries()].map(([currency, a]) => ({
+      currency,
+      amount: a.toFixed(2),
+    })),
+    toPayByCurrency: [...toPayBy.entries()].map(([currency, x]) => ({
+      currency,
+      amount: x.amount.toFixed(2),
+      rateToEgp: x.rate.toFixed(4),
+      amountEgp: x.egp.toFixed(2),
+    })),
     covered: units(covered),
     pieces: units(pieces),
     legCostEgp: legCost.toFixed(2),
@@ -222,7 +347,8 @@ export function legHandovers(
     final:
       handovers.length > 0 &&
       handovers.every((h) => !h.open) &&
-      covered >= pieces,
+      covered >= pieces &&
+      toPayBy.size === 0,
     stillInUae: units(Math.max(0, milli(legPos.atOrigin) - withForwarder)),
     withForwarder: units(withForwarder),
     withForwarderUnknown,
@@ -333,4 +459,35 @@ export async function cycleFreightIsEstimate(
   if (!legs?.shippingLegs?.some((l) => l.usesHandovers)) return false;
   const loaded = await loadShipment(db, cycleId);
   return loaded ? freightIsEstimate(loaded.cycle, loaded.position) : false;
+}
+
+/**
+ * Refuse settling a cycle while any handover's freight is still to pay (§8,
+ * GUESS 2026-11-20): the rest is costed at a rate nobody has paid yet, so the
+ * profit being split is an estimate. Pay it (Record payment) first. The same
+ * helper the settlement's approval and the transition to Settlement call.
+ */
+export async function assertHandoverFreightPaid(
+  db: Pick<Prisma.TransactionClient, 'importCycle'>,
+  cycleId: string,
+  code: string,
+) {
+  const legs = await db.importCycle.findUnique({
+    where: { id: cycleId },
+    select: { shippingLegs: { select: { usesHandovers: true } } },
+  });
+  if (!legs?.shippingLegs?.some((l) => l.usesHandovers)) return;
+  const loaded = await loadShipment(db, cycleId);
+  if (!loaded) return;
+  for (const leg of loaded.cycle.shippingLegs) {
+    const s = legHandovers(loaded.cycle, loaded.position, leg.id);
+    const owed = s?.toPayByCurrency[0];
+    if (owed) {
+      throw badRequest(
+        'HANDOVER_FREIGHT_UNPAID',
+        `${code} still has ${owed.amount} ${owed.currency} of handover freight to pay; record that payment before settling.`,
+        { cycle: code, amount: owed.amount, currency: owed.currency },
+      );
+    }
+  }
 }

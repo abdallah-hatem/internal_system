@@ -111,22 +111,49 @@ export interface ShipmentLeg {
   handovers?: LegHandovers | null;
 }
 
+/** Who paid a payment of a handover's freight; null on a payment is the business. */
+export interface FreightPayer {
+  id: string;
+  name: string;
+  /** A partner is owed it (§18); an investor's is his contribution (no debt). */
+  kind: 'PARTNER' | 'INVESTOR';
+}
+
+/** One payment of a handover's freight (§2, owner 2026-11-20). */
+export interface FreightPayment {
+  id: string;
+  paidOn: string;
+  /** In the handover's currency. */
+  amount: string;
+  rateToEgp: string;
+  amountEgp: string;
+  paidByUserId: string | null;
+  note: string | null;
+  paidBy: FreightPayer | null;
+  /** What the business still owes the partner who paid it, in its currency. */
+  owed: { financingId: string; currency: string; owed: string } | null;
+}
+
 /** One handover: a lot given to the forwarder in the UAE (§1, 2026-11-20). */
 export interface Handover {
   id: string;
   number: number;
   handedOverOn: string;
   pieces: number | null;
+  /** The lot's freight in full, in its currency. */
   freightAmount: string;
   freightCurrency: string;
+  /** The rate what is still to pay is counted at (the Exchange rates page's at the last freight change). */
   freightRateToEgp: string;
+  /** Paid + still to pay at that rate, in pounds. */
   freightAmountEgp: string;
+  freightPaid: string;
+  freightPaidEgp: string;
+  freightToPay: string;
+  freightToPayEgp: string;
+  payments: FreightPayment[];
   providerId: string | null;
   provider: string | null;
-  paidByUserId: string | null;
-  paidBy: { id: string; name: string } | null;
-  /** What the business still owes the partner who paid it, in its currency. */
-  owed: { financingId: string; currency: string; owed: string } | null;
   arrived: number;
   lost: number;
   covered: number;
@@ -142,6 +169,10 @@ export interface LegHandovers {
   handovers: Handover[];
   freightEgp: string;
   freightByCurrency: { currency: string; amount: string }[];
+  /** Paid so far, per currency (§2, 2026-11-20). */
+  paidByCurrency: { currency: string; amount: string }[];
+  /** Still to pay, per currency, the rate it is counted at and ≈ pounds; empty once all is paid. */
+  toPayByCurrency: { currency: string; amount: string; rateToEgp: string; amountEgp: string }[];
   covered: number;
   pieces: number;
   legCostEgp: string;
@@ -199,6 +230,8 @@ export interface Shipment {
    * `atOrigin` less them. Per product nobody knows which they are.
    */
   handedOver?: HandedOver;
+  /** Who a freight payment can name besides the business: active partners, this cycle's investors (§2, 2026-11-20). */
+  freightPayers?: FreightPayer[];
 }
 
 export interface HandedOver {

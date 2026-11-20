@@ -57,6 +57,7 @@ model User {
   stockTransfersUndone  StockTransfer[]          @relation("StockTransferReversedBy")
   /// Freight he paid from his own pocket for a UAE handover (§1, §18, 2026-11-20).
   handoversPaid         ShipmentDeparture[]      @relation("HandoverPaidBy")
+  freightPaymentsPaid   HandoverFreightPayment[] @relation("FreightPaymentPaidBy")
   /// The lender record that holds what the business owes him in a foreign currency (§18, 2026-11-20).
   lenderRecord          Lender?                  @relation("PartnerLender")
 
@@ -795,34 +796,69 @@ model ShipmentDeparture {
   /// its missing pieces) are counted, so every count that reads departures
   /// keeps working. False on every ordinary departure.
   handover         Boolean   @default(false)
-  /// The freight paid for the lot, in its currency, and at the rate on the day.
+  /// The lot's freight in full, in its currency (§2, 2026-11-20: paid in
+  /// parts — what was paid is its `freightPayments`, the rest is to pay).
   freightAmount    Decimal?  @map("freight_amount") @db.Decimal(18, 2)
   freightCurrency  String?   @map("freight_currency")
+  /// The rate the part still to pay is counted at: the Exchange rates page's
+  /// at the last change to this leg's freight. Before 2026-11-20 the one
+  /// payment's rate (still so for a handover paid in full).
   freightRateToEgp Decimal?  @map("freight_rate_to_egp") @db.Decimal(18, 4)
-  /// freightAmount × freightRateToEgp, half up.
+  /// The freight in pounds as costed: the payments' pounds + the rest to pay
+  /// × freightRateToEgp (each half up). Written by every re-cost.
   freightAmountEgp Decimal?  @map("freight_amount_egp") @db.Decimal(18, 2)
   /// How many pieces were handed over, when known. Null: not known.
   pieces           Int?
   providerId       String?   @map("provider_id") @db.Uuid
-  /// A core partner who paid the freight himself; null: the business paid.
+  /// Superseded 2026-11-20 by each freight payment's payer; kept as recorded.
   paidByUserId     String?   @map("paid_by_user_id") @db.Uuid
   /// Set by All arrived: nothing more is coming from this lot.
   allArrivedOn     DateTime? @map("all_arrived_on") @db.Date
   allArrivedBy     String?   @map("all_arrived_by") @db.Uuid
 
-  leg       ShippingLeg             @relation(fields: [legId], references: [id])
-  lines     ShipmentDepartureLine[]
-  forwarder Provider?               @relation(fields: [providerId], references: [id])
-  paidBy    User?                   @relation("HandoverPaidBy", fields: [paidByUserId], references: [id])
+  leg             ShippingLeg              @relation(fields: [legId], references: [id])
+  lines           ShipmentDepartureLine[]
+  forwarder       Provider?                @relation(fields: [providerId], references: [id])
+  paidBy          User?                    @relation("HandoverPaidBy", fields: [paidByUserId], references: [id])
   /// The batches that arrived from this handover.
-  arrivals  ShipmentDelivery[]
+  arrivals        ShipmentDelivery[]
   /// Pieces of this handover that never arrived (All arrived).
-  losses    ShipmentLoss[]
-  /// What the business owes the partner who paid its freight (§18).
-  financing LenderFinancing?
+  losses          ShipmentLoss[]
+  /// What the business owes the partners who paid its freight (§18), one per payment.
+  financings      LenderFinancing[]
+  /// Its freight, paid in parts (§2, 2026-11-20).
+  freightPayments HandoverFreightPayment[]
 
   @@index([legId])
   @@map("shipment_departures")
+}
+
+/// One payment of a handover's freight (§2, owner 2026-11-20): 8,000 AED for
+/// a lot, 4,000 paid on the day at 14.8, the rest weeks later at a rate
+/// nobody knew. In the handover's currency, at the rate actually got.
+model HandoverFreightPayment {
+  id           String   @id @default(uuid()) @db.Uuid
+  departureId  String   @map("departure_id") @db.Uuid
+  /// The Cairo day it was paid: not before the handover, not in the future.
+  paidOn       DateTime @map("paid_on") @db.Date
+  /// In the handover's currency, above zero.
+  amount       Decimal  @db.Decimal(18, 2)
+  rateToEgp    Decimal  @map("rate_to_egp") @db.Decimal(18, 4)
+  /// amount × rateToEgp, half up.
+  amountEgp    Decimal  @map("amount_egp") @db.Decimal(18, 2)
+  /// Null: the business. A core partner: the business owes it to him (§18).
+  /// An investor in the cycle: his money, already his contribution — a name only.
+  paidByUserId String?  @map("paid_by_user_id") @db.Uuid
+  note         String?
+  createdBy    String?  @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  handover  ShipmentDeparture @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  paidBy    User?             @relation("FreightPaymentPaidBy", fields: [paidByUserId], references: [id], onDelete: SetNull)
+  financing LenderFinancing?
+
+  @@index([departureId])
+  @@map("handover_freight_payments")
 }
 
 /// How many of one ordered product left on a departure. The same order line
@@ -1449,7 +1485,9 @@ model LenderFinancing {
   /// The order he paid. Null for freight a partner paid for a handover.
   purchaseOrderId      String?   @map("purchase_order_id") @db.Uuid
   /// The UAE handover whose freight a partner paid himself (§18, 2026-11-20).
-  departureId          String?   @unique @map("departure_id") @db.Uuid
+  departureId          String?   @map("departure_id") @db.Uuid
+  /// Which payment of that freight (2026-11-20: freight is paid in parts).
+  freightPaymentId     String?   @unique @map("freight_payment_id") @db.Uuid
   /// The order's cycle. An order never changes cycle; kept for the gates.
   cycleId              String    @map("cycle_id") @db.Uuid
   /// The currency he paid in — not necessarily the order's (§18, 2026-10-16).
@@ -1471,15 +1509,17 @@ model LenderFinancing {
   removalReason        String?   @map("removal_reason")
   removalTransactionId String?   @unique @map("removal_transaction_id") @db.Uuid
 
-  lender        Lender             @relation(fields: [lenderId], references: [id])
-  purchaseOrder PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
-  handover      ShipmentDeparture? @relation(fields: [departureId], references: [id], onDelete: SetNull)
-  cycle         ImportCycle        @relation(fields: [cycleId], references: [id])
-  repayments    LenderRepayment[]
-  plans         LenderPlan[]
+  lender         Lender                  @relation(fields: [lenderId], references: [id])
+  purchaseOrder  PurchaseOrder?          @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  handover       ShipmentDeparture?      @relation(fields: [departureId], references: [id], onDelete: SetNull)
+  freightPayment HandoverFreightPayment? @relation(fields: [freightPaymentId], references: [id], onDelete: SetNull)
+  cycle          ImportCycle             @relation(fields: [cycleId], references: [id])
+  repayments     LenderRepayment[]
+  plans          LenderPlan[]
 
   @@index([lenderId])
   @@index([purchaseOrderId])
+  @@index([departureId])
   @@index([cycleId])
   @@map("lender_financings")
 }
