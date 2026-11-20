@@ -3328,6 +3328,9 @@
     "editNoCost": "تُشحن هذه المرحلة على إرساليات: شحنها شحن إرسالياتها، ويُصحّح من كل إرسالية.",
     "profitEstimate": "تقديري",
     "profitEstimateHint": "شحن إحدى المراحل لم يصبح نهائيًا بعد: ما زالت هناك إرساليات مفتوحة.",
-    "listSeparator": "، "
+    "listSeparator": "، ",
+    "paid": "مدفوع <amount></amount>",
+    "wholeLegAtEstimate": "≈ <amount></amount> لكل الـ {count} بالتقدير",
+    "nothingPaidYet": "لم يُدفع شحن بعد"
   }
 }

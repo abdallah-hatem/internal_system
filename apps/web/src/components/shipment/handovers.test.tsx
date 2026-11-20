@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
 import { ToastProvider } from '@/components/ui/toast';
-import { HandoverSection, HandOverDialog, RecordArrivalDialog, AllArrivedDialog } from './Handovers';
+import { HandoverSection, HandOverDialog, RecordArrivalDialog, AllArrivedDialog, HandoverLegCost, handoverLegStatus } from './Handovers';
 import type { Handover, LegHandovers, ShipmentLeg } from './shipment-model';
 
 /**
@@ -359,5 +359,38 @@ describe('All arrived', () => {
     fireEvent.click(within(dlg).getByRole('button', { name: en.handovers.allArrived }));
     await waitFor(() => expect(call).toHaveBeenCalled());
     expect(call.mock.calls[0][2]).toMatchObject({ lost: [] });
+  });
+});
+
+describe('the leg header on a handover leg', () => {
+  it('says what was paid — each handover at its own rate — and labels the whole-leg figure as an estimate', () => {
+    wrap(<HandoverLegCost leg={leg()} />);
+    expect(screen.getByTestId('leg-freight-paid').textContent).toMatch(/10,200\.00.* paid · .*153,000\.00/);
+    // 10,200 × 400 ÷ 190, said as what the whole leg comes to at the estimate.
+    expect(screen.getByTestId('leg-cost-estimate').textContent).toMatch(/≈ .*21,473\.68.* for all 400 at the estimate/);
+    // The extrapolated pounds the costing carries are never shown bare.
+    expect(screen.getByTestId('leg-cost').textContent).not.toMatch(/322,105/);
+  });
+
+  it('final: no estimate line; nothing handed over: says no freight is paid', () => {
+    wrap(<HandoverLegCost leg={leg({ handovers: { ...SUMMARY, final: true } })} />);
+    expect(screen.queryByTestId('leg-cost-estimate')).toBeNull();
+    cleanup();
+    wrap(<HandoverLegCost leg={leg({ handovers: { ...SUMMARY, handovers: [] } })} />);
+    expect(screen.getByTestId('leg-cost').textContent).toBe(en.handovers.nothingPaidYet);
+  });
+
+  it('one status: not left, in transit while nothing came back, then partly arrived / arrived — never partly departed', () => {
+    expect(handoverLegStatus(leg({ handovers: { ...SUMMARY, handovers: [] } }))).toBe('PENDING');
+    expect(handoverLegStatus(leg({ status: 'PARTLY_DEPARTED', delivered: 0 }))).toBe('IN_TRANSIT');
+    expect(handoverLegStatus(leg({ status: 'PARTLY_ARRIVED' }))).toBe('PARTLY_ARRIVED');
+    expect(handoverLegStatus(leg({ status: 'ARRIVED' }))).toBe('ARRIVED');
+  });
+
+  it('an arrival reads date, then its products on their own line, then the count', () => {
+    wrap(<HandoverSection cycleId="c-1" leg={leg()} productNames={NAMES} frozen={false} />);
+    const first = screen.getAllByTestId('handover-arrival')[0];
+    expect(within(first).getByTestId('arrival-day').textContent).toMatch(/^Arrived /);
+    expect(within(first).getByTestId('arrival-products').textContent).toBe('SU8 headset ×30, Y50 headset ×30');
   });
 });

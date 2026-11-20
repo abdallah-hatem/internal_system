@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCheck, PackageOpen, Plus, Trash2, Undo2 } from '@/components/ui/icons';
 import { api } from '@/lib/api';
@@ -62,6 +62,7 @@ export function HandoverSection({
   const { formatDate } = useDateFormat();
   const { formatNumber } = useNumberFormat();
   const may = useCan('shipment.handover') && !frozen;
+  const locale = useLocale();
   const [open, setOpen] = useState<Open>(null);
   const close = () => setOpen(null);
   const s = leg.handovers;
@@ -142,20 +143,25 @@ export function HandoverSection({
                       data-testid="handover-arrival"
                       className="flex items-center justify-between gap-3 border-t border-dashed border-border py-1.5 ps-3 text-sm text-foreground/80"
                     >
+                      {/* The day on its own line, the products under it, the count at the end:
+                          on a phone the list wraps under the date instead of squeezing the count. */}
                       <span className="min-w-0">
-                        {t('arrivedOn', { date: formatDate(a.arrivedOn) })}
-                        {' · '}
+                        <span data-testid="arrival-day" className="block">{t('arrivedOn', { date: formatDate(a.arrivedOn) })}</span>
+                        <span data-testid="arrival-products" className="block text-xs text-muted-foreground">
                         {a.lines.map((l, i) => (
                           <span key={l.purchaseOrderItemId}>
                             {i > 0 && t('listSeparator')}
                             {/* Name and count isolated from each other and from the list,
                                 so "SU8" and "×30" never run together in Arabic. */}
-                            <bdi>
+                            {/* Its direction is the reader's: an isolate holding only
+                                isolates has no letters of its own to take one from. */}
+                            <bdi dir={locale === 'ar' ? 'rtl' : 'ltr'}>
                               <LatinText>{productNames[l.purchaseOrderItemId] ?? '—'}</LatinText>{' '}
                               <bdi dir="ltr">×{n(l.qty)}</bdi>
                             </bdi>
                           </span>
                         ))}
+                        </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-1">
                         <b className="font-medium tabular-nums">{n(a.total)}</b>
@@ -850,4 +856,79 @@ export function AllArrivedDialog({
       <DialogAlert message={refusal} />
     </Dialog>
   );
+}
+
+/**
+ * A handover leg's header figure (owner's coordinator, 2026-11-20): what was
+ * actually paid — "10,200.00 AED paid · 141,270.00 EGP", each handover at its
+ * own rate — and, while the freight is an estimate, what the whole leg comes
+ * to at it, labelled as such. The leg's stored cost (that extrapolation in
+ * EGP) is never shown bare beside the freight paid.
+ */
+export function HandoverLegCost({ leg }: { leg: ShipmentLeg }) {
+  const t = useTranslations('handovers');
+  const { formatNumber } = useNumberFormat();
+  const s = leg.handovers;
+  if (!s || s.handovers.length === 0) {
+    return (
+      <p data-testid="leg-cost" className="text-sm font-semibold text-accent-600">
+        {t('nothingPaidYet')}
+      </p>
+    );
+  }
+  const foreign = s.freightByCurrency.filter((c) => c.currency !== 'EGP');
+  return (
+    <div data-testid="leg-cost" className="text-end">
+      <p data-testid="leg-freight-paid" className="text-sm font-semibold text-foreground">
+        {foreign.length > 0 ? (
+          <>
+            {t.rich('paid', {
+              amount: () => (
+                <>
+                  {foreign.map((c, i) => (
+                    <span key={c.currency}>
+                      {i > 0 && ' + '}
+                      <Money value={c.amount} currency={c.currency} />
+                    </span>
+                  ))}
+                </>
+              ),
+            })}
+            <span className="font-normal text-muted-foreground">
+              {' · '}
+              <Money value={s.freightEgp} />
+            </span>
+          </>
+        ) : (
+          t.rich('paid', { amount: () => <Money value={s.freightEgp} /> })
+        )}
+      </p>
+      {!s.final && s.perPiece && (
+        <p data-testid="leg-cost-estimate" className="text-xs text-muted-foreground">
+          {t.rich('wholeLegAtEstimate', {
+            // From the freight itself, not the rounded per-piece figure: 10,200 × 400 ÷ 190.
+            amount: () => (
+              <Money
+                value={((Number(foreign[0]?.amount ?? s.freightEgp) * s.pieces) / s.covered).toFixed(2)}
+                currency={s.perPiece!.currency}
+              />
+            ),
+            count: formatNumber(s.pieces),
+          })}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A handover leg's one status (2026-11-20): handovers leave and arrive
+ * together, so "partly departed" says nothing. Nothing handed over: not left;
+ * handed over, nothing back yet: in transit; then partly arrived / arrived.
+ */
+export function handoverLegStatus(leg: ShipmentLeg): string {
+  const s = leg.handovers;
+  if (!s || s.handovers.length === 0) return 'PENDING';
+  if (leg.delivered === 0 && leg.lost === 0) return 'IN_TRANSIT';
+  return leg.status === 'ARRIVED' ? 'ARRIVED' : 'PARTLY_ARRIVED';
 }

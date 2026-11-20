@@ -3328,6 +3328,9 @@
     "editNoCost": "This leg goes in handovers: its freight is its handovers', corrected on each handover.",
     "profitEstimate": "Estimate",
     "profitEstimateHint": "A leg's freight is not final yet: handovers are still open.",
-    "listSeparator": ", "
+    "listSeparator": ", ",
+    "paid": "<amount></amount> paid",
+    "wholeLegAtEstimate": "≈ <amount></amount> for all {count} at the estimate",
+    "nothingPaidYet": "No freight paid yet"
   }
 }

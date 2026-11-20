@@ -7,7 +7,7 @@ import { localName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Edit } from '@/components/ui/icons';
 import { legCostStart, legLeavesFrom, nextLegToAdd } from '@/components/cycles/leg-plan';
-import { HandoverSection } from './Handovers';
+import { HandoverLegCost, HandoverSection, handoverLegStatus } from './Handovers';
 import { LegCreateForm, LegEditForm, type LegRow } from './LegForm';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -587,6 +587,7 @@ function LegBlock({
   // A UAE leg in handovers (§1, 2026-11-20): its goods go and come through
   // its handovers, so the plain departure and delivery are not offered.
   const handover = inHandovers(leg);
+  const shownStatus = handover ? handoverLegStatus(leg) : leg.status;
 
   return (
     <div
@@ -607,17 +608,18 @@ function LegBlock({
               <span className="whitespace-nowrap">{t('legHeading', { leg: leg.sequence })}</span>
               <LegRoute origin={leg.origin} destination={leg.destination} className="font-normal text-muted-foreground" />
             </h3>
-            <LegStatusMark testId="leg-status" status={leg.status} label={codeLabel('legStatus', leg.status)} />
+            <LegStatusMark testId="leg-status" status={shownStatus} label={codeLabel('legStatus', shownStatus)} />
             {/* Partly arrived and partly departed at once: the status says
-                the furthest thing that happened, this says the rest (L8). */}
-            {leg.status === 'PARTLY_ARRIVED' && hasWaitingToLeave(leg) && (
+                the furthest thing that happened, this says the rest (L8). A
+                handover leg's goods leave and arrive together: one status. */}
+            {!handover && leg.status === 'PARTLY_ARRIVED' && hasWaitingToLeave(leg) && (
               <LegStatusMark testId="leg-partly-departed" status="PARTLY_DEPARTED" label={t('partlyDeparted')} />
             )}
           </div>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {/* A leg that has not left is said once, by the badge — the date
                 slot only appears with a date in it. */}
-            {leg.departedOn && (
+            {leg.departedOn && !handover && (
               <span data-testid="leg-departure">{t('departedOn', { date: formatDate(leg.departedOn) })}</span>
             )}
             {leg.arrivedOn && <span>{t('arrivedOn', { date: formatDate(leg.arrivedOn) })}</span>}
@@ -632,7 +634,9 @@ function LegBlock({
         <div className="flex flex-wrap items-center gap-3">
         {/* What it cost, where the eye lands: a cost of nothing on a leg
             that carried goods is a bill still to come, and says so. */}
-        {meta && (
+        {handover ? (
+          <HandoverLegCost leg={leg} />
+        ) : meta && (
           <div data-testid="leg-cost" className="text-end">
             {amountEgp === 0 ? (
               <p data-testid="leg-no-cost" className="text-sm font-semibold text-accent-600">{t('noCostYet')}</p>
@@ -679,7 +683,7 @@ function LegBlock({
                 <Edit className="h-4 w-4" aria-hidden="true" /> {t('editLeg')}
               </button>
             )}
-            {may.markLost && losable && (
+            {may.markLost && losable && !handover && (
               <button
                 type="button"
                 data-testid="mark-lost"
