@@ -29,6 +29,10 @@ const SHIPMENT_SELECT = {
       departedOn: true,
       arrivedOn: true,
       status: true,
+      // A leg leaving the UAE in handovers (§1, owner 2026-11-20).
+      usesHandovers: true,
+      costBasis: true,
+      amountEgp: true,
       departures: {
         orderBy: [{ departedOn: 'asc' }, { createdAt: 'asc' }],
         select: {
@@ -37,6 +41,15 @@ const SHIPMENT_SELECT = {
           departedOn: true,
           note: true,
           createdAt: true,
+          handover: true,
+          freightAmount: true,
+          freightCurrency: true,
+          freightRateToEgp: true,
+          freightAmountEgp: true,
+          pieces: true,
+          providerId: true,
+          paidByUserId: true,
+          allArrivedOn: true,
           lines: {
             select: { id: true, purchaseOrderItemId: true, qty: true },
           },
@@ -48,6 +61,7 @@ const SHIPMENT_SELECT = {
           legId: true,
           arrivedOn: true,
           note: true,
+          departureId: true,
           lines: {
             select: { id: true, purchaseOrderItemId: true, qty: true },
           },
@@ -63,6 +77,7 @@ const SHIPMENT_SELECT = {
           costEgp: true,
           reason: true,
           createdAt: true,
+          departureId: true,
         },
       },
     },

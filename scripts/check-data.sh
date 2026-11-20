@@ -235,6 +235,20 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM shipping_legs l
    WHERE (l.departed_on AT TIME ZONE 'Africa/Cairo')::date
          IS DISTINCT FROM (SELECT min(d.departed_on) FROM shipment_departures d WHERE d.leg_id = l.id)
+  -- A UAE handover (2026-11-20) carries exactly what arrived from it and what
+  -- was marked lost at its All arrived: its lines are written from those, so
+  -- any other total was written some other way.
+  UNION ALL SELECT 12.94, 'a handover carrying other than its arrivals and losses',
+         count(*) FROM shipment_departures d
+   WHERE d.handover
+     AND COALESCE((SELECT sum(x.qty) FROM shipment_departure_lines x WHERE x.departure_id = d.id), 0)
+         <> COALESCE((SELECT sum(y.qty) FROM shipment_deliveries v JOIN shipment_delivery_lines y ON y.delivery_id = v.id WHERE v.departure_id = d.id), 0)
+          + COALESCE((SELECT sum(z.qty) FROM shipment_losses z WHERE z.departure_id = d.id), 0)
+  -- More pieces arrived or lost from a counted handover than it held.
+  UNION ALL SELECT 12.95, 'a handover that brought more than its count',
+         count(*) FROM shipment_departures d
+   WHERE d.handover AND d.pieces IS NOT NULL
+     AND COALESCE((SELECT sum(x.qty) FROM shipment_departure_lines x WHERE x.departure_id = d.id), 0) > d.pieces
   UNION ALL SELECT 13,'payment attached to no order at all',
          count(*) FROM payments p
    WHERE p.status='RECORDED'

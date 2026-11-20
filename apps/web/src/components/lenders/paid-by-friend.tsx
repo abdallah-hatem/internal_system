@@ -20,7 +20,7 @@ import { LenderLink } from '@/components/ui/entity-link';
 import { useAllRecords } from '@/lib/list-all';
 import { useCurrencyRates } from '@/lib/currency-rates';
 import { selectOnFocus } from '@/lib/select-on-focus';
-import { useRefreshLenderData, type FinancingView } from './lender-dialogs';
+import { RecordRepaymentDialog, useFinancingLabel, useRefreshLenderData, type FinancingView } from './lender-dialogs';
 
 /**
  * "Paid by a friend" (BUSINESS_LOGIC §18) — on a purchase order and on the
@@ -66,6 +66,10 @@ export function PaidByFriend({
 }) {
   const t = useTranslations('lenders');
   const mayAdd = useCan('lender.finance');
+  const label = useFinancingLabel();
+  // Repaying from the cycle page (§18, 2026-11-20): a partner who paid a handover's freight, or a friend.
+  const mayRepay = useCan('lender.repay');
+  const [repaying, setRepaying] = useState<FinancingView | null>(null);
   const [ownAdding, setOwnAdding] = useState(false);
   const adding = open ?? ownAdding;
   const setAdding = (next: boolean) => {
@@ -126,14 +130,28 @@ export function PaidByFriend({
                 })}
               </span>
               {cycleId && (
-                <span className="font-mono text-xs text-muted-foreground" dir="ltr">
-                  {f.purchaseOrder.reference}
+                <span className="flex items-center gap-2">
+                  <span className={f.handover ? 'text-xs text-muted-foreground' : 'font-mono text-xs text-muted-foreground'} dir={f.handover ? undefined : 'ltr'}>
+                    {label(f)}
+                  </span>
+                  {mayRepay && Number(f.owed) > 0 && (
+                    <button
+                      type="button"
+                      data-testid="repay-financing"
+                      onClick={() => setRepaying(f)}
+                      className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted sm:min-h-0"
+                    >
+                      {t('recordRepayment')}
+                    </button>
+                  )}
                 </span>
               )}
             </li>
           ))}
         </ul>
       )}
+
+      {repaying && <RecordRepaymentDialog financing={repaying} onClose={() => setRepaying(null)} />}
 
       {adding && !closed && (
         <AddFinancingForm

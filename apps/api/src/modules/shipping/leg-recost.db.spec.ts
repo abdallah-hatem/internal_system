@@ -230,7 +230,14 @@ suite(
         },
         ACTOR,
       );
-      return data;
+      // In the order asked: a delivery's lines come back in no fixed order,
+      // and `receive` pairs them with its quantities by position.
+      return {
+        ...data,
+        lines: itemIds.map(
+          (id) => data.lines.find((l) => l.purchaseOrderItemId === id)!,
+        ),
+      };
     }
 
     type Delivery = Awaited<ReturnType<typeof deliver>>;

@@ -137,7 +137,7 @@ export function assertOpen(cycle: { code: string; status: string }) {
  * Only refunds that still count: once every refund on the loss has been
  * undone (B5b) the money is back with whoever paid it, and the loss can go.
  */
-async function assertLossNotRefunded(
+export async function assertLossNotRefunded(
   tx: Pick<Tx, 'supplierRefund'>,
   lossId: string,
 ) {
@@ -160,6 +160,26 @@ function orderLines(cycle: LoadedShipment) {
       po.items.map((i) => [i.id, i.product.name] as const),
     ),
   );
+}
+
+/**
+ * A leg in handovers records its goods leaving and arriving through its
+ * handovers and their arrivals (§1, owner 2026-11-20), never through a plain
+ * departure or delivery: those would carry products the forwarder's lot does
+ * not, and a freight the handovers do not know.
+ */
+export function refuseOnHandoverLeg(leg: {
+  usesHandovers: boolean;
+  origin: string;
+  destination: string;
+}) {
+  if (leg.usesHandovers) {
+    throw badRequest(
+      'LEG_USES_HANDOVERS',
+      `${where(leg)} goes in handovers: hand goods over, and record each batch as an arrival from its handover.`,
+      { leg: where(leg) },
+    );
+  }
 }
 
 /** A cycle with nothing ordered has nothing that can arrive or be lost. */
@@ -288,6 +308,7 @@ export class DeliveriesService {
     assertOpen(cycle);
     const legRow = cycle.shippingLegs.find((l) => l.id === legId);
     if (!legRow) throw notFound('shippingLeg');
+    refuseOnHandoverLeg(legRow);
     const toWrite = departureLines(cycle, position, legId, day, lines);
     const departure = await tx.shipmentDeparture.create({
       data: {
@@ -373,6 +394,8 @@ export class DeliveriesService {
       // Undone by someone else between the read and the lock.
       if (!leg) throw notFound('shipmentDeparture');
       const departure = leg.departures.find((d) => d.id === id)!;
+      // A handover is undone as a handover, with its freight (§1, 2026-11-20).
+      refuseOnHandoverLeg(leg);
 
       const block = departureUndoBlock(cycle, position, id);
       if (block) {
@@ -480,8 +503,12 @@ export class DeliveriesService {
     return this.deliverIn(tx, cycleId, legId, day, remainder, actorId);
   }
 
-  /** Every check a delivery makes, then the delivery. Caller holds the lock. */
-  private async deliverIn(
+  /**
+   * Every check a delivery makes, then the delivery. Caller holds the lock.
+   * `departureId` is the handover an arrival came from (§1, 2026-11-20): only
+   * the handovers service passes it, having written that handover's lines.
+   */
+  async deliverIn(
     tx: Tx,
     cycleId: string,
     legId: string,
@@ -489,6 +516,7 @@ export class DeliveriesService {
     lines: ShipmentLineInput[],
     actorId: string,
     note?: string,
+    departureId?: string,
   ) {
     const loaded = await loadShipment(tx, cycleId);
     if (!loaded) throw notFound('cycle');
@@ -496,6 +524,7 @@ export class DeliveriesService {
     const leg = cycle.shippingLegs.find((l) => l.id === legId)!;
 
     assertOpen(cycle);
+    if (!departureId) refuseOnHandoverLeg(leg);
 
     // Goods cannot arrive from a journey that has not started (§1).
     const legPos = position.legs.find((l) => l.legId === legId)!;
@@ -568,6 +597,7 @@ export class DeliveriesService {
         arrivedOn: new Date(`${day}T00:00:00Z`),
         note: note ?? null,
         createdBy: actorId,
+        departureId: departureId ?? null,
         lines: {
           create: lines.map((l) => ({
             purchaseOrderItemId: l.purchaseOrderItemId,
@@ -610,6 +640,9 @@ export class DeliveriesService {
       // Deleted by someone else between the read and the lock.
       if (!leg) throw notFound('shipmentDelivery');
       const delivery = leg.deliveries.find((d) => d.id === id)!;
+      // An arrival is undone as an arrival: its handover's lines and the
+      // leg's freight move with it (§1, 2026-11-20).
+      refuseOnHandoverLeg(leg);
 
       const block = deliveryDeleteBlock(cycle, id);
       if (block) {
@@ -655,89 +688,116 @@ export class DeliveriesService {
 
     const { losses, changed } = await this.prisma.$transaction(async (tx) => {
       await lockCycle(tx, leg.cycleId);
-      const loaded = await loadShipment(tx, leg.cycleId);
-      if (!loaded) throw notFound('cycle');
-      const { cycle, position } = loaded;
-      assertOpen(cycle);
-      assertHasOrderLines(cycle);
-
-      const names = orderLines(cycle);
-      const legRow = cycle.shippingLegs.find((l) => l.id === legId)!;
-      const legPos = position.legs.find((l) => l.legId === legId)!;
-      for (const line of lines) {
-        if (!names.has(line.purchaseOrderItemId))
-          throw notFound('purchaseOrderItem');
-        const lp = legPos.lines.find(
-          (l) => l.purchaseOrderItemId === line.purchaseOrderItemId,
-        )!;
-        const available = milli(lp.onTheWay) + milli(lp.waiting ?? 0);
-        if (milli(line.qty) > available) {
-          throw badRequest(
-            'LOSS_EXCEEDS_IN_TRANSIT',
-            `Only ${available / 1000} of ${names.get(line.purchaseOrderItemId)} are still to come on ${where(legRow)}, so ${line.qty} cannot be marked lost.`,
-            {
-              line: names.get(line.purchaseOrderItemId)!,
-              onTheWay: available / 1000,
-              asked: Number(line.qty),
-            },
-          );
-        }
-      }
-
-      // The costing service's per-ORDERED-unit figure (§2), read in this
-      // transaction so a one-connection pool does not wait on itself.
-      const costs = await this.costing.computeCycleLandedCosts(leg.cycleId, {
-        db: tx,
-      });
-      const allLosses = cycle.shippingLegs.flatMap((l) => l.losses);
-      const losses: ShipmentLoss[] = [];
-      for (const line of lines) {
-        const item = costs.items.find(
-          (i) => i.purchaseOrderItemId === line.purchaseOrderItemId,
-        )!;
-        // The full unit cost on any leg; the loss that accounts for the
-        // line's last units takes the rounding residual (amendment 9).
-        const { unitCostEgp, costEgp } = lineEventCost({
-          orderedQty: item.qty,
-          landedTotalEgp: item.totalLandedCostEgp,
-          unitCostEgp: item.landedUnitCostEgp,
-          priorReceivedQtys: cycle.inventoryBatches
-            .filter((b) => b.sourcePoItemId === line.purchaseOrderItemId)
-            .map((b) => b.receivedQty),
-          priorLosses: allLosses.filter(
-            (x) => x.purchaseOrderItemId === line.purchaseOrderItemId,
-          ),
-          qty: line.qty,
-        });
-        const loss = await tx.shipmentLoss.create({
-          data: {
-            legId,
-            purchaseOrderItemId: line.purchaseOrderItemId,
-            qty: line.qty,
-            unitCostEgp,
-            costEgp,
-            reason: body.reason ?? null,
-            createdBy: actorId,
-          },
-        });
-        losses.push(loss);
-        await this.audit.log(
-          {
-            actorUserId: actorId,
-            action: 'CREATE',
-            entityType: 'ShipmentLoss',
-            entityId: loss.id,
-            afterJson: loss,
-          },
-          tx,
-        );
-      }
+      const losses = await this.lossIn(
+        tx,
+        leg.cycleId,
+        legId,
+        lines,
+        body.reason,
+        actorId,
+      );
       const changed = await syncLegStatuses(tx, leg.cycleId);
       return { losses, changed };
     });
 
     await this.notifyArrivals(leg.cycleId, changed);
     return { data: losses };
+  }
+
+  /**
+   * Every check a loss makes, then the losses — each at the line's full landed
+   * unit cost (§2). Caller holds the lock and syncs the leg statuses after.
+   * `departureId` is the handover whose missing pieces these are (All
+   * arrived, §1 2026-11-20); only the handovers service passes it.
+   */
+  async lossIn(
+    tx: Tx,
+    cycleId: string,
+    legId: string,
+    lines: ShipmentLineInput[],
+    reason: string | undefined,
+    actorId: string,
+    departureId?: string,
+  ): Promise<ShipmentLoss[]> {
+    const loaded = await loadShipment(tx, cycleId);
+    if (!loaded) throw notFound('cycle');
+    const { cycle, position } = loaded;
+    assertOpen(cycle);
+    assertHasOrderLines(cycle);
+
+    const names = orderLines(cycle);
+    const legRow = cycle.shippingLegs.find((l) => l.id === legId)!;
+    const legPos = position.legs.find((l) => l.legId === legId)!;
+    for (const line of lines) {
+      if (!names.has(line.purchaseOrderItemId))
+        throw notFound('purchaseOrderItem');
+      const lp = legPos.lines.find(
+        (l) => l.purchaseOrderItemId === line.purchaseOrderItemId,
+      )!;
+      const available = milli(lp.onTheWay) + milli(lp.waiting ?? 0);
+      if (milli(line.qty) > available) {
+        throw badRequest(
+          'LOSS_EXCEEDS_IN_TRANSIT',
+          `Only ${available / 1000} of ${names.get(line.purchaseOrderItemId)} are still to come on ${where(legRow)}, so ${line.qty} cannot be marked lost.`,
+          {
+            line: names.get(line.purchaseOrderItemId)!,
+            onTheWay: available / 1000,
+            asked: Number(line.qty),
+          },
+        );
+      }
+    }
+
+    // The costing service's per-ORDERED-unit figure (§2), read in this
+    // transaction so a one-connection pool does not wait on itself.
+    const costs = await this.costing.computeCycleLandedCosts(cycleId, {
+      db: tx,
+    });
+    const allLosses = cycle.shippingLegs.flatMap((l) => l.losses);
+    const losses: ShipmentLoss[] = [];
+    for (const line of lines) {
+      const item = costs.items.find(
+        (i) => i.purchaseOrderItemId === line.purchaseOrderItemId,
+      )!;
+      // The full unit cost on any leg; the loss that accounts for the
+      // line's last units takes the rounding residual (amendment 9).
+      const { unitCostEgp, costEgp } = lineEventCost({
+        orderedQty: item.qty,
+        landedTotalEgp: item.totalLandedCostEgp,
+        unitCostEgp: item.landedUnitCostEgp,
+        priorReceivedQtys: cycle.inventoryBatches
+          .filter((b) => b.sourcePoItemId === line.purchaseOrderItemId)
+          .map((b) => b.receivedQty),
+        priorLosses: allLosses.filter(
+          (x) => x.purchaseOrderItemId === line.purchaseOrderItemId,
+        ),
+        qty: line.qty,
+      });
+      const loss = await tx.shipmentLoss.create({
+        data: {
+          legId,
+          purchaseOrderItemId: line.purchaseOrderItemId,
+          qty: line.qty,
+          unitCostEgp,
+          costEgp,
+          reason: reason ?? null,
+          createdBy: actorId,
+          departureId: departureId ?? null,
+        },
+      });
+      losses.push(loss);
+      await this.audit.log(
+        {
+          actorUserId: actorId,
+          action: 'CREATE',
+          entityType: 'ShipmentLoss',
+          entityId: loss.id,
+          afterJson: loss,
+        },
+        tx,
+      );
+    }
+    return losses;
   }
 
   /**
@@ -760,6 +820,15 @@ export class DeliveriesService {
       assertOpen(loaded.cycle);
       const loss = await tx.shipmentLoss.findUnique({ where: { id } });
       if (!loss) throw notFound('shipmentLoss');
+      // Pieces a handover never brought go back with its All arrived (§1,
+      // 2026-11-20): taken back alone, they would be on the way again from a
+      // lot that is closed.
+      if (loss.departureId) {
+        throw badRequest(
+          'HANDOVER_LOSS_UNDO_ALL_ARRIVED',
+          'These pieces were marked lost when their handover was marked all arrived. Undo All arrived on that handover instead.',
+        );
+      }
       await assertLossNotRefunded(tx, loss.id);
 
       // Refunds that were undone still name the loss, and the foreign key

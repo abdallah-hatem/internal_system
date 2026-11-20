@@ -160,12 +160,19 @@ export function LegCreateForm({
   fixedCycleId,
   defaults,
   costStart,
+  handovers = false,
   onDone,
 }: {
   /** The dialog's title; the form renders in the shared dialog (§13: it portals out of any form). */
   title: string;
   /** `data-leg-form` on the dialog, for tests. */
   testId?: string;
+  /**
+   * A leg leaving the UAE added from the cycle page (§1, owner 2026-11-20): it
+   * goes in handovers, so no departure and no cost are asked — its freight is
+   * its handovers'.
+   */
+  handovers?: boolean;
   /** The cycles to pick from — the Shipments page. */
   cycles?: { id: string; code: string; originType?: string; status?: string }[];
   /** The cycle this leg is for — the cycle page. */
@@ -177,6 +184,7 @@ export function LegCreateForm({
 }) {
   const t = useTranslations('shipments');
   const tShipment = useTranslations('shipment');
+  const tHandovers = useTranslations('handovers');
   const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const codeLabel = useCodeLabel();
@@ -230,8 +238,12 @@ export function LegCreateForm({
             destination: fd.get('destination'),
             ...providers.fields(fd.get('providerId')),
             trackingRef: fd.get('trackingRef'),
-            ...(departure.departedOn ? { departedOn: departure.departedOn, departureLines } : {}),
-            ...readShippingCostFields(fd),
+            ...(handovers
+              ? { usesHandovers: true }
+              : {
+                  ...(departure.departedOn ? { departedOn: departure.departedOn, departureLines } : {}),
+                  ...readShippingCostFields(fd),
+                }),
           });
         }}
         className="space-y-4"
@@ -299,9 +311,16 @@ export function LegCreateForm({
           <InputField label={t('trackingRef')} name="trackingRef" placeholder={tph('trackingRef')} />
         </div>
 
-        <LegDepartureFields state={departure} cycleId={cycleId || undefined} label={t('firstDeparture')} />
-
-        <ShippingCostFields defaults={costStart} />
+        {handovers ? (
+          <p data-testid="leg-handovers-note" className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
+            {tHandovers('legNoCost')}
+          </p>
+        ) : (
+          <>
+            <LegDepartureFields state={departure} cycleId={cycleId || undefined} label={t('firstDeparture')} />
+            <ShippingCostFields defaults={costStart} />
+          </>
+        )}
 
       </ValidatedForm>
     </Dialog>
@@ -345,7 +364,10 @@ export function LegEditForm({
   const departure = useLegDeparture(leg.cycleId, leg.id);
   const { data: shipment } = useShipment(leg.cycleId);
   const cost = legCostState(shipment);
-  const locked = cost.locked;
+  const tHandovers = useTranslations('handovers');
+  // A leg in handovers (§1, 2026-11-20): no departure, no cost — they are its handovers'.
+  const handovers = shipment?.legs?.find((l) => l.legId === leg.id)?.usesHandovers === true;
+  const locked = cost.locked || handovers;
   const [providerId, setProviderId] = useState('');
 
   const formId = useId();
@@ -386,8 +408,7 @@ export function LegEditForm({
           // was recorded, and arrivals are deliveries, recorded on the cycle's
           // Shipment panel (BUSINESS_LOGIC §1, 2026-10-10).
           update.mutate({
-            departedOn: fd.get('departedOn') || null,
-            departureLines,
+            ...(handovers ? {} : { departedOn: fd.get('departedOn') || null, departureLines }),
             ...providers.fields(fd.get('providerId')),
             trackingRef: fd.get('trackingRef'),
             ...(locked ? {} : readShippingCostFields(fd)),
@@ -404,13 +425,15 @@ export function LegEditForm({
         </p>
         {/* The same fields Record departure renders on the cycle page (I3, L8):
             one definition, the full width so a product's name has room. */}
-        <LegDepartureFields
-          state={departure}
-          cycleId={leg.cycleId}
-          label={t('departedOn')}
-          defaultDepartedOn={leg.departedOn ?? null}
-          linkToCycle={!onCyclePage}
-        />
+        {!handovers && (
+          <LegDepartureFields
+            state={departure}
+            cycleId={leg.cycleId}
+            label={t('departedOn')}
+            defaultDepartedOn={leg.departedOn ?? null}
+            linkToCycle={!onCyclePage}
+          />
+        )}
         {!onCyclePage && (
           <p className="text-xs text-muted-foreground">
             {t('arrivalsAreDeliveries')}{' '}
@@ -442,7 +465,11 @@ export function LegEditForm({
           <InputField label={t('trackingRef')} name="trackingRef" defaultValue={leg.trackingRef ?? undefined} placeholder={tph('trackingRef')} />
         </div>
 
-        {locked ? (
+        {handovers ? (
+          <p data-testid="leg-handovers-note" className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
+            {tHandovers('editNoCost')}
+          </p>
+        ) : locked ? (
           <CostLockedNote reason={cost.reason} params={cost.params} />
         ) : (
           <ShippingCostFields
@@ -460,7 +487,7 @@ export function LegEditForm({
             legPieces={shipment?.legs?.find((l) => l.legId === leg.id)?.entered || undefined}
           />
         )}
-        {cost.recosts && (
+        {cost.recosts && !handovers && (
           <p role="status" data-testid="leg-cost-recost-warning" className="flex items-start gap-1.5 rounded-lg border border-accent-200 bg-accent-50 px-2.5 py-1.5 text-sm text-accent-800">
             <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
             <span className="min-w-0">{t('costRecostWarning')}</span>

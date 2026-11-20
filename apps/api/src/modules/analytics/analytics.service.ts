@@ -1,3 +1,4 @@
+import { cycleFreightIsEstimate } from '../../common/leg-handovers';
 import { Injectable } from '@nestjs/common';
 import { sharedRunningCosts } from '../../common/running-cost-allocation';
 import { PROFIT_DRAW_CATEGORY } from '../../common/profit-draws';
@@ -1647,6 +1648,9 @@ export class AnalyticsService {
         code: true,
         status: true,
         originType: true,
+        // A leg in handovers makes the profit an estimate until its freight
+        // is final (§2, 2026-11-20).
+        shippingLegs: { select: { usesHandovers: true } },
         financialTransactions: {
           select: {
             amount: true,
@@ -1716,7 +1720,15 @@ export class AnalyticsService {
       cycles.map((c) => c.id),
     );
     const exchangeByCycle = new Map<string, Prisma.Decimal>();
+    // A leg's freight still an estimate (handovers open, §2 2026-11-20).
+    const estimateByCycle = new Map<string, boolean>();
     for (const c of withStock) {
+      if (c.shippingLegs?.some((l) => l.usesHandovers)) {
+        estimateByCycle.set(
+          c.id,
+          await cycleFreightIsEstimate(this.prisma, c.id),
+        );
+      }
       lossesByCycle.set(
         c.id,
         (await cycleWriteOffsEgp(this.prisma, c.id)).total,
@@ -1852,6 +1864,8 @@ export class AnalyticsService {
         unitsSold: Number(unitsSold.toDecimalPlaces(3)),
         unitsRemaining: Number(unitsRemaining.toDecimalPlaces(3)),
         unsoldValueEgp: money(unsoldValue),
+        /** The freight of a leg in handovers is not final yet: this profit is an estimate. */
+        freightEstimate: estimateByCycle.get(cycle.id) ?? false,
       };
     });
 

@@ -58,6 +58,8 @@ interface CycleProfit {
   /** Other income credited to the cycle, already in profit (L6). */
   otherIncomeEgp?: number;
   roiPct: number | null;
+  /** A leg in handovers whose freight is not final yet: the profit is an estimate (§2, 2026-11-20). */
+  freightEstimate?: boolean;
 }
 const num = (v: unknown) => Number(v ?? 0);
 
@@ -395,12 +397,27 @@ function CycleDetailSkeleton({ direct }: { direct: boolean }) {
 /** Profit as the analytics figure states it — revenue less cost of goods sold, plus refunds, less losses, less expenses charged to the cycle, plus its other income. */
 function ProfitCard({ figure }: { figure?: CycleProfit }) {
   const t = useTranslations('cycles');
+  const th = useTranslations('handovers');
   return (
     <div data-testid="cycle-profit-card" className="rounded-xl border border-border bg-card p-5">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+      <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
         <TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         {t('profit')}
+        {figure?.freightEstimate && (
+          <span
+            data-testid="cycle-profit-estimate"
+            title={th('profitEstimateHint')}
+            className="rounded-full bg-accent-50 px-2.5 py-0.5 text-xs font-medium text-accent-800"
+          >
+            {th('profitEstimate')}
+          </span>
+        )}
       </h2>
+      {figure?.freightEstimate && (
+        <p data-testid="cycle-profit-estimate-hint" className="-mt-1 mb-3 text-xs text-muted-foreground">
+          {th('profitEstimateHint')}
+        </p>
+      )}
       {!figure ? (
         <p className="text-sm text-muted-foreground">{t('profitNotYet')}</p>
       ) : (

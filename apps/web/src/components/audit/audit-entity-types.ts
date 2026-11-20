@@ -13,7 +13,7 @@ export const AUDIT_ENTITY_TYPES = [
   'SaleOrder', 'SaleReturn', 'Payment', 'PaymentPlan', 'Customer', 'CustomerBranch',
   // Buying and shipping
   'ImportCycle', 'CycleParticipant', 'PurchaseOrder', 'PurchaseOrderItem', 'SupplierRefund',
-  'ShippingLeg', 'ShipmentDeparture', 'ShipmentDelivery', 'ShipmentLoss',
+  'ShippingLeg', 'ShipmentDeparture', 'ShipmentHandover', 'ShipmentDelivery', 'ShipmentLoss',
   // Stock
   'InventoryBatch', 'StockTransfer',
   // Money

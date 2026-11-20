@@ -271,7 +271,8 @@ async function readState(db: PrismaService): Promise<CorrectionState> {
     financings: financings.map((f) => ({
       id: f.id,
       lender: f.lender.name,
-      purchaseOrderId: f.purchaseOrderId,
+      // Every financing of 2026-10-23 was a friend's, on an order.
+      purchaseOrderId: f.purchaseOrderId ?? '',
       amount: m2(f.amount),
       currency: f.currency,
       fxRateToEgp: D(f.fxRateToEgp).toFixed(4),

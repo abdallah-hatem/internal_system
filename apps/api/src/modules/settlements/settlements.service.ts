@@ -1,3 +1,4 @@
+import { cycleFreightIsEstimate } from '../../common/leg-handovers';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -627,6 +628,8 @@ export class SettlementsService {
         grossProfitEgp: projected.pnl.grossProfit.toFixed(2),
         unsoldValueEgp: projected.pnl.unsoldValue.toFixed(2),
         fullySold: projected.pnl.fullySold,
+        /** A leg's freight is still an estimate (handovers open, §2 2026-11-20): so is this profit. */
+        freightEstimate: await cycleFreightIsEstimate(this.prisma, cycleId),
         // An investor: their own payout line only (R1).
         lines: projected.distribution.lines
           .filter((l) => own === null || own.includes(l.participantId))

@@ -10,6 +10,7 @@ import {
   IsArray,
   ArrayMinSize,
   ValidateNested,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ShippingCostBasis } from '@prisma/client';
@@ -94,6 +95,14 @@ export class CreateShippingLegDto {
   @Min(0)
   @Type(() => Number)
   amount?: number;
+
+  /**
+   * A leg leaving the UAE that goes in handovers (§1, owner 2026-11-20): no
+   * cost, no departure, no arrival with it — its freight is its handovers'.
+   */
+  @IsOptional()
+  @IsBoolean()
+  usesHandovers?: boolean;
 }
 
 export class UpdateShippingLegDto {

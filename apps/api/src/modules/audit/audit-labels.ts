@@ -427,6 +427,15 @@ const RESOLVERS: Record<string, Resolver> = {
       }),
       (d) => ({ label: legLabel(d.leg), href: cycleHref(d.leg.cycleId) }),
     ),
+  // A UAE handover is a departure row (§1, 2026-11-20).
+  ShipmentHandover: async (db, ids) =>
+    keyed(
+      await db.shipmentDeparture.findMany({
+        ...asIn(ids),
+        select: { id: true, leg: { select: legSelect } },
+      }),
+      (d) => ({ label: legLabel(d.leg), href: cycleHref(d.leg.cycleId) }),
+    ),
   ShipmentDelivery: async (db, ids) =>
     keyed(
       await db.shipmentDelivery.findMany({

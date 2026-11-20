@@ -23,6 +23,19 @@ export function isCycleRoute(value: unknown): value is CycleRoute {
   return (CYCLE_ROUTES as readonly unknown[]).includes(value);
 }
 
+/**
+ * Where a leg of this route leaves from: a China cycle's first leg leaves
+ * China; every other leg — a China cycle's second, a UAE-direct cycle's only
+ * one — leaves the UAE. The web's `legLeavesFrom` (leg-plan.ts) is the same
+ * rule; a leg leaving the UAE may go in handovers (§1, 2026-11-20).
+ */
+export function legLeavesFrom(
+  originType: string,
+  sequence: number,
+): 'CHINA' | 'UAE' {
+  return originType !== 'UAE_DIRECT' && sequence === 1 ? 'CHINA' : 'UAE';
+}
+
 export function expectedLegs(originType: string): ExpectedLeg[] {
   return originType === 'UAE_DIRECT'
     ? [{ sequence: 1, ...UAE_TO_EGYPT }]

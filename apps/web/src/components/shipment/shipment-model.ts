@@ -103,7 +103,60 @@ export interface ShipmentLeg {
   departures?: ShipmentDeparture[];
   deliveries: ShipmentDelivery[];
   losses?: ShipmentLoss[];
+  /** The leg goes in handovers (§1, owner 2026-11-20). */
+  usesHandovers?: boolean;
+  /** A UAE leg with nothing recorded the old way: its first handover puts it in handovers. */
+  handoverReady?: boolean;
+  /** What its handovers add up to — the server's `legHandovers`; null on a leg recorded the old way. */
+  handovers?: LegHandovers | null;
 }
+
+/** One handover: a lot given to the forwarder in the UAE (§1, 2026-11-20). */
+export interface Handover {
+  id: string;
+  number: number;
+  handedOverOn: string;
+  pieces: number | null;
+  freightAmount: string;
+  freightCurrency: string;
+  freightRateToEgp: string;
+  freightAmountEgp: string;
+  providerId: string | null;
+  provider: string | null;
+  paidByUserId: string | null;
+  paidBy: { id: string; name: string } | null;
+  /** What the business still owes the partner who paid it, in its currency. */
+  owed: { financingId: string; currency: string; owed: string } | null;
+  arrived: number;
+  lost: number;
+  covered: number;
+  toCome: number | null;
+  allArrivedOn: string | null;
+  open: boolean;
+  arrivals: { id: string; arrivedOn: string; lines: { purchaseOrderItemId: string; qty: number }[]; total: number }[];
+  lossIds: string[];
+}
+
+export interface LegHandovers {
+  legId: string;
+  handovers: Handover[];
+  freightEgp: string;
+  freightByCurrency: { currency: string; amount: string }[];
+  covered: number;
+  pieces: number;
+  legCostEgp: string;
+  perPieceEgp: string | null;
+  perPiece: { amount: string; currency: string } | null;
+  final: boolean;
+  stillInUae: number;
+  withForwarder: number;
+  withForwarderUnknown: number;
+  arrived: number;
+}
+
+/** A leg recorded through handovers, or about to be by its first one. */
+export const inHandovers = (leg: Pick<ShipmentLeg, 'usesHandovers' | 'handoverReady'>) =>
+  leg.usesHandovers === true || leg.handoverReady === true;
 
 export interface ShipmentLine {
   purchaseOrderItemId: string;
@@ -137,6 +190,8 @@ export interface Shipment {
   costLockedParams?: Record<string, string>;
   /** A change now re-prices the cycle's received units, sold ones included. */
   costChangeRecosts?: boolean;
+  /** A leg in handovers whose freight is not final yet (§2, 2026-11-20). */
+  freightEstimate?: boolean;
 }
 
 export const num = (v: unknown): number => {

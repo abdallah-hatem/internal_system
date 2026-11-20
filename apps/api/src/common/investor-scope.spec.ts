@@ -828,6 +828,7 @@ describe('every scoped route passes the signed-in user to its service', () => {
           { findAll: fn } as never,
           {} as never,
           {} as never,
+          {} as never,
         ).findAll({}, user);
         return { fn };
       },
