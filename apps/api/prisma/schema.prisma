@@ -55,6 +55,10 @@ model User {
   inventoryMovements    InventoryMovement[]
   stockTransfers        StockTransfer[]          @relation("StockTransferCreatedBy")
   stockTransfersUndone  StockTransfer[]          @relation("StockTransferReversedBy")
+  /// Freight he paid from his own pocket for a UAE handover (§1, §18, 2026-11-20).
+  handoversPaid         ShipmentDeparture[]      @relation("HandoverPaidBy")
+  /// The lender record that holds what the business owes him in a foreign currency (§18, 2026-11-20).
+  lenderRecord          Lender?                  @relation("PartnerLender")
 
   createdSaleReturns          SaleReturn[]          @relation("CreatedSaleReturnUser")
   createdSalePriceAdjustments SalePriceAdjustment[] @relation("CreatedSalePriceAdjustmentUser")
@@ -720,6 +724,8 @@ model Provider {
 
   shippingLegs ShippingLeg[]
   lossRefunds  SupplierRefund[]
+  /// The forwarder a UAE lot was handed to (§1, 2026-11-20).
+  handovers    ShipmentDeparture[]
 
   @@map("providers")
 }
@@ -753,6 +759,11 @@ model ShippingLeg {
   createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz()
   version            Int               @default(1)
+  /// The leg leaves the UAE and goes in handovers (§1, owner 2026-11-20): lots
+  /// handed to the forwarder with their own freight, products counted only on
+  /// arrival. Its cost is then the handovers' freight, never typed. False on
+  /// every leg recorded the old way, which keeps working unchanged.
+  usesHandovers      Boolean           @default(false) @map("uses_handovers")
 
   cycle          ImportCycle         @relation(fields: [cycleId], references: [id])
   providerRecord Provider?           @relation(fields: [providerId], references: [id])
@@ -778,8 +789,37 @@ model ShipmentDeparture {
   createdBy  String?  @map("created_by") @db.Uuid
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  leg   ShippingLeg             @relation(fields: [legId], references: [id])
-  lines ShipmentDepartureLine[]
+  /// A handover (§1, owner 2026-11-20): a lot given to the forwarder in the
+  /// UAE with its own freight, whose products are not known until each batch
+  /// arrives. Its `lines` are written as its arrivals (and, at All arrived,
+  /// its missing pieces) are counted, so every count that reads departures
+  /// keeps working. False on every ordinary departure.
+  handover         Boolean   @default(false)
+  /// The freight paid for the lot, in its currency, and at the rate on the day.
+  freightAmount    Decimal?  @map("freight_amount") @db.Decimal(18, 2)
+  freightCurrency  String?   @map("freight_currency")
+  freightRateToEgp Decimal?  @map("freight_rate_to_egp") @db.Decimal(18, 4)
+  /// freightAmount × freightRateToEgp, half up.
+  freightAmountEgp Decimal?  @map("freight_amount_egp") @db.Decimal(18, 2)
+  /// How many pieces were handed over, when known. Null: not known.
+  pieces           Int?
+  providerId       String?   @map("provider_id") @db.Uuid
+  /// A core partner who paid the freight himself; null: the business paid.
+  paidByUserId     String?   @map("paid_by_user_id") @db.Uuid
+  /// Set by All arrived: nothing more is coming from this lot.
+  allArrivedOn     DateTime? @map("all_arrived_on") @db.Date
+  allArrivedBy     String?   @map("all_arrived_by") @db.Uuid
+
+  leg       ShippingLeg             @relation(fields: [legId], references: [id])
+  lines     ShipmentDepartureLine[]
+  forwarder Provider?               @relation(fields: [providerId], references: [id])
+  paidBy    User?                   @relation("HandoverPaidBy", fields: [paidByUserId], references: [id])
+  /// The batches that arrived from this handover.
+  arrivals  ShipmentDelivery[]
+  /// Pieces of this handover that never arrived (All arrived).
+  losses    ShipmentLoss[]
+  /// What the business owes the partner who paid its freight (§18).
+  financing LenderFinancing?
 
   @@index([legId])
   @@map("shipment_departures")
@@ -814,10 +854,15 @@ model ShipmentDelivery {
   createdBy String?  @map("created_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  leg   ShippingLeg            @relation(fields: [legId], references: [id])
-  lines ShipmentDeliveryLine[]
+  /// The handover this batch came from, on a leg that uses handovers (§1, 2026-11-20).
+  departureId String? @map("departure_id") @db.Uuid
+
+  leg      ShippingLeg            @relation(fields: [legId], references: [id])
+  lines    ShipmentDeliveryLine[]
+  handover ShipmentDeparture?     @relation(fields: [departureId], references: [id], onDelete: Restrict)
 
   @@index([legId])
+  @@index([departureId])
   @@map("shipment_deliveries")
 }
 
@@ -853,10 +898,13 @@ model ShipmentLoss {
   reason              String?
   createdBy           String?  @map("created_by") @db.Uuid
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  /// The handover whose missing pieces this is, marked at its All arrived (§1, 2026-11-20).
+  departureId         String?  @map("departure_id") @db.Uuid
 
-  leg               ShippingLeg       @relation(fields: [legId], references: [id])
-  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+  leg               ShippingLeg        @relation(fields: [legId], references: [id])
+  purchaseOrderItem PurchaseOrderItem  @relation(fields: [purchaseOrderItemId], references: [id])
   refunds           SupplierRefund[]
+  handover          ShipmentDeparture? @relation(fields: [departureId], references: [id], onDelete: Restrict)
 
   @@index([legId])
   @@index([purchaseOrderItemId])
@@ -1370,18 +1418,23 @@ model FinancialTransaction {
 /// A friend who pays a supplier for us and is repaid in pounds. Not a partner,
 /// not a customer, not a supplier: he shares in no profit (§18).
 model Lender {
-  id        String    @id @default(uuid()) @db.Uuid
-  name      String
-  phone     String?
-  notes     String?
-  createdBy String?   @map("created_by") @db.Uuid
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String
+  phone         String?
+  notes         String?
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   /// Set when he was deleted (owner, 2026-10-18): hidden from every list and
   /// picker; kept so a removed payment's history still names him.
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz()
+  /// A core partner the business owes in a foreign currency: freight he paid
+  /// himself for a UAE handover (§18, GUESS 2026-11-20). Made by the handover;
+  /// never typed. Null for a friend.
+  partnerUserId String?   @unique @map("partner_user_id") @db.Uuid
 
   financings LenderFinancing[]
+  partner    User?             @relation("PartnerLender", fields: [partnerUserId], references: [id])
 
   @@map("lenders")
 }
@@ -1393,7 +1446,10 @@ model Lender {
 model LenderFinancing {
   id                   String    @id @default(uuid()) @db.Uuid
   lenderId             String    @map("lender_id") @db.Uuid
-  purchaseOrderId      String    @map("purchase_order_id") @db.Uuid
+  /// The order he paid. Null for freight a partner paid for a handover.
+  purchaseOrderId      String?   @map("purchase_order_id") @db.Uuid
+  /// The UAE handover whose freight a partner paid himself (§18, 2026-11-20).
+  departureId          String?   @unique @map("departure_id") @db.Uuid
   /// The order's cycle. An order never changes cycle; kept for the gates.
   cycleId              String    @map("cycle_id") @db.Uuid
   /// The currency he paid in — not necessarily the order's (§18, 2026-10-16).
@@ -1415,9 +1471,10 @@ model LenderFinancing {
   removalReason        String?   @map("removal_reason")
   removalTransactionId String?   @unique @map("removal_transaction_id") @db.Uuid
 
-  lender        Lender            @relation(fields: [lenderId], references: [id])
-  purchaseOrder PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id])
-  cycle         ImportCycle       @relation(fields: [cycleId], references: [id])
+  lender        Lender             @relation(fields: [lenderId], references: [id])
+  purchaseOrder PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  handover      ShipmentDeparture? @relation(fields: [departureId], references: [id], onDelete: SetNull)
+  cycle         ImportCycle        @relation(fields: [cycleId], references: [id])
   repayments    LenderRepayment[]
   plans         LenderPlan[]
 

@@ -194,15 +194,16 @@ describe('Add next leg', () => {
     expect(f.querySelector('[data-quick-create="provider"]')).toBeTruthy();
   });
 
-  it('saving posts the leg to this cycle, with the provider and the cost', async () => {
+  it('saving posts a leg leaving the UAE in handovers to this cycle, with the provider and no departure or cost (owner 2026-11-20)', async () => {
     wrap();
     fireEvent.click(await screen.findByTestId('add-next-leg'));
     const f = form('add-leg')!;
+    // No cost and no departure are asked: the freight is its handovers'.
+    expect(within(f).getByTestId('leg-handovers-note').textContent).toBe(en.handovers.legNoCost);
+    expect(field(f, 'costBasis')).toBeNull();
+    expect(field(f, 'departedOn')).toBeNull();
     fireEvent.click(within(f).getAllByRole('combobox')[0]);
     fireEvent.click(await screen.findByRole('option', { name: /Nile Freight/ }));
-    // Leaving the UAE: AED at today's rate, charged per piece (§2, 2026-10-20).
-    fireEvent.change(f.querySelector<HTMLInputElement>('input[data-field="ratePerUnit"]')!, { target: { value: '2.5' } });
-    fireEvent.change(field(f, 'chargeablePieces')!, { target: { value: '40' } });
     fireEvent.click(within(f).getByRole('button', { name: en.common.create }));
     await waitFor(() => expect(state.writes).toHaveLength(1));
     expect(state.writes[0]).toMatchObject({
@@ -213,31 +214,30 @@ describe('Add next leg', () => {
         origin: 'Dubai, UAE',
         destination: 'Cairo, Egypt',
         providerId: 'prov-1',
-        costBasis: 'PER_PIECE',
-        ratePerUnit: 2.5,
-        chargeablePieces: 40,
-        currency: 'AED',
-        fxRateToEgp: 13.85,
+        usesHandovers: true,
       }),
     });
+    expect(state.writes[0].body).not.toHaveProperty('costBasis');
+    expect(state.writes[0].body).not.toHaveProperty('departedOn');
     // The body carries no cycle id of its own: the URL names the cycle.
     expect(state.writes[0].body).not.toHaveProperty('cycleId');
     await waitFor(() => expect(form('add-leg')).toBeNull());
   });
 
-  it('the new leg starts from where it leaves: Dubai → Egypt in AED per piece, a UAE-direct leg 1 the same, a China leg 1 in USD at a flat amount — each at today’s rate (§2, 2026-10-20)', async () => {
+  it('the new leg starts from where it leaves: a leg leaving the UAE (China leg 2, UAE-direct leg 1) goes in handovers with no cost; a China leg 1 in USD at a flat amount at today’s rate (§2, 2026-10-20; §1, 2026-11-20)', async () => {
     const costOf = () => {
       const f = form('add-leg')!;
       return {
         currency: field(f, 'currency')?.value,
         basis: field(f, 'costBasis')?.value,
         fx: field(f, 'fxRateToEgp')?.value,
+        handovers: within(f).queryByTestId('leg-handovers-note') !== null,
       };
     };
     const cases: Array<[typeof state.originType, number[], ReturnType<typeof costOf>]> = [
-      ['CHINA', [1], { currency: 'AED', basis: 'PER_PIECE', fx: '13.85' }],
-      ['UAE_DIRECT', [], { currency: 'AED', basis: 'PER_PIECE', fx: '13.85' }],
-      ['CHINA', [2], { currency: 'USD', basis: 'FLAT', fx: '50.5' }],
+      ['CHINA', [1], { currency: undefined, basis: undefined, fx: undefined, handovers: true }],
+      ['UAE_DIRECT', [], { currency: undefined, basis: undefined, fx: undefined, handovers: true }],
+      ['CHINA', [2], { currency: 'USD', basis: 'FLAT', fx: '50.5', handovers: false }],
     ];
     for (const [origin, legs, expected] of cases) {
       cleanup();

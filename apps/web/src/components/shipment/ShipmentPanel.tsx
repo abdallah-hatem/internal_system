@@ -6,7 +6,8 @@ import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Edit } from '@/components/ui/icons';
-import { legCostStart, nextLegToAdd } from '@/components/cycles/leg-plan';
+import { legCostStart, legLeavesFrom, nextLegToAdd } from '@/components/cycles/leg-plan';
+import { HandoverSection } from './Handovers';
 import { LegCreateForm, LegEditForm, type LegRow } from './LegForm';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -34,6 +35,7 @@ import {
   FROZEN_STATUSES,
   RECEIVING_STATUSES,
   hasWaitingToLeave,
+  inHandovers,
   isWaiting,
   legCounts,
   legLineProgress,
@@ -411,6 +413,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
           {legs.map((leg) => (
             <LegBlock
               key={leg.legId}
+              cycleId={cycle.id}
               leg={leg}
               meta={cycle.shippingLegs?.find((l) => l.id === leg.legId)}
               productNames={productNames}
@@ -433,6 +436,8 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
           defaults={nextLeg}
           // Leaving China, USD and a flat amount; leaving the UAE, AED (owner 2026-10-20).
           costStart={legCostStart(cycle.originType, nextLeg.sequence)}
+          // Leaving the UAE, the leg goes in handovers (owner 2026-11-20).
+          handovers={legLeavesFrom(cycle.originType, nextLeg.sequence) === 'UAE'}
           onDone={close}
         />
       )}
@@ -544,6 +549,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
 }
 
 function LegBlock({
+  cycleId,
   leg,
   meta,
   productNames,
@@ -553,6 +559,7 @@ function LegBlock({
   may,
   onOpen,
 }: {
+  cycleId: string;
   leg: ShipmentLeg;
   /** The leg row from the cycle: who carries it and what it costs. */
   meta?: NonNullable<PanelCycle['shippingLegs']>[number];
@@ -577,6 +584,9 @@ function LegBlock({
   const detailsId = `leg-details-${leg.legId}`;
   const amountEgp = num(meta?.amountEgp);
   const ownCurrency = meta?.currency && meta.currency !== 'EGP' && meta.amount != null ? meta.currency : null;
+  // A UAE leg in handovers (§1, 2026-11-20): its goods go and come through
+  // its handovers, so the plain departure and delivery are not offered.
+  const handover = inHandovers(leg);
 
   return (
     <div
@@ -639,7 +649,7 @@ function LegBlock({
             {/* While anything waits at the leg's origin, another departure
                 (L8); while anything is on the way, a delivery. Both at once
                 when goods left in parts. */}
-            {may.recordDeparture && hasWaitingToLeave(leg) && (
+            {may.recordDeparture && !handover && hasWaitingToLeave(leg) && (
               <button
                 type="button"
                 data-testid="record-departure"
@@ -649,7 +659,7 @@ function LegBlock({
                 <Send className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" /> {t('recordDeparture')}
               </button>
             )}
-            {may.recordDelivery && leg.onTheWay > 0 && (
+            {may.recordDelivery && !handover && leg.onTheWay > 0 && (
               <button
                 type="button"
                 data-testid="record-delivery"
@@ -696,6 +706,8 @@ function LegBlock({
         </div>
       </div>
 
+      {handover && <HandoverSection cycleId={cycleId} leg={leg} productNames={productNames} frozen={frozen} />}
+
       {expanded && (
       <div id={detailsId} data-testid="leg-details" className="space-y-3 border-t border-border p-3">
       {/* Desktop: a table. Phone: a card per product. */}
@@ -732,7 +744,9 @@ function LegBlock({
         ))}
       </ul>
 
-      {/* Departures (L8): each day goods left, with Undo where the server allows it. */}
+      {/* Departures (L8): each day goods left, with Undo where the server allows it.
+          A leg in handovers lists its lots above instead. */}
+      {!handover && (
       <div>
         <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('departures')}</h4>
         {(leg.departures ?? []).length === 0 ? (
@@ -776,6 +790,7 @@ function LegBlock({
           </ul>
         )}
       </div>
+      )}
 
       {/* Deliveries */}
       <div>
@@ -822,7 +837,7 @@ function LegBlock({
                         <PackageCheck className="h-4 w-4" aria-hidden="true" /> {t('receiveIntoStock')}
                       </button>
                     )}
-                    {may.deleteDelivery && !frozen && (
+                    {may.deleteDelivery && !frozen && !handover && (
                       <button
                         type="button"
                         data-testid="delete-delivery"
@@ -839,7 +854,7 @@ function LegBlock({
                       </button>
                     )}
                   </div>
-                  {may.deleteDelivery && !frozen && d.deletable === false && (
+                  {may.deleteDelivery && !frozen && !handover && d.deletable === false && (
                     <p id={`delivery-locked-${d.id}`} data-testid="delivery-locked" className="basis-full text-xs text-muted-foreground">
                       {deleteLock(d)}
                     </p>

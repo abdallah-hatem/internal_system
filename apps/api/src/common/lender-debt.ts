@@ -22,6 +22,23 @@ type Db = Pick<Prisma.TransactionClient, 'lenderFinancing' | 'lenderRepayment'>;
 export const STANDING_FINANCING = { removedAt: null } as const;
 export const STANDING_REPAYMENT = { reversedAt: null } as const;
 
+/**
+ * What a lender's payment was for, as people name it: the order's reference,
+ * or — for freight a partner paid himself for a UAE handover (§18, GUESS
+ * 2026-11-20) — "Freight handed over on <day>". One wording for the lender's
+ * page, the ledger and the assistant.
+ */
+export function financingReference(f: {
+  purchaseOrder: { reference: string } | null;
+  handover?: { departedOn: Date } | null;
+}): string {
+  if (f.purchaseOrder) return f.purchaseOrder.reference;
+  const day = f.handover
+    ? f.handover.departedOn.toISOString().slice(0, 10)
+    : '';
+  return day ? `Freight handed over on ${day}` : 'Freight';
+}
+
 export interface LenderOwed {
   lenderId: string;
   lender: string;

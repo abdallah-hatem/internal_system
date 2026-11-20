@@ -38,6 +38,7 @@ import {
   recoveredShare,
 } from '../../common/capital-back-early';
 import { splitTake } from '../../common/take-money';
+import { cycleFreightIsEstimate } from '../../common/leg-handovers';
 import type {
   CreateCapitalBackDto,
   CreateProfitDrawDto,
@@ -464,6 +465,8 @@ export class ProfitDrawsService {
         /** Why no profit can be taken (no agreed split), or null; capital still can. */
         problem: profit.problem,
         profitEgp: profit.profitEgp,
+        /** A leg's freight is still an estimate (§2, 2026-11-20): so is this profit. */
+        freightEstimate: await cycleFreightIsEstimate(this.prisma, cycleId),
         sharePaidPct: profit.sharePaidPct,
         collectedProfitEgp: profit.collectedProfitEgp,
         toFundEgp: capital.toFundEgp,

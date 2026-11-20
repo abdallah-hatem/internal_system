@@ -5,6 +5,15 @@ feature by feature at the owner's word, each on its own branch, merged and shipp
 Goal (current, 2026-10-27): the "Next up" list below, top first.
 
 ## Current stage
+- **2026-11-20 — leg 2 in handovers (owner), on `feature/leg-handovers`, PR to `dev`, not merged:** a UAE leg goes in
+  lots handed to the forwarder with their own freight (pieces if known, paid by the business or a partner); arrivals
+  counted per product from their handover; All arrived loses the missing pieces at full cost. A handover is a
+  departure and an arrival a delivery (no parallel model); the leg's cost is freight paid × pieces ÷ covered, re-costed
+  through the leg re-cost, an estimate until final (`freightEstimate` on the shipment, cycle profitability, settlement
+  preview and Take money; a pill on the Profit card). A partner's freight is a lender's payment on the handover,
+  owed in AED. Migration `20261120120000_leg_handovers` (additive). Visual baselines for cycle-detail to retake.
+  Production's CYC-2026-0002 (400 in Ajman, no leg 2) is the first to use it once shipped. BUSINESS_LOGIC §1, §2,
+  §9, §18.
 2026-11-10 — **production runs `origin/master` at `7ee12939`**: the cycle Timeline card (`GET /cycles/:id/timeline`, PR #6, no migration); before it the same day `0666c3d4`: one "Take money from this cycle" card (profit first, then capital; `POST /cycles/:id/take`, PR #5; no migration). Before that, 2026-11-09: **production runs `origin/master` at `afbeb061`**: capital back early (migration `20261108400000_capital_back_early`, backup `prod-20261109-143645.sql`), a running cost re-shared to every cycle that ran on its day (PR #4), CI green again (database suites run in CI on their own database). Before that, 2026-11-08: **production runs `origin/master` at `1daf16d5`**: profit taken before a cycle is settled,
 running costs shared to the running cycles (investors bear them), the cycles' status history (migrations
 `20261108100000_profit_draws`, `20261108200000_running_cost_allocations`, `20261108300000_cycle_status_history`, rehearsed

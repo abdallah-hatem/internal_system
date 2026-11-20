@@ -165,3 +165,17 @@ that it's a loss, needs a redesign." The figure was labelled a neutral "Exchange
 | The figure | Signed as it moves profit: a loss "−3,183.74 EGP" in the destructive red, a gain "+1,200.00 EGP" in the success green; the existing tokens, one left-to-right run so the sign stays before the digits in Arabic. In an account with a − / + / = column, that column is left empty on this line so no second minus stands in front of a negative figure. | DECIDED |
 | Zero | Hidden where it was hidden (Analytics' "How it adds up", a bar's breakdown, a settlement's cycle lines, the Funding card). | as before |
 | Where | One component, `apps/web/src/components/lenders/exchange-result.tsx` (rule 11): Analytics' How it adds up and a bar's breakdown (the totals line and each repayment), a settlement's "How it was worked out", the cycle Funding card's sentence, and a lender's page (the financing's figure says loss or gain; the repayment column is "Rate gain / loss", each row signed and coloured). | built |
+
+
+**DECIDED 2026-11-20 (owner asked for the capability; details GUESS) — freight a partner paid himself for a UAE
+handover is owed to him like a friend's payment.** *Built on `feature/leg-handovers`, not merged.*
+
+| Question | Answer | Status |
+|---|---|---|
+| What the business owes him | The handover's freight **in its currency** (e.g. 6,000 AED), until repaid. | DECIDED (owner) |
+| How it is recorded | A `LenderFinancing` naming the handover (`departure_id`) instead of an order (`purchase_order_id` is now nullable; a check keeps exactly one, or neither once removed), on a lender record that is him (`lenders.partner_user_id`), made the first time he pays one and reused after. So every reading of a friend's debt counts it with no second definition: what is owed on the cycle, the settlement gate (`LENDER_DEBT_OUTSTANDING` until he is repaid), the exchange difference and its How dialog on the Funding card, Analytics, the dashboard's Owed to lenders, his page under Lenders. | GUESS (treat him as a lender on this cycle) |
+| Repaying him | From the cycle page's "Paid by a friend" card (a Record repayment button on each line still owed, new) or his lender page: pounds on a day at that day's rate — or the amount in AED, which fills the pounds at the rate typed (new, both places). The existing repayment, `lender-math`: refused above what is owed (`LENDER_REPAYMENT_EXCEEDS_OWED`). | GUESS |
+| The exchange difference | Pounds paid − what they cleared at the handover day's rate: a loss when the dirham rose, a gain when it fell, on the cycle's profit, shared by everyone by the split. Tested: 6,000 AED at 15 (90,000), repaid 30,000 at 16 then 68,062.50 at 16.5 → 8,062.50, 4,031.25 off each of two equal partners. | DECIDED (owner); arithmetic §18's |
+| Correcting or undoing | A handover's freight, currency, rate, day or payer changed — or the handover undone — removes his debt and records it again (a balancing ledger row on its day), only while nothing of it was repaid (`FINANCING_HAS_REPAYMENTS`). | GUESS |
+| Funding | Like a friend's payment, it is a loan to the partners: not taken off what they fund (2026-10-19), shown beside it. | follows |
+| Wording | On the lender page and the cycle card the line reads "Freight handed over on {date}" instead of an order's reference. | GUESS |

@@ -15,7 +15,7 @@ import { FieldLabel, FormActions } from '@/components/ui/fields';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { Dialog } from '@/components/ui/dialog';
 import { selectOnFocus } from '@/lib/select-on-focus';
-import { businessToday } from '@/lib/dates';
+import { businessToday, useDateFormat } from '@/lib/dates';
 
 /**
  * The dialogs a friend's loan needs (BUSINESS_LOGIC §18): record a repayment,
@@ -27,7 +27,11 @@ import { businessToday } from '@/lib/dates';
 export interface FinancingView {
   id: string;
   lender: { id: string; name: string };
-  purchaseOrder: { id: string; reference: string };
+  /** Null for freight a partner paid himself for a UAE handover (§18, 2026-11-20). */
+  purchaseOrder: { id: string; reference: string } | null;
+  /** What it paid for: the order's reference, or "Freight handed over on …". */
+  reference?: string;
+  handover?: { id: string; handedOverOn: string; legId: string } | null;
   cycle: { id: string; code: string; status: string };
   currency: string;
   amount: string;
@@ -69,6 +73,18 @@ export interface FinancingView {
   };
 }
 
+/**
+ * What a lender's payment was for, in the reader's language: the order's
+ * reference, or — freight a partner paid himself for a UAE handover (§18,
+ * 2026-11-20) — "Freight handed over on 18 Nov 2026".
+ */
+export function useFinancingLabel() {
+  const t = useTranslations('lenders');
+  const { formatDate } = useDateFormat();
+  return (f: Pick<FinancingView, 'purchaseOrder' | 'handover'>) =>
+    f.handover ? t('freightHandedOver', { date: formatDate(f.handover.handedOverOn) }) : (f.purchaseOrder?.reference ?? '');
+}
+
 /** Every list a lender change touches, refreshed together. */
 export function useRefreshLenderData() {
   const qc = useQueryClient();
@@ -99,6 +115,7 @@ export function RecordRepaymentDialog({
   const { addToast } = useToast();
   const refresh = useRefreshLenderData();
   const rates = useCurrencyRates();
+  const label = useFinancingLabel();
 
   // null until he types: until then the field shows the current rate, and
   // once he has typed, a rates refresh never overwrites it.
@@ -106,6 +123,7 @@ export function RecordRepaymentDialog({
   const current = rates[financing.currency];
   const rate = typedRate ?? (current ? String(current) : '');
   const [amount, setAmount] = useState('');
+  const [foreign, setForeign] = useState('');
 
   const rateNumber = Number(rate);
   const { data: quote } = useQuery<{ owed: string; settlingEgp: string }>({
@@ -152,7 +170,7 @@ export function RecordRepaymentDialog({
       >
         <p className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
           <span className="block text-xs text-muted-foreground">
-            <bdi>{t('repaymentFor', { lender: financing.lender.name, reference: financing.purchaseOrder.reference })}</bdi>
+            <bdi>{t('repaymentFor', { lender: financing.lender.name, reference: label(financing) })}</bdi>
           </span>
           {t.rich('owedNow', {
             amount: () => <Money value={financing.owed} currency={financing.currency} className="font-semibold" />,
@@ -208,6 +226,25 @@ export function RecordRepaymentDialog({
               {t('payAll')}
             </button>
           </div>
+          {financing.currency !== 'EGP' && (
+            <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+              <label htmlFor="repayment-foreign" className="text-xs text-muted-foreground">
+                {t('orInCurrency', { currency: financing.currency })}
+              </label>
+              <MoneyInput
+                id="repayment-foreign"
+                value={foreign}
+                onChange={(v) => {
+                  setForeign(v);
+                  // Pounds are what is paid: the foreign amount at the rate typed, half up.
+                  const egp = Number(v) * Number(rate);
+                  if (v !== '' && Number.isFinite(egp) && Number(rate) > 0) setAmount((Math.round(egp * 100) / 100).toFixed(2));
+                }}
+                placeholder={tph('money')}
+                className="w-full min-w-0 rounded-lg border border-border px-3 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          )}
           {quote && (
             <p className="mt-1 text-xs text-muted-foreground" data-testid="settling-hint">
               {t.rich('settles', { amount: () => <Money value={quote.settlingEgp} currency="EGP" /> })}

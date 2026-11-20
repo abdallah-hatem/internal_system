@@ -322,7 +322,7 @@ export function registerLenderTools(
   function financingFacts(f: FinancingView) {
     return {
       financingId: f.id,
-      order: f.purchaseOrder.reference,
+      order: f.reference,
       cycle: f.cycle.code,
       cycleStatus: f.cycle.status,
       currency: f.currency,
@@ -365,7 +365,7 @@ export function registerLenderTools(
     return (f.plan?.instalments ?? [])
       .filter((i) => i.state === 'OVERDUE')
       .map((i) => ({
-        order: f.purchaseOrder.reference,
+        order: f.reference,
         currency: f.currency,
         dueOn: i.dueOn,
         amount: i.amount,
@@ -814,8 +814,7 @@ export function registerLenderTools(
       financing = v.financings.find(
         (f) =>
           f.removedAt === null &&
-          (f.id === input.order ||
-            f.purchaseOrder.reference.toLowerCase() === ref),
+          (f.id === input.order || f.reference.toLowerCase() === ref),
       );
       if (!financing) throw notFound('lenderFinancing');
     } else if (open.length === 0) {
@@ -833,8 +832,8 @@ export function registerLenderTools(
             kind: 'FINANCING_WHICH',
             text: `${lender.name} is owed on ${open.length} orders. Which one is this repayment for?`,
             options: open.map((f) => ({
-              value: f.purchaseOrder.reference,
-              label: `${f.purchaseOrder.reference} (cycle ${f.cycle.code}): ${formatMoney(f.owed)} ${f.currency} owed`,
+              value: f.reference,
+              label: `${f.reference} (cycle ${f.cycle.code}): ${formatMoney(f.owed)} ${f.currency} owed`,
             })),
           },
         ],
@@ -935,7 +934,7 @@ export function registerLenderTools(
       p.rateFrom === 'today'
         ? `Rate ${p.rate} EGP per ${f.currency}: today's rate on the exchange-rate page. If he was paid at another rate, give it and preview again.`
         : `Rate ${p.rate} EGP per ${f.currency}, as given.`,
-      `Clears ${formatMoney(seen.cleared)} ${f.currency} of ${f.purchaseOrder.reference} (cycle ${f.cycle.code}).`,
+      `Clears ${formatMoney(seen.cleared)} ${f.currency} of ${f.reference} (cycle ${f.cycle.code}).`,
       `Still owed: ${formatMoney(seen.owedBefore)} ${f.currency} before, ${formatMoney(seen.owedAfter)} ${f.currency} after.`,
       diff.isZero()
         ? 'No exchange difference: the same as the rate he paid at.'
@@ -950,7 +949,7 @@ export function registerLenderTools(
     return {
       lender: { id: p.lender.id, name: p.lender.name },
       financingId: p.financing.id,
-      order: p.financing.purchaseOrder.reference,
+      order: p.financing.reference,
       cycle: p.financing.cycle.code,
       currency: p.financing.currency,
       amountEgp: m2(p.body.amountEgp),

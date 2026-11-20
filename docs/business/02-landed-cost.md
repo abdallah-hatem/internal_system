@@ -111,3 +111,15 @@ its default price comes out at 797 EGP. Sharing by value or by weight was offere
 landed cost whatever the product". Unchanged: every piece on a leg carries an equal share of it; a price the owner
 sets replaces the default where the default is too high.
 
+**DECIDED 2026-11-20 (owner) — a UAE leg in handovers costs the freight of its handovers.** *Built 2026-11-20,
+`feature/leg-handovers`, not merged.* The leg's cost is never typed: it is worked out from its handovers on every
+handover, arrival, All arrived, freight correction and undo (`common/leg-handovers.ts`, `HandoversService.syncFreight`).
+
+| Rule | Now | Status |
+|---|---|---|
+| Freight a piece | Every unit on the leg costs the same freight, whichever batch brought it (2026-10-10). While any handover is open it is an **estimate**: freight paid so far ÷ pieces covered so far, where a handover with a count covers its count and one without covers what has arrived from it so far. The owner's example: 6,000 AED for 150 + 4,200 AED for a lot with no count of which 40 arrived = 10,200 ÷ 190 = **53.68 AED a piece**. | DECIDED (the estimate rule) |
+| The leg's cost | Freight paid (in pounds at each handover's rate) × the cycle's pieces ÷ pieces covered — the costing spreads every leg over every piece ordered, so each piece carries exactly paid ÷ covered. Stored on the leg as a flat EGP amount. Nothing covered yet (no count, nothing arrived): the leg carries what was paid. Everything covered: exactly the freight paid. | GUESS (stored as flat EGP) |
+| Re-costing | A change re-costs the cycle through the existing leg re-cost (batches, purchase rows, sale allocations / COGS, returns — the same `planRecost`/`recost`, not a copy). When it is refused (`LEG_COST_LOCKED_SETTLEMENT`, `_LOSSES`, `_TRANSFERS`, `_OVERRIDE`, `_LEDGER`) the handover, arrival or undo is refused with that code and nothing is written — **never booked as an expense instead**. So once anything of the cycle is lost (a handover's missing pieces included), later handovers that would move the rate are refused until the loss is taken back; a cycle with a leg-1 loss cannot use handovers that move its cost at all. | DECIDED (surface the code); the consequence is the existing lock's |
+| Final | Every handover All arrived and every piece of the cycle accounted on the leg. Then the cost is exactly the freight paid. | DECIDED |
+| The profit while it is not final | `freightEstimate: true` on the cycle's shipment, its line in `GET /analytics/cycle-profitability`, `GET /settlements/preview/:cycleId` and `GET /cycles/:id/take`; the cycle page's Profit card shows a pill "Estimate" with "A leg's freight is not final yet: handovers are still open." | GUESS (wording) |
+| Weight | A leg in handovers is per piece only; switching it to weight is refused (`LEG_HANDOVERS_PER_PIECE`). | GUESS |

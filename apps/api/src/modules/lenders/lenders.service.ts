@@ -35,6 +35,7 @@ import {
   STANDING_FINANCING,
   STANDING_REPAYMENT,
   cycleFinancedEgp,
+  financingReference,
   owedOnCycle,
 } from '../../common/lender-debt';
 import { dayOf, evaluateSchedule } from '../../common/instalment-schedule';
@@ -66,6 +67,8 @@ const FINANCING_INCLUDE = {
   purchaseOrder: {
     select: { id: true, reference: true, orderedOn: true, currency: true },
   },
+  // Freight a partner paid himself for a UAE handover (§18, 2026-11-20).
+  handover: { select: { id: true, departedOn: true, legId: true } },
   cycle: { select: { id: true, code: true, status: true } },
   repayments: { orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }] },
   plans: {
@@ -122,6 +125,15 @@ export class LendersService {
       id: f.id,
       lender: f.lender,
       purchaseOrder: f.purchaseOrder,
+      /** What it paid for: the order, or a handover's freight (§18, 2026-11-20). */
+      reference: financingReference(f),
+      handover: f.handover
+        ? {
+            id: f.handover.id,
+            handedOverOn: dayOf(f.handover.departedOn),
+            legId: f.handover.legId,
+          }
+        : null,
       cycle: f.cycle,
       currency: f.currency,
       amount: m2(f.amount),
@@ -780,6 +792,7 @@ export class LendersService {
         include: {
           lender: { select: { name: true } },
           purchaseOrder: { select: { reference: true } },
+          handover: { select: { departedOn: true } },
           repayments: { where: STANDING_REPAYMENT },
         },
       });
@@ -813,7 +826,7 @@ export class LendersService {
           relatedId: id,
           reason:
             `Repaid ${now.lender.name} ${formatMoney(plan.cleared)} ${now.currency} ` +
-            `of ${now.purchaseOrder.reference} at ${dto.rateToEgp}`,
+            `of ${financingReference(now)} at ${dto.rateToEgp}`,
           // The day he was repaid, as for his payment above.
           occurredOn: paidOn,
           createdBy: actorId,
@@ -1054,6 +1067,7 @@ export class LendersService {
           include: {
             lender: { select: { name: true } },
             purchaseOrder: { select: { reference: true } },
+            handover: { select: { departedOn: true } },
             repayments: {
               where: STANDING_REPAYMENT,
               select: { paidOn: true, cleared: true },
@@ -1076,7 +1090,7 @@ export class LendersService {
           financingId: plan.financingId,
           lenderId: plan.financing.lenderId,
           lender: plan.financing.lender.name,
-          reference: plan.financing.purchaseOrder.reference,
+          reference: financingReference(plan.financing),
           currency: plan.financing.currency,
           dueOn: dayOf(l.instalment.dueOn),
           outstanding: m2(l.outstanding),

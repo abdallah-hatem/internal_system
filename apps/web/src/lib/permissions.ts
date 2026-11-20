@@ -29,6 +29,10 @@ export const ACTION_ROLES = {
   'shipment.takeBack': PARTNERS, //       DELETE /shipping/losses/:id
   'shipment.recordRefund': PARTNERS, //   POST   /shipping/losses/:id/refunds
   'shipment.undoRefund': PARTNERS, //     POST   /purchases/refunds/:id/reverse
+  // A UAE leg in handovers (§1, 2026-11-20): POST /shipping/legs/:id/handovers,
+  // PUT/DELETE /shipping/handovers/:id, POST /shipping/legs/:id/arrivals,
+  // DELETE /shipping/arrivals/:id, POST/DELETE /shipping/handovers/:id/all-arrived.
+  'shipment.handover': PARTNERS,
   // Receiving into stock — InventoryController
   'inventory.receive': PARTNERS, //       POST /receipts/verify
   // Settlements — SettlementsController

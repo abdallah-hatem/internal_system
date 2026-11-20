@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { assertNotFuture, businessDay } from '../../common/dates';
-import { expectedLegs } from '../../common/cycle-routes';
+import { expectedLegs, legLeavesFrom } from '../../common/cycle-routes';
 import { assertUuid, isUuid } from '../../common/uuid';
 import {
   assertInScope,
@@ -18,6 +18,7 @@ import {
   assertOpen,
   checkLines,
   DeliveriesService,
+  refuseOnHandoverLeg,
 } from './deliveries.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -97,6 +98,12 @@ export interface NewLeg {
   currency?: string;
   fxRateToEgp?: number;
   amount?: number;
+  /**
+   * The leg goes in handovers (§1, owner 2026-11-20): it must leave the UAE,
+   * and it is born with no cost, departure or arrival — its freight is its
+   * handovers'.
+   */
+  usesHandovers?: boolean;
 }
 
 /**
@@ -304,13 +311,48 @@ export class ShippingService {
         : checkLines(data.departureLines);
     // Status, departure and arrival are readings of the departures and
     // deliveries, written by `syncLegStatuses`, never taken from the plan.
-    const { arrivedOn: _arrivedOn, departedOn: _departedOn, ...row } = plan.leg;
+    const {
+      arrivedOn: _arrivedOn,
+      departedOn: _departedOn,
+      ...planned
+    } = plan.leg;
+    let row = planned;
+    if (data.usesHandovers) {
+      // A leg in handovers leaves the UAE, and is born empty: its goods go
+      // and come through handovers and their arrivals, its cost is theirs.
+      if (legLeavesFrom(plan.cycle.originType, data.sequence) !== 'UAE') {
+        throw badRequest(
+          'HANDOVER_NOT_FROM_UAE',
+          `${planned.origin} → ${planned.destination} does not leave the UAE; only a leg leaving the UAE goes in handovers.`,
+          { leg: `${planned.origin} → ${planned.destination}` },
+        );
+      }
+      if (data.departedOn || data.arrivedOn) {
+        refuseOnHandoverLeg({ ...planned, usesHandovers: true });
+      }
+      row = {
+        ...planned,
+        costBasis: 'FLAT',
+        ratePerUnit: null,
+        chargeablePieces: null,
+        chargeableWeightKg: null,
+        currency: 'EGP',
+        fxRateToEgp: new Prisma.Decimal(1),
+        amount: new Prisma.Decimal(0),
+        amountEgp: new Prisma.Decimal(0),
+      };
+    }
 
     const { leg, changed, followed } = await this.prisma.$transaction(
       async (tx) => {
         await lockCycle(tx, cycleId);
         const created = await tx.shippingLeg.create({
-          data: { ...row, departedOn: null, status: 'PENDING' },
+          data: {
+            ...row,
+            departedOn: null,
+            status: 'PENDING',
+            usesHandovers: data.usesHandovers === true,
+          },
         });
         if (data.departedOn) {
           await this.deliveries.departIn(
@@ -402,6 +444,47 @@ export class ShippingService {
       where: { id },
     });
     if (!existing) throw notFound('shippingLeg');
+
+    // A leg in handovers (§1, 2026-11-20): its goods go and come through its
+    // handovers, and its cost is theirs. An edit may name its route, its
+    // forwarder and its tracking; a departure, an arrival or a cost is refused.
+    if (existing.usesHandovers) {
+      if (data.departedOn || data.arrivedOn || data.departureLines) {
+        refuseOnHandoverLeg(existing);
+      }
+      if (data.costBasis === 'PER_WEIGHT') {
+        throw badRequest(
+          'LEG_HANDOVERS_PER_PIECE',
+          `${existing.origin} → ${existing.destination} goes in handovers, whose freight is shared per piece; it cannot be charged by weight.`,
+          { leg: `${existing.origin} → ${existing.destination}` },
+        );
+      }
+      const same = (a: unknown, b: Prisma.Decimal | null) =>
+        a === undefined || new Prisma.Decimal(a as number).equals(b ?? 0);
+      if (
+        (data.costBasis !== undefined &&
+          data.costBasis !== existing.costBasis) ||
+        !same(data.amount, existing.amount) ||
+        data.ratePerUnit !== undefined ||
+        data.chargeablePieces !== undefined ||
+        data.chargeableWeightKg !== undefined ||
+        (data.currency !== undefined && data.currency !== existing.currency) ||
+        !same(data.fxRateToEgp, existing.fxRateToEgp)
+      ) {
+        throw badRequest(
+          'LEG_COST_FROM_HANDOVERS',
+          `The cost of ${existing.origin} → ${existing.destination} is the freight of its handovers; correct a handover's freight instead.`,
+          { leg: `${existing.origin} → ${existing.destination}` },
+        );
+      }
+      data = {
+        origin: data.origin,
+        destination: data.destination,
+        provider: data.provider,
+        providerId: data.providerId,
+        trackingRef: data.trackingRef,
+      };
+    }
 
     // Recompute the EGP amount from the merged (existing + incoming) state so a
     // partial update of just the rate or the piece count stays consistent.

@@ -27,6 +27,7 @@ import {
   ReasonDialog,
   RecordRepaymentDialog,
   type FinancingView,
+  useFinancingLabel,
 } from '@/components/lenders/lender-dialogs';
 
 /**
@@ -401,6 +402,7 @@ function FinancingCard({
   const t = useTranslations('lenders');
   const tx = useTranslations('exchangeResult');
   const { formatDate } = useDateFormat();
+  const financingLabel = useFinancingLabel();
   // The financing's exchange result in words: a loss or a gain, and why.
   const exchange = useExchangeWords(f.exchangeDiffEgp);
   const may = {
@@ -464,7 +466,7 @@ function FinancingCard({
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
         <div className="min-w-0 space-y-1">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-            <span className="font-mono font-medium text-foreground" dir="ltr">{f.purchaseOrder.reference}</span>
+            <span className="font-mono font-medium text-foreground" dir="ltr">{financingLabel(f)}</span>
             <span className="text-muted-foreground">·</span>
             <Link
               href={`/${locale}/cycles/${f.cycle.id}/details`}

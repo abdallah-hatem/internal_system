@@ -5,6 +5,7 @@ import {
 } from './shipping.controller';
 import { ShippingService } from './shipping.service';
 import { DeliveriesService } from './deliveries.service';
+import { HandoversService } from './handovers.service';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CostingModule } from '../costing/costing.module';
@@ -20,7 +21,7 @@ import { CyclesModule } from '../cycles/cycles.module';
     CyclesModule,
   ],
   controllers: [ShippingController, CycleShippingController],
-  providers: [ShippingService, DeliveriesService],
-  exports: [ShippingService, DeliveriesService],
+  providers: [ShippingService, DeliveriesService, HandoversService],
+  exports: [ShippingService, DeliveriesService, HandoversService],
 })
 export class ShippingModule {}

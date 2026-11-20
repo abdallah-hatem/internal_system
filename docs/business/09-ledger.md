@@ -236,3 +236,12 @@ Built (API, office screens, Postgres and unit tests; e2e written, not run — ow
 | Arabic | The new strings ("دفعه", "النشاط", the hint and the refusals) are the agent's wording, for the owner to correct. | — |
 | OPEN | `AnalyticsService.getCycleProfitability`'s `investment` (what a cycle "consumed in cash") sums a cycle's money-out rows without netting an undone pair — for a business-paid expense too (found while testing this; not changed here). | Out of this feature's scope. |
 
+### Freight a partner paid himself for a UAE handover — 2026-11-20 (owner), GUESS
+The owner: "sometimes one of us pays lets say 4000 AED for a shipment then when we have to split and return him some
+money the exchange rate changes". A handover's **Paid by** is the business (default) or an active core partner
+(`LEDGER_PAYER_NOT_PARTNER`, `LEDGER_PAYER_INACTIVE`; a lot with no freight cannot have been paid by anyone,
+`HANDOVER_PAID_BY_NOTHING_PAID`). Unlike an expense he paid (above), what the business owes him is **not** a pounds
+credit on his running account: it is held in the handover's currency and handled as a friend's loan (§18, the end of
+that section). The ledger: money in (`lender_financing`) on the handover day for the pounds at that day's rate — the
+freight itself is booked out with the goods at receipt, as every leg's cost is — and money out on each repayment. No
+business cash moves on the handover day.

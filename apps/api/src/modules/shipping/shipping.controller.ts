@@ -20,6 +20,13 @@ import {
   CreateLossRefundDto,
 } from './dto/delivery.dto';
 import { PurchasesService } from '../purchases/purchases.service';
+import { HandoversService } from './handovers.service';
+import {
+  AllArrivedDto,
+  CreateArrivalDto,
+  CreateHandoverDto,
+  UpdateHandoverDto,
+} from './dto/handover.dto';
 import {
   CreateShippingLegDto,
   UpdateShippingLegDto,
@@ -39,7 +46,88 @@ export class ShippingController {
     private shippingService: ShippingService,
     private deliveries: DeliveriesService,
     private purchases: PurchasesService,
+    private handovers: HandoversService,
   ) {}
+
+  // UAE legs in handovers (BUSINESS_LOGIC §1, owner 2026-11-20). Core
+  // partners only: a handover's freight re-costs the cycle, a partner's
+  // freight is money owed to him, and an arrival moves goods (rule 12).
+
+  @Post('legs/:id/handovers')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Hand goods over to the forwarder in the UAE' })
+  createHandover(
+    @Param('id') id: string,
+    @Body() body: CreateHandoverDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.handovers.create(id, body, user.id);
+  }
+
+  @Put('handovers/:id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Correct a handover' })
+  updateHandover(
+    @Param('id') id: string,
+    @Body() body: UpdateHandoverDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.handovers.update(
+      id,
+      body as Parameters<HandoversService['update']>[1],
+      user.id,
+    );
+  }
+
+  @Delete('handovers/:id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Undo a handover recorded by mistake' })
+  removeHandover(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.handovers.remove(id, user.id);
+  }
+
+  @Post('legs/:id/arrivals')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Record a batch that arrived from a handover' })
+  recordArrival(
+    @Param('id') id: string,
+    @Body() body: CreateArrivalDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.handovers.recordArrival(id, body, user.id);
+  }
+
+  @Delete('arrivals/:id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Undo an arrival recorded by mistake' })
+  removeArrival(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.handovers.removeArrival(id, user.id);
+  }
+
+  @Post('handovers/:id/all-arrived')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Mark a handover all arrived' })
+  allArrived(
+    @Param('id') id: string,
+    @Body() body: AllArrivedDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.handovers.allArrived(id, body, user.id);
+  }
+
+  @Delete('handovers/:id/all-arrived')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Undo All arrived on a handover' })
+  undoAllArrived(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.handovers.undoAllArrived(id, user.id);
+  }
 
   @Get('legs')
   @ApiOperation({

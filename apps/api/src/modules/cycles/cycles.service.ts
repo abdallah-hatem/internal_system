@@ -45,6 +45,9 @@ import {
   assertLendersRepaid,
 } from '../../common/lender-debt';
 import { lossesWithRefunds } from '../../common/loss-refunds';
+import { freightIsEstimate, legHandovers } from '../../common/leg-handovers';
+import { owedOn } from '../../common/lender-math';
+import { legLeavesFrom } from '../../common/cycle-routes';
 import {
   deliveryDeleteBlock,
   departureUndoBlock,
@@ -287,12 +290,15 @@ export class CyclesService {
       this.prisma,
       cycle.shippingLegs.flatMap((l) => l.losses),
     );
+    const handovers = await this.handoverViews(cycle, position);
     return {
       data: {
         cycleId: cycle.id,
         code: cycle.code,
         status: cycle.status,
         ...position,
+        /** A leg in handovers whose freight is not final yet (§2, 2026-11-20). */
+        freightEstimate: freightIsEstimate(cycle, position),
         legs: position.legs.map((p) => {
           const leg = legMeta.get(p.legId)!;
           return {
@@ -300,6 +306,19 @@ export class CyclesService {
             origin: leg.origin,
             destination: leg.destination,
             departedOn: leg.departedOn,
+            /** The leg goes in handovers (§1, owner 2026-11-20), and what they add up to. */
+            usesHandovers: leg.usesHandovers,
+            /**
+             * A leg leaving the UAE with nothing recorded the old way: its
+             * first handover would put it in handovers.
+             */
+            handoverReady:
+              !leg.usesHandovers &&
+              legLeavesFrom(cycle.originType, leg.sequence) === 'UAE' &&
+              leg.departures.length === 0 &&
+              leg.deliveries.length === 0 &&
+              leg.losses.length === 0,
+            handovers: handovers.get(p.legId) ?? null,
             // Whether each departure can be undone, and why not (L8): the
             // panel offers Undo only where the server would accept it.
             departures: p.departures.map((d) => {
@@ -343,6 +362,85 @@ export class CyclesService {
         costChangeRecosts: cost.state.recosts,
       },
     };
+  }
+
+  /**
+   * Each handover leg's summary (`legHandovers`) with the names a screen
+   * shows: the forwarder, the partner who paid and what he is still owed.
+   */
+  private async handoverViews(
+    cycle: Parameters<typeof legHandovers>[0],
+    position: Parameters<typeof legHandovers>[1],
+  ) {
+    const out = new Map<string, unknown>();
+    const summaries = cycle.shippingLegs
+      .map((l) => legHandovers(cycle, position, l.id))
+      .filter((x) => x !== null);
+    if (summaries.length === 0) return out;
+    const all = summaries.flatMap((s) => s.handovers);
+    const [providers, partners, financings] = await Promise.all([
+      this.prisma.provider.findMany({
+        where: {
+          id: { in: all.map((h) => h.providerId).filter((x) => x !== null) },
+        },
+        select: { id: true, name: true },
+      }),
+      this.prisma.user.findMany({
+        where: {
+          id: { in: all.map((h) => h.paidByUserId).filter((x) => x !== null) },
+        },
+        select: {
+          id: true,
+          email: true,
+          partner: { select: { displayName: true } },
+        },
+      }),
+      this.prisma.lenderFinancing.findMany({
+        where: {
+          departureId: { in: all.map((h) => h.id) },
+          ...STANDING_FINANCING,
+        },
+        select: {
+          id: true,
+          departureId: true,
+          amount: true,
+          currency: true,
+          repayments: {
+            where: { reversedAt: null },
+            select: { cleared: true },
+          },
+        },
+      }),
+    ]);
+    for (const s of summaries) {
+      out.set(s.legId, {
+        ...s,
+        handovers: s.handovers.map((h) => {
+          const f = financings.find((x) => x.departureId === h.id);
+          const payer = partners.find((u) => u.id === h.paidByUserId);
+          return {
+            ...h,
+            provider:
+              providers.find((p) => p.id === h.providerId)?.name ?? null,
+            paidBy: payer
+              ? {
+                  id: payer.id,
+                  name: payer.partner?.displayName ?? payer.email,
+                }
+              : null,
+            /** What the business still owes the partner who paid it, in its currency. */
+            owed: f
+              ? {
+                  financingId: f.id,
+                  currency: f.currency,
+                  owed: owedOn(f.amount, f.repayments).toFixed(2),
+                }
+              : null,
+          };
+        }),
+      });
+    }
+    return out;
   }
 
   /**
