@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCheck, PackageOpen, Plus, Trash2, Undo2 } from '@/components/ui/icons';
+import { Banknote, CheckCheck, CheckCircle2, Clock, PackageOpen, Plus, Trash2, Undo2 } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCan } from '@/lib/can';
@@ -22,14 +22,23 @@ import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/u
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { qtyInputClass, useRefreshShipment } from './ShipmentDialog';
 import { useAnnounceStatusMove } from './status-move';
-import { fieldValue, parseQty, type Handover, type ShipmentLeg } from './shipment-model';
+import { useToast } from '@/components/ui/toast';
+import {
+  fieldValue,
+  parseQty,
+  type FreightPayer,
+  type FreightPayment,
+  type Handover,
+  type ShipmentLeg,
+} from './shipment-model';
 
 /**
  * A UAE leg in handovers (BUSINESS_LOGIC §1, §2, §18 — owner 2026-11-20,
  * mockup A approved): one box per lot handed to the forwarder, with its
  * arrivals under it, and the dialogs that record them. Every figure is the
  * server's (`legHandovers`): the freight a piece, whether it is final, what
- * each lot still has to bring. Nothing is worked out here.
+ * each lot still has to bring, what of its freight is paid and what is still
+ * to pay (§2, 2026-11-20, mockup approved). Nothing is worked out here.
  */
 
 /** Which handover dialog is open — one value, so every close clears it. */
@@ -40,6 +49,8 @@ type Open =
   | { kind: 'undoAllArrived'; handoverId: string }
   | { kind: 'undoHandover'; handoverId: string }
   | { kind: 'undoArrival'; arrivalId: string }
+  | { kind: 'payment'; handoverId: string }
+  | { kind: 'undoPayment'; paymentId: string }
   | null;
 
 const btn =
@@ -52,11 +63,14 @@ export function HandoverSection({
   leg,
   productNames,
   frozen,
+  payers = [],
 }: {
   cycleId: string;
   leg: ShipmentLeg;
   productNames: Record<string, string>;
   frozen: boolean;
+  /** Who a freight payment can name besides the business — the server's `freightPayers`. */
+  payers?: FreightPayer[];
 }) {
   const t = useTranslations('handovers');
   const { formatDate } = useDateFormat();
@@ -77,6 +91,7 @@ export function HandoverSection({
         <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('title')}</h4>
         {handovers.length > 0 && <FreightPill leg={leg} />}
       </div>
+      {may && <PageRateMoved leg={leg} />}
 
       {handovers.length === 0 ? (
         <p data-testid="handovers-empty" className="text-sm text-muted-foreground">
@@ -102,12 +117,6 @@ export function HandoverSection({
                         <LatinText>{h.provider}</LatinText>
                       </>
                     )}
-                    {h.paidBy && (
-                      <>
-                        {' · '}
-                        <span data-testid="handover-paid-by">{t('paidByName', { name: h.paidBy.name })}</span>
-                      </>
-                    )}
                   </span>
                 </p>
                 <ProgressPill h={h} />
@@ -127,14 +136,12 @@ export function HandoverSection({
                   />
                 </div>
               )}
-              {h.owed && Number(h.owed.owed) > 0 && (
-                <p data-testid="handover-owed" className="mt-2 text-xs text-muted-foreground">
-                  {t.rich('owedTo', {
-                    name: h.paidBy?.name ?? '—',
-                    amount: () => <Money value={h.owed!.owed} currency={h.owed!.currency} className="font-semibold text-foreground" />,
-                  })}
-                </p>
-              )}
+              <FreightLines
+                h={h}
+                may={may}
+                onPay={() => setOpen({ kind: 'payment', handoverId: h.id })}
+                onUndo={(paymentId) => setOpen({ kind: 'undoPayment', paymentId })}
+              />
               {h.arrivals.length > 0 && (
                 <ul className="mt-2">
                   {h.arrivals.map((a) => (
@@ -261,7 +268,22 @@ export function HandoverSection({
         )}
       </div>
 
-      {open?.kind === 'handOver' && <HandOverDialog leg={leg} cycleId={cycleId} onClose={close} />}
+      {open?.kind === 'handOver' && <HandOverDialog leg={leg} cycleId={cycleId} payers={payers} onClose={close} />}
+      {open?.kind === 'payment' && byId(open.handoverId) && (
+        <FreightPaymentDialog handover={byId(open.handoverId)!} payers={payers} onClose={close} />
+      )}
+      {open?.kind === 'undoPayment' && (
+        <ConfirmActionDialog
+          testId="undo-payment"
+          title={t('undoPaymentTitle')}
+          message={t('undoPaymentConfirm')}
+          confirmLabel={t('undoPayment')}
+          successMessage={t('undonePayment')}
+          failMessage={t('undoFailed')}
+          action={() => api.delete(`/shipping/freight-payments/${open.paymentId}`)}
+          onClose={close}
+        />
+      )}
       {open?.kind === 'arrival' && (
         <RecordArrivalDialog leg={leg} handoverId={open.handoverId} productNames={productNames} onClose={close} />
       )}
@@ -354,6 +376,187 @@ function ProgressPill({ h }: { h: Handover }) {
   );
 }
 
+// ─── Freight paid in parts (§2, owner 2026-11-20, mockup approved) ─────────
+
+const payBtn =
+  'inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 sm:min-h-0';
+
+/** A rate as typed on a payment: 14.80, 15.2345. */
+function useRate() {
+  const { formatNumber } = useNumberFormat();
+  return (rate: string | number) => formatNumber(Number(rate), { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
+/** "4,000.00 AED × 14.80", one left-to-right run in both languages. */
+function AmountTimesRate({ amount, currency, rate }: { amount: string; currency: string; rate: string }) {
+  const fmt = useRate();
+  return (
+    <bdi dir="ltr" className="tabular-nums">
+      <Money value={amount} currency={currency} /> × {fmt(rate)}
+    </bdi>
+  );
+}
+
+/**
+ * A handover's freight: a green row per payment ("Paid Nov 20 · by Mohammed
+ * Youssef · 4,000.00 AED × 14.80 · 59,200.00 EGP"), an amber row for what is
+ * still to pay at the rate it is counted at, with Record payment, and the
+ * pill "Freight paid · 8,000.00 AED" once nothing is left.
+ */
+export function FreightLines({
+  h,
+  may,
+  onPay,
+  onUndo,
+}: {
+  h: Handover;
+  may: boolean;
+  onPay: () => void;
+  onUndo: (paymentId: string) => void;
+}) {
+  const t = useTranslations('handovers');
+  const { formatDate } = useDateFormat();
+  const rates = useCurrencyRates();
+  if (Number(h.freightAmount) === 0 && h.payments.length === 0) return null;
+  const toPay = Number(h.freightToPay) > 0;
+  const page = rates[h.freightCurrency];
+  // "(today)" only when the rest is counted at the page's rate as it is now.
+  const atPage = h.freightCurrency === 'EGP' || (page != null && Number(page) === Number(h.freightRateToEgp));
+  const row =
+    'grid grid-cols-1 gap-1 border-t border-border px-3 py-2 first:border-t-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-3';
+  const owed = (p: FreightPayment) => p.owed && Number(p.owed.owed) > 0;
+
+  return (
+    <div data-testid="handover-freight" className="mt-2">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{t('freight')}</span>
+        {!toPay && (
+          <span
+            data-testid="freight-paid-pill"
+            className="whitespace-nowrap rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-medium text-success"
+          >
+            {t.rich('freightPaidPill', { amount: () => <Money value={h.freightAmount} currency={h.freightCurrency} /> })}
+          </span>
+        )}
+      </div>
+      <ul className="overflow-hidden rounded-lg border border-border text-sm">
+        {h.payments.map((p) => (
+          <li key={p.id} data-testid="freight-payment" className={row}>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-success" aria-hidden="true" />
+              <span data-testid="freight-payment-who" className="min-w-0">
+                {t.rich('paidRow', {
+                  date: formatDate(p.paidOn),
+                  who: () => (p.paidBy ? <LatinText>{p.paidBy.name}</LatinText> : t('theBusiness')),
+                })}
+              </span>
+            </span>
+            <span className="text-foreground/80">
+              <AmountTimesRate amount={p.amount} currency={h.freightCurrency} rate={p.rateToEgp} />
+            </span>
+            <span className="flex items-center gap-1 sm:justify-end">
+              <b className="font-semibold tabular-nums">
+                <Money value={p.amountEgp} />
+              </b>
+              {may && (
+                <button
+                  type="button"
+                  data-testid="undo-payment"
+                  aria-label={t('undoPayment')}
+                  title={t('undoPayment')}
+                  onClick={() => onUndo(p.id)}
+                  className={quiet}
+                >
+                  <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </span>
+          </li>
+        ))}
+        {toPay && (
+          <li data-testid="freight-to-pay" className={cn(row, 'bg-accent-50')}>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <Clock className="h-4 w-4 shrink-0 text-accent-700" aria-hidden="true" />
+              <span>{t('toPayRow')}</span>
+            </span>
+            <span className="text-muted-foreground">
+              <AmountTimesRate amount={h.freightToPay} currency={h.freightCurrency} rate={h.freightRateToEgp} />
+              {atPage && <span className="ms-1 text-xs">{t('today')}</span>}
+            </span>
+            <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <span className="text-muted-foreground">
+                ≈ <Money value={h.freightToPayEgp} />
+              </span>
+              {may && (
+                <button type="button" data-testid="record-payment" onClick={onPay} className={payBtn}>
+                  <Banknote className="h-3.5 w-3.5" aria-hidden="true" /> {t('recordPayment')}
+                </button>
+              )}
+            </span>
+          </li>
+        )}
+      </ul>
+      {h.payments.filter(owed).map((p) => (
+        <p key={p.id} data-testid="handover-owed" className="mt-1 text-xs text-muted-foreground">
+          {t.rich('owedTo', {
+            name: p.paidBy?.name ?? '—',
+            amount: () => <Money value={p.owed!.owed} currency={p.owed!.currency} className="font-semibold text-foreground" />,
+          })}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The page's rate moved after the rest to pay was counted (§2, GUESS
+ * 2026-11-20): a change on the Exchange rates page restates nothing by
+ * itself (§22), so the card says so and offers to count it at today's rate.
+ */
+export function PageRateMoved({ leg }: { leg: ShipmentLeg }) {
+  const t = useTranslations('handovers');
+  const rates = useCurrencyRates();
+  const fmt = useRate();
+  const toast = useToast();
+  const apiError = useApiError();
+  const refresh = useRefreshShipment();
+  const [pending, setPending] = useState(false);
+  const moved = (leg.handovers?.toPayByCurrency ?? []).filter(
+    (c) => c.currency !== 'EGP' && rates[c.currency] != null && Number(rates[c.currency]) !== Number(c.rateToEgp),
+  );
+  if (moved.length === 0) return null;
+  const recount = async () => {
+    if (pending) return;
+    setPending(true);
+    try {
+      await api.post(`/shipping/legs/${leg.legId}/freight/recount`, {});
+      refresh();
+      toast.success(t('recounted'));
+    } catch (err) {
+      toast.error(apiError(err, t('recountFailed')));
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <div
+      data-testid="page-rate-moved"
+      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-accent-200 bg-accent-50 px-3 py-2 text-xs text-accent-800"
+    >
+      <p className="min-w-0">
+        {moved.map((c) => (
+          <span key={c.currency} className="block">
+            {t('pageMoved', { currency: c.currency, rate: fmt(rates[c.currency]), counted: fmt(c.rateToEgp) })}
+          </span>
+        ))}
+      </p>
+      <button type="button" data-testid="recount" disabled={pending} onClick={() => void recount()} className={btn}>
+        {t('recount')}
+      </button>
+    </div>
+  );
+}
+
 // ─── The forms ──────────────────────────────────────────────────────────────
 
 interface Provider {
@@ -361,22 +564,130 @@ interface Provider {
   name: string;
   contactPerson?: string | null;
 }
-interface AccountHolder {
-  partnerUserId: string;
-  name: string;
-  active: boolean;
-}
 
 const BUSINESS = 'business';
 const CURRENCIES = ['AED', 'USD', 'EGP'];
 
+/** "Paid by": the business, then the server's partners and this cycle's investors. */
+function usePayerOptions(payers: FreightPayer[]) {
+  const t = useTranslations('handovers');
+  return useMemo(
+    () => [
+      { value: BUSINESS, label: t('paidByBusiness') },
+      ...payers.map((p) => ({
+        value: p.id,
+        label: p.name,
+        hint: p.kind === 'INVESTOR' ? t('investorTag') : undefined,
+      })),
+    ],
+    [payers, t],
+  );
+}
+
+/** What naming him as paying means: owed to a partner; an investor's is his contribution. */
+function PayerHint({ payer, currency }: { payer: FreightPayer | undefined; currency: string }) {
+  const t = useTranslations('handovers');
+  if (!payer) return null;
+  return (
+    <p data-testid="handover-paid-by-hint" className="mt-1 text-xs text-muted-foreground">
+      {payer.kind === 'PARTNER' ? t('paidByHint', { partner: payer.name, currency }) : t('paidByInvestorHint')}
+    </p>
+  );
+}
+
+/** The rate field and the line under it: "4000 AED × 14.8 = 59,200.00 EGP · Exchange rates page: …". */
+function RateField({
+  id,
+  name,
+  label,
+  amount,
+  currency,
+  rate,
+  onRate,
+  hintTestId,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  amount: string;
+  currency: string;
+  rate: string;
+  onRate: (v: string) => void;
+  hintTestId: string;
+}) {
+  const t = useTranslations('handovers');
+  const tph = useTranslations('placeholders');
+  const rates = useCurrencyRates();
+  const inEgp = Number(amount) * Number(rate);
+  return (
+    <>
+      {currency !== 'EGP' && (
+        <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+          <label htmlFor={id} className="text-xs text-muted-foreground">
+            {label}
+          </label>
+          <input
+            id={id}
+            name={name}
+            inputMode="decimal"
+            dir="ltr"
+            value={rate}
+            onChange={(e) => onRate(e.target.value.replace(/[^\d.]/g, ''))}
+            placeholder={tph('fxRate')}
+            className="w-full min-w-0 rounded-lg border border-border bg-background px-3 py-1.5 text-start text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+          />
+        </div>
+      )}
+      <p data-testid={hintTestId} className="mt-1 text-xs text-muted-foreground">
+        {/* The sum the form saves, at the rate typed here (owner 2026-11-20:
+            "I typed 14.8 it shows 15.2 as current"). The Exchange rates
+            page's rate follows only when it differs, named as that page's. */}
+        {Number.isFinite(inEgp) && amount !== '' && (
+          <>
+            {currency !== 'EGP' && (
+              <>
+                {t.rich('freightTimesRate', {
+                  amount,
+                  currency,
+                  rate,
+                  ltr: (run) => <bdi dir="ltr">{run}</bdi>,
+                })}{' '}
+              </>
+            )}
+            <Money value={inEgp.toFixed(2)} />
+          </>
+        )}
+        {currency !== 'EGP' && rates[currency] != null && Number(rate) !== Number(rates[currency]) && (
+          <>
+            {' · '}
+            <CurrentRateHint currency={currency} rate={rates[currency]} />
+          </>
+        )}
+      </p>
+    </>
+  );
+}
+
 /**
- * Hand over goods: the day, the forwarder, the freight paid (amount and
- * currency, with the rate from the Exchange rates page, editable), the
- * pieces when known and who paid. No products: they are counted on arrival.
- * Every refusal is the server's, shown in the dialog with what was typed kept.
+ * Hand over goods: the day, the forwarder, the lot's freight in full (amount
+ * and currency), what is paid now (the full freight unless changed, at the
+ * rate got — the Exchange rates page's, editable — and by whom), the pieces
+ * when known. Paying less leaves the rest to pay later, its rate asked then
+ * (§2, owner 2026-11-20, mockup approved). No products: they are counted on
+ * arrival. Every refusal is the server's, shown in the dialog with what was
+ * typed kept.
  */
-export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cycleId: string; onClose: () => void }) {
+export function HandOverDialog({
+  leg,
+  cycleId,
+  payers = [],
+  onClose,
+}: {
+  leg: ShipmentLeg;
+  cycleId: string;
+  payers?: FreightPayer[];
+  onClose: () => void;
+}) {
   const t = useTranslations('handovers');
   const tc = useTranslations('common');
   const tph = useTranslations('placeholders');
@@ -391,35 +702,27 @@ export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cy
     queryFn: () => api.get('/providers').then((r) => r.data.data ?? r.data),
   });
   const providers: Provider[] = Array.isArray(providerData) ? providerData : [];
-  const mayAccounts = useCan('partnerAccount.read');
-  const { data: holders } = useQuery<AccountHolder[]>({
-    queryKey: ['partner-accounts'],
-    queryFn: () => api.get('/partner-accounts').then((r) => r.data.data ?? r.data),
-    enabled: mayAccounts,
-  });
-  const payers = useMemo(
-    () => [
-      { value: BUSINESS, label: t('paidByBusiness') },
-      ...(Array.isArray(holders) ? holders : []).filter((h) => h.active).map((h) => ({ value: h.partnerUserId, label: h.name })),
-    ],
-    [holders, t],
-  );
+  const options = usePayerOptions(payers);
 
   const [day, setDay] = useState(() => businessToday());
   const [providerId, setProviderId] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('AED');
   const [typedRate, setTypedRate] = useState<string | null>(null);
+  // Paid now follows the freight until it is typed in (owner's mockup: "default the full freight").
+  const [typedPaid, setTypedPaid] = useState<string | null>(null);
   const [pieces, setPieces] = useState('');
   const [paidBy, setPaidBy] = useState(BUSINESS);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
 
+  const paid = typedPaid ?? amount;
   const rate = currency === 'EGP' ? '1' : (typedRate ?? (rates[currency] != null ? String(rates[currency]) : ''));
-  const inEgp = Number(amount) * Number(rate);
   const waiting = leg.handovers ? leg.handovers.stillInUae : (leg.atOrigin ?? 0);
-  const payerName = payers.find((p) => p.value === paidBy && paidBy !== BUSINESS)?.label;
+  const payer = paidBy === BUSINESS ? undefined : payers.find((p) => p.id === paidBy);
+  const rest = Number(amount) - Number(paid || 0);
+  const paysNothing = paid.trim() === '' || Number(paid) === 0;
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -427,6 +730,10 @@ export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cy
     if (submitting.current) return;
     if (amount.trim() === '') {
       setRefusal(t('freightRequired'));
+      return;
+    }
+    if (Number(paid || 0) > Number(amount)) {
+      setRefusal(t('paidNowMore'));
       return;
     }
     const count = pieces.trim() === '' ? null : Number(pieces);
@@ -443,9 +750,10 @@ export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cy
         providerId: providerId || undefined,
         freightAmount: Number(amount),
         freightCurrency: currency,
-        ...(currency === 'EGP' || rate === '' ? {} : { freightRateToEgp: Number(rate) }),
+        paidAmount: paysNothing ? 0 : Number(paid),
+        ...(currency === 'EGP' || rate === '' || paysNothing ? {} : { freightRateToEgp: Number(rate) }),
         pieces: count,
-        paidByUserId: paidBy === BUSINESS ? undefined : paidBy,
+        paidByUserId: paidBy === BUSINESS || paysNothing ? undefined : paidBy,
       });
       refresh();
       announce(t('handedOver'), res);
@@ -456,6 +764,9 @@ export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cy
       setPending(false);
     }
   };
+
+  const inputClass =
+    'w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm';
 
   return (
     <Dialog
@@ -498,7 +809,7 @@ export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cy
 
       <div>
         <label htmlFor="handover-freight" className="mb-1 block text-sm font-medium text-foreground">
-          {t('freightPaid')}
+          {t('freightForLot')}
           <span aria-hidden="true" className="ms-1 text-destructive">*</span>
         </label>
         <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-2">
@@ -511,7 +822,7 @@ export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cy
               setRefusal(null);
             }}
             placeholder={tph('money')}
-            className="w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+            className={inputClass}
           />
           <Select
             name="freightCurrency"
@@ -523,49 +834,50 @@ export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cy
             options={CURRENCIES.map((c) => ({ value: c, label: c }))}
           />
         </div>
-        {currency !== 'EGP' && (
-          <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
-            <label htmlFor="handover-rate" className="text-xs text-muted-foreground">
-              {t('rateFor', { currency })}
-            </label>
-            <input
+      </div>
+
+      <div data-testid="paid-now" className="space-y-3 rounded-lg border border-dashed border-border p-3">
+        <div>
+          <label htmlFor="handover-paid-now" className="mb-1 block text-sm font-medium text-foreground">
+            {t('paidNow')}
+          </label>
+          <MoneyInput
+            id="handover-paid-now"
+            name="paidAmount"
+            value={paid}
+            onChange={(v) => {
+              setTypedPaid(v);
+              setRefusal(null);
+            }}
+            placeholder={tph('money')}
+            className={inputClass}
+          />
+          {!paysNothing && (
+            <RateField
               id="handover-rate"
               name="freightRateToEgp"
-              inputMode="decimal"
-              dir="ltr"
-              value={rate}
-              onChange={(e) => setTypedRate(e.target.value.replace(/[^\d.]/g, ''))}
-              placeholder={tph('fxRate')}
-              className="w-full min-w-0 rounded-lg border border-border bg-background px-3 py-1.5 text-start text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+              label={t('rateFor', { currency })}
+              amount={paid}
+              currency={currency}
+              rate={rate}
+              onRate={setTypedRate}
+              hintTestId="handover-freight-hint"
             />
+          )}
+        </div>
+        {!paysNothing && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-foreground">{t('paidBy')}</label>
+            <Select name="paidBy" value={paidBy} onChange={(v) => setPaidBy(v || BUSINESS)} options={options} />
+            <PayerHint payer={payer} currency={currency} />
           </div>
         )}
-        <p data-testid="handover-freight-hint" className="mt-1 text-xs text-muted-foreground">
-          {/* The sum the form saves, at the rate typed here (owner 2026-11-20:
-              "I typed 14.8 it shows 15.2 as current"). The Exchange rates
-              page's rate follows only when it differs, named as that page's. */}
-          {Number.isFinite(inEgp) && amount !== '' && (
-            <>
-              {currency !== 'EGP' && (
-                <>
-                  {t.rich('freightTimesRate', {
-                    amount,
-                    currency,
-                    rate,
-                    ltr: (run) => <bdi dir="ltr">{run}</bdi>,
-                  })}{' '}
-                </>
-              )}
-              <Money value={inEgp.toFixed(2)} />
-            </>
-          )}
-          {currency !== 'EGP' && rates[currency] != null && Number(rate) !== Number(rates[currency]) && (
-            <>
-              {' · '}
-              <CurrentRateHint currency={currency} rate={rates[currency]} />
-            </>
-          )}
-        </p>
+        {amount !== '' && Number.isFinite(rest) && rest > 0 && (
+          <p data-testid="left-to-pay" className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <Clock className="mt-px h-3.5 w-3.5 shrink-0 text-accent-700" aria-hidden="true" />
+            <span>{t.rich('leftToPay', { amount: () => <Money value={rest.toFixed(2)} currency={currency} /> })}</span>
+          </p>
+        )}
       </div>
 
       <div>
@@ -588,14 +900,154 @@ export function HandOverDialog({ leg, cycleId, onClose }: { leg: ShipmentLeg; cy
         <p className="mt-1 text-xs text-muted-foreground">{t('stillInUaeHint', { count: formatNumber(waiting) })}</p>
       </div>
 
+      <DialogAlert message={refusal} />
+    </Dialog>
+  );
+}
+
+/**
+ * Record freight payment (§2, owner 2026-11-20, mockup approved): the day it
+ * was paid, how much (the rest still to pay unless changed — less leaves the
+ * rest), the rate got (the Exchange rates page's, editable, with the shipped
+ * hint "4000 AED × 15.5 = 62,000.00 EGP · Exchange rates page: 1 AED = 15.2
+ * EGP"), and who paid. Refusals are the server's, coded.
+ */
+export function FreightPaymentDialog({
+  handover,
+  payers = [],
+  onClose,
+}: {
+  handover: Handover;
+  payers?: FreightPayer[];
+  onClose: () => void;
+}) {
+  const t = useTranslations('handovers');
+  const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
+  const apiError = useApiError();
+  const toast = useToast();
+  const refresh = useRefreshShipment();
+  const rates = useCurrencyRates();
+  const { formatNumber } = useNumberFormat();
+  const options = usePayerOptions(payers);
+  const currency = handover.freightCurrency;
+  const toPay = handover.freightToPay;
+
+  const [day, setDay] = useState(() => businessToday());
+  const [amount, setAmount] = useState(() => String(Number(toPay)));
+  const [typedRate, setTypedRate] = useState<string | null>(null);
+  const [paidBy, setPaidBy] = useState(BUSINESS);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const submitting = useRef(false);
+
+  const rate = currency === 'EGP' ? '1' : (typedRate ?? (rates[currency] != null ? String(rates[currency]) : ''));
+  const payer = paidBy === BUSINESS ? undefined : payers.find((p) => p.id === paidBy);
+
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (submitting.current) return;
+    if (amount.trim() === '') {
+      setRefusal(t('amountRequired'));
+      return;
+    }
+    submitting.current = true;
+    setPending(true);
+    setRefusal(null);
+    try {
+      await api.post(`/shipping/handovers/${handover.id}/freight-payments`, {
+        paidOn: day,
+        amount: Number(amount),
+        ...(currency === 'EGP' || rate === '' ? {} : { rateToEgp: Number(rate) }),
+        paidByUserId: paidBy === BUSINESS ? undefined : paidBy,
+      });
+      refresh();
+      toast.success(t('paymentRecorded'));
+      onClose();
+    } catch (err) {
+      setRefusal(apiError(err, t('paymentFailed')));
+      submitting.current = false;
+      setPending(false);
+    }
+  };
+
+  return (
+    <Dialog
+      data-shipment-dialog="freight-payment"
+      cardProps={{ 'data-testid': 'freight-payment-dialog' }}
+      title={t('paymentTitle')}
+      description={
+        <span data-testid="freight-payment-hint">
+          {t.rich('paymentHint', {
+            n: handover.number,
+            amount: () => <Money value={toPay} currency={currency} />,
+          })}
+        </span>
+      }
+      onClose={onClose}
+      busy={pending}
+      onSubmit={(e) => void submit(e)}
+      footer={
+        <>
+          <DialogCancel onClick={onClose} disabled={pending} label={tc('cancel')} />
+          <DialogPrimary pending={pending} label={tc('save')} />
+        </>
+      }
+      bodyClassName="space-y-4"
+    >
+      <div>
+        <label className="mb-1 block text-sm font-medium text-foreground">
+          {t('paidOn')}
+          <span aria-hidden="true" className="ms-1 text-destructive">*</span>
+        </label>
+        <DatePicker name="paidOn" required disableFuture value={day} onChange={(v) => setDay(v || businessToday())} />
+      </div>
+
+      <div>
+        <label htmlFor="freight-payment-amount" className="mb-1 block text-sm font-medium text-foreground">
+          {t('amount')}
+          <span aria-hidden="true" className="ms-1 text-destructive">*</span>
+        </label>
+        <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-2">
+          <MoneyInput
+            id="freight-payment-amount"
+            name="amount"
+            value={amount}
+            onChange={(v) => {
+              setAmount(v);
+              setRefusal(null);
+            }}
+            placeholder={tph('money')}
+            className="w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+          />
+          <span className="flex items-center rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
+            {currency}
+          </span>
+        </div>
+        <p data-testid="less-leaves-rest" className="mt-1 text-xs text-muted-foreground">
+          {t('lessLeavesRest', { amount: formatNumber(Number(toPay), { maximumFractionDigits: 2 }) })}
+        </p>
+      </div>
+
+      <div>
+        <span className="mb-1 block text-sm font-medium text-foreground">{t('rateGot')}</span>
+        <RateField
+          id="freight-payment-rate"
+          name="rateToEgp"
+          label={t('rateFor', { currency })}
+          amount={amount}
+          currency={currency}
+          rate={rate}
+          onRate={setTypedRate}
+          hintTestId="freight-payment-rate-hint"
+        />
+      </div>
+
       <div>
         <label className="mb-1 block text-sm font-medium text-foreground">{t('paidBy')}</label>
-        <Select name="paidBy" value={paidBy} onChange={(v) => setPaidBy(v || BUSINESS)} options={payers} />
-        {payerName && (
-          <p data-testid="handover-paid-by-hint" className="mt-1 text-xs text-muted-foreground">
-            {t('paidByHint', { partner: payerName, currency })}
-          </p>
-        )}
+        <Select name="paidBy" value={paidBy} onChange={(v) => setPaidBy(v || BUSINESS)} options={options} />
+        <PayerHint payer={payer} currency={currency} />
       </div>
 
       <DialogAlert message={refusal} />
@@ -876,6 +1328,43 @@ export function AllArrivedDialog({
 }
 
 /**
+ * The leg's header while some of its freight is still to pay (§2, owner
+ * 2026-11-20, mockup approved): "4,000.00 AED paid · 4,000.00 AED to pay",
+ * then "≈ 120,000.00 EGP so far · to pay counted at 15.20 until paid".
+ */
+function LegFreightToPay({ s }: { s: NonNullable<ShipmentLeg['handovers']> }) {
+  const t = useTranslations('handovers');
+  const fmt = useRate();
+  const list = (rows: { currency: string; amount: string }[]) => (
+    <>
+      {rows.map((c, i) => (
+        <span key={c.currency}>
+          {i > 0 && ' + '}
+          <Money value={c.amount} currency={c.currency} />
+        </span>
+      ))}
+    </>
+  );
+  return (
+    <div data-testid="leg-cost" className="text-end">
+      <p data-testid="leg-freight-paid" className="text-sm text-muted-foreground">
+        {t.rich('paidAndToPay', {
+          b: (chunks) => <b className="font-semibold text-foreground">{chunks}</b>,
+          paid: () => (s.paidByCurrency.length > 0 ? list(s.paidByCurrency) : <Money value="0" currency={s.toPayByCurrency[0].currency} />),
+          toPay: () => list(s.toPayByCurrency),
+        })}
+      </p>
+      <p data-testid="leg-cost-so-far" className="text-xs text-muted-foreground">
+        {t.rich('soFar', {
+          amount: () => <Money value={s.freightEgp} />,
+          rate: s.toPayByCurrency.map((c) => fmt(c.rateToEgp)).join(', '),
+        })}
+      </p>
+    </div>
+  );
+}
+
+/**
  * A handover leg's header figure (owner's coordinator, 2026-11-20): what was
  * actually paid — "10,200.00 AED paid · 141,270.00 EGP", each handover at its
  * own rate — and, while the freight is an estimate, what the whole leg comes
@@ -893,6 +1382,7 @@ export function HandoverLegCost({ leg }: { leg: ShipmentLeg }) {
       </p>
     );
   }
+  if (s.toPayByCurrency.length > 0) return <LegFreightToPay s={s} />;
   const foreign = s.freightByCurrency.filter((c) => c.currency !== 'EGP');
   return (
     <div data-testid="leg-cost" className="text-end">
@@ -920,7 +1410,7 @@ export function HandoverLegCost({ leg }: { leg: ShipmentLeg }) {
           t.rich('paid', { amount: () => <Money value={s.freightEgp} /> })
         )}
       </p>
-      {!s.final && s.perPiece && (
+      {!s.final && s.perPiece && s.covered < s.pieces && (
         <p data-testid="leg-cost-estimate" className="text-xs text-muted-foreground">
           {t.rich('wholeLegAtEstimate', {
             // From the freight itself, not the rounded per-piece figure: 10,200 × 400 ÷ 190.

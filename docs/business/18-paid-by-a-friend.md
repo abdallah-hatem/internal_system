@@ -179,3 +179,12 @@ handover is owed to him like a friend's payment.** *Built on `feature/leg-handov
 | Correcting or undoing | A handover's freight, currency, rate, day or payer changed — or the handover undone — removes his debt and records it again (a balancing ledger row on its day), only while nothing of it was repaid (`FINANCING_HAS_REPAYMENTS`). | GUESS |
 | Funding | Like a friend's payment, it is a loan to the partners: not taken off what they fund (2026-10-19), shown beside it. | follows |
 | Wording | On the lender page and the cycle card the line reads "Freight handed over on {date}" instead of an order's reference. | GUESS |
+
+**2026-11-20 (owner's mockup "Freight still to pay") — the debt is one payment's, and who can be named as paying.**
+*Built on `feature/handover-freight-payments`, not merged.*
+
+| Question | Answer | Status |
+|---|---|---|
+| Which debt | A handover's freight is now paid in parts (§2): a partner who paid a payment is owed **that payment** — its amount in the handover's currency, at its rate, on its day (`lender_financings.freight_payment_id`, still naming the handover). Two partners paying halves of one lot are each owed their own half; correcting or undoing one payment moves only that partner's debt, refused once he was repaid on it (`FINANCING_HAS_REPAYMENTS`). | DECIDED (follows) |
+| Who can be named | The business (nothing owed), an active core partner (owed to him, as above), or **an investor in this cycle** — refused for anyone else, `FREIGHT_PAYER_NOT_ON_CYCLE`. | DECIDED (the set); see below |
+| An investor named as paying | **No debt, a name only.** Mohammed Youssef's 59,200 EGP is his capital contribution on CYC-2026-0002 — already on the Funding card and in his capital — so the business paid the forwarder with money he put in. Recording a debt to him as well would count the same pounds twice (once as capital, once as a loan). The form says: "His money is his contribution to this cycle: nothing is owed to him for it." | GUESS (the honest model; if his payment was NOT recorded as a contribution, record the contribution, or name a partner) |

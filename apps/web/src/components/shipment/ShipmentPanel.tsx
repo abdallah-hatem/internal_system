@@ -46,6 +46,7 @@ import {
   num,
   refundStands,
   shipmentProgress,
+  type FreightPayer,
   type LegCount,
   type Shipment,
   type ShipmentDelivery,
@@ -447,6 +448,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
               canReceive={canReceive}
               may={may}
               onOpen={setOpen}
+              payers={shipment.freightPayers ?? []}
             />
           ))}
         </div>
@@ -583,9 +585,12 @@ function LegBlock({
   canReceive,
   may,
   onOpen,
+  payers,
 }: {
   cycleId: string;
   leg: ShipmentLeg;
+  /** Who a freight payment can name besides the business (§2, 2026-11-20). */
+  payers: FreightPayer[];
   /** The leg row from the cycle: who carries it and what it costs. */
   meta?: NonNullable<PanelCycle['shippingLegs']>[number];
   productNames: Record<string, string>;
@@ -735,7 +740,7 @@ function LegBlock({
         </div>
       </div>
 
-      {handover && <HandoverSection cycleId={cycleId} leg={leg} productNames={productNames} frozen={frozen} />}
+      {handover && <HandoverSection cycleId={cycleId} leg={leg} productNames={productNames} frozen={frozen} payers={payers} />}
 
       {expanded && (
       <div id={detailsId} data-testid="leg-details" className="space-y-3 border-t border-border p-3">

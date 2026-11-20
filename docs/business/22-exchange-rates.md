@@ -9,6 +9,7 @@ at the foot of the menu beside Audit Logs and Settings.
 | Question | Rule | Status |
 |---|---|---|
 | What it shows | Every currency, its rate to EGP (to four decimals) and when it last changed; "no rate yet" for a currency without one. One line: these rates only prefill forms — every order, payment and receipt keeps the rate it was recorded at, so a change here restates nothing. | DECIDED |
+| Handover freight still to pay (2026-11-20) | The one place a page rate is a cost: what is still to pay of a handover's freight is counted at the page's rate until it is paid (§2). Still not restated by a change here: it is taken again on the next change to that leg's freight, or by Count at today's rate on the cycle page, which says when the page has moved. | GUESS |
 | Who | Every office role reads it (`GET /currency-rates` names no roles; the forms of every role prefill from it). Only a core partner changes a rate or adds a currency (`PUT`/`POST`, `@Roles('CORE_PARTNER')`). | GUESS |
 | Changing a rate | `PUT /currency-rates/:code`, only for a currency already on the page (404 otherwise, so a typo in a URL makes no currency). Above zero, at most four decimals; EGP is fixed at 1. `null` still means "no rate known". | DECIDED |
 | Adding a currency | `POST /currency-rates` with a three-letter code (upper-cased) and a rate, the same rules. A code already there is `CURRENCY_EXISTS`, also when two adds race. | GUESS (no removing a currency: one may be named by old records) |

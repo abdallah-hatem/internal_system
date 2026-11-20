@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { HttpException } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- this suite talks to a real, throwaway Postgres; that is its point
 import { PrismaClient, Prisma } from '@prisma/client';
@@ -307,8 +309,29 @@ suite('a UAE leg in handovers (Postgres)', () => {
           covered: number;
           toCome: number | null;
           open: boolean;
-          paidBy: { name: string } | null;
-          owed: { currency: string; owed: string } | null;
+          freightAmount: string;
+          freightAmountEgp: string;
+          freightPaid: string;
+          freightToPay: string;
+          freightToPayEgp: string;
+          freightRateToEgp: string;
+          payments: {
+            id: string;
+            paidOn: string;
+            amount: string;
+            rateToEgp: string;
+            amountEgp: string;
+            paidBy: { name: string; kind: string } | null;
+            owed: { currency: string; owed: string } | null;
+          }[];
+        }[];
+        freightEgp: string;
+        paidByCurrency: { currency: string; amount: string }[];
+        toPayByCurrency: {
+          currency: string;
+          amount: string;
+          rateToEgp: string;
+          amountEgp: string;
         }[];
         covered: number;
         legCostEgp: string;
@@ -400,8 +423,8 @@ suite('a UAE leg in handovers (Postgres)', () => {
     expect(h.stillInUae).toBe(210);
     expect(leg.atOrigin).toBe(250);
     expect(leg.delivered).toBe(150);
-    expect(h.handovers[0].paidBy?.name).toMatch(/^Shady/);
-    expect(h.handovers[0].owed).toMatchObject({
+    expect(h.handovers[0].payments[0].paidBy?.name).toMatch(/^Shady/);
+    expect(h.handovers[0].payments[0].owed).toMatchObject({
       currency: 'AED',
       owed: '6000.00',
     });
@@ -489,8 +512,9 @@ suite('a UAE leg in handovers (Postgres)', () => {
     expect(
       await refusal(handOver(w, { freightAmount: 0, paidByUserId: SHADY })),
     ).toBe('HANDOVER_PAID_BY_NOTHING_PAID');
+    // An investor who is not in this cycle cannot have paid its freight.
     expect(await refusal(handOver(w, { paidByUserId: INVESTOR }))).toBe(
-      'LEDGER_PAYER_NOT_PARTNER',
+      'FREIGHT_PAYER_NOT_ON_CYCLE',
     );
     expect(
       await refusal(
@@ -915,20 +939,18 @@ suite('a UAE leg in handovers (Postgres)', () => {
         ),
       ),
     ).toBe('LENDER_REPAYMENT_EXCEEDS_OWED');
-    // Once repaid, the handover cannot be undone or its payer changed.
+    // Once repaid, the payment cannot be undone or its payer changed.
+    const payment = await prisma.handoverFreightPayment.findFirstOrThrow({
+      where: { departureId: h.id },
+    });
     expect(
       await refusal(
-        handovers.update(
-          h.id,
-          {
-            handedOverOn: '2026-11-03',
-            freightAmount: 6000,
-            paidByUserId: null,
-          },
-          ABDALLAH,
-        ),
+        handovers.updatePayment(payment.id, { paidByUserId: null }, ABDALLAH),
       ),
     ).toBe('FINANCING_HAS_REPAYMENTS');
+    expect(await refusal(handovers.removePayment(payment.id, ABDALLAH))).toBe(
+      'FINANCING_HAS_REPAYMENTS',
+    );
   });
 
   // ─── The second time: undo ──────────────────────────────────────────────
@@ -1353,5 +1375,651 @@ suite('a UAE leg in handovers (Postgres)', () => {
       '75000.00',
       '75000.00',
     ]);
+  });
+
+  // ─── Freight paid in parts (owner 2026-11-20, mockup approved) ──────────
+
+  /** The Exchange rates page's AED rate, as the forms and the estimate read it. */
+  const pageRate = (rate: number) =>
+    prisma.currencyRate.update({
+      where: { code: 'AED' },
+      data: { rateToEgp: rate },
+    });
+
+  const paymentsOf = (handoverId: string) =>
+    prisma.handoverFreightPayment.findMany({
+      where: { departureId: handoverId },
+      orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }],
+    });
+
+  const pay = (
+    handoverId: string,
+    over: Partial<Parameters<HandoversService['addPayment']>[1]> = {},
+  ) =>
+    handovers
+      .addPayment(
+        handoverId,
+        { paidOn: '2026-11-20', amount: 4000, rateToEgp: 15.5, ...over },
+        ABDALLAH,
+      )
+      .then((r) => r.data);
+
+  it('Backfill: a handover stored before payments existed gets one payment of exactly its freight, rate, day and payer — and every cost reads as it did', async () => {
+    // Runs first in this section: the backfill SQL is the migration's own,
+    // and it touches only handovers with freight and no payment.
+    const w = await inAjman();
+    await pageRate(15.2);
+    const h1 = await handOver(w, {
+      pieces: 150,
+      freightAmount: 6000,
+      freightRateToEgp: 15,
+      paidByUserId: SHADY,
+    });
+    const h2 = await handOver(w, {
+      pieces: null,
+      freightAmount: 4200,
+      freightRateToEgp: 15.1,
+      handedOverOn: '2026-11-05',
+    });
+    const free = await handOver(w, { pieces: 10, freightAmount: 0 });
+    const before = (await leg2View(w)).h;
+    const costBefore = await legCost(w);
+    const own = await prisma.handoverFreightPayment.findMany({
+      where: { departureId: { in: [h1.id, h2.id, free.id] } },
+    });
+    // As the code before this change stored them: no payments, the payer on
+    // the handover, his debt naming the handover only.
+    await prisma.lenderFinancing.updateMany({
+      where: { departureId: h1.id },
+      data: { freightPaymentId: null },
+    });
+    await prisma.shipmentDeparture.update({
+      where: { id: h1.id },
+      data: { paidByUserId: SHADY },
+    });
+    await prisma.handoverFreightPayment.deleteMany({
+      where: { id: { in: own.map((p) => p.id) } },
+    });
+    expect((await leg2View(w)).h.handovers.map((x) => x.freightToPay)).toEqual([
+      '6000.00',
+      '0.00',
+      '4200.00',
+    ]);
+
+    const sql = readFileSync(
+      join(
+        __dirname,
+        '../../../prisma/migrations/20261120180000_handover_freight_payments/migration.sql',
+      ),
+      'utf8',
+    );
+    const backfill = sql.slice(sql.indexOf('-- Backfill:'));
+    for (const statement of backfill
+      .split(';')
+      .map((x) => x.replace(/^\s*--.*$/gm, '').trim())
+      .filter(Boolean)) {
+      // eslint-disable-next-line no-restricted-properties -- the migration file's own backfill, run as written: no values go in
+      await prisma.$executeRawUnsafe(statement);
+    }
+
+    const [p1] = await paymentsOf(h1.id);
+    const [p2] = await paymentsOf(h2.id);
+    expect(await paymentsOf(free.id)).toEqual([]);
+    expect([
+      p1.paidOn.toISOString().slice(0, 10),
+      p1.amount.toFixed(2),
+      p1.rateToEgp.toFixed(4),
+      p1.amountEgp.toFixed(2),
+      p1.paidByUserId,
+    ]).toEqual(['2026-11-03', '6000.00', '15.0000', '90000.00', SHADY]);
+    expect([
+      p2.paidOn.toISOString().slice(0, 10),
+      p2.amount.toFixed(2),
+      p2.rateToEgp.toFixed(4),
+      p2.amountEgp.toFixed(2),
+      p2.paidByUserId,
+    ]).toEqual(['2026-11-05', '4200.00', '15.1000', '63420.00', null]);
+    // His debt is now the debt of that payment.
+    const f = await prisma.lenderFinancing.findFirstOrThrow({
+      where: { departureId: h1.id, removedAt: null },
+    });
+    expect(f.freightPaymentId).toBe(p1.id);
+    // Nothing reads differently: the leg's cost and every figure of the card.
+    expect(await legCost(w)).toBe(costBefore);
+    const after = (await leg2View(w)).h;
+    const figures = (x: typeof after) => ({
+      legCostEgp: x.legCostEgp,
+      perPiece: x.perPiece,
+      perPieceEgp: x.perPieceEgp,
+      freightEgp: x.freightEgp,
+      final: x.final,
+      toPay: x.toPayByCurrency,
+      handovers: x.handovers.map((y) => [
+        y.freightAmount,
+        y.freightAmountEgp,
+        y.freightPaid,
+        y.freightToPay,
+      ]),
+    });
+    expect(figures(after)).toEqual(figures(before));
+    expect(after.toPayByCurrency).toEqual([]);
+    // A second run changes nothing.
+    for (const statement of backfill
+      .split(';')
+      .map((x) => x.replace(/^\s*--.*$/gm, '').trim())
+      .filter(Boolean)) {
+      // eslint-disable-next-line no-restricted-properties -- the migration file's own backfill, run as written: no values go in
+      await prisma.$executeRawUnsafe(statement);
+    }
+    expect(await paymentsOf(h1.id)).toHaveLength(1);
+    // A change to the leg re-costs to the same figure: nothing was stale.
+    await handovers.recount(w.leg2.id, ABDALLAH);
+    expect(await legCost(w)).toBe(costBefore);
+  });
+
+  it("CYC-2026-0002's Handover 1: 8,000 AED, Youssef paid 4,000 at 14.8 — the rest counted at the page's 15.2: 120,000 EGP so far, an estimate; the second 4,000 at 15.5 makes it 121,200", async () => {
+    const w = await cycleTwo();
+    await pageRate(15.2);
+    const h = await handOver(w, {
+      pieces: 400,
+      freightAmount: 8000,
+      paidAmount: 4000,
+      freightRateToEgp: 14.8,
+      paidByUserId: INVESTOR,
+      handedOverOn: '2026-11-20',
+    });
+    let { h: view } = await leg2View(w);
+    const mine = view.handovers[0];
+    expect([
+      mine.freightAmount,
+      mine.freightPaid,
+      mine.freightToPay,
+      mine.freightRateToEgp,
+      mine.freightToPayEgp,
+      mine.freightAmountEgp,
+    ]).toEqual([
+      '8000.00',
+      '4000.00',
+      '4000.00',
+      '15.2000',
+      '60800.00',
+      '120000.00',
+    ]);
+    expect(
+      mine.payments.map((p) => [
+        p.paidOn,
+        p.amount,
+        p.rateToEgp,
+        p.amountEgp,
+        p.paidBy?.kind,
+        p.owed,
+      ]),
+    ).toEqual([
+      ['2026-11-20', '4000.00', '14.8000', '59200.00', 'INVESTOR', null],
+    ]);
+    // His money is his contribution: nobody is owed anything for it.
+    expect(
+      await prisma.lenderFinancing.count({ where: { cycleId: w.cycle.id } }),
+    ).toBe(0);
+    expect(view.paidByCurrency).toEqual([
+      { currency: 'AED', amount: '4000.00' },
+    ]);
+    expect(view.toPayByCurrency).toEqual([
+      {
+        currency: 'AED',
+        amount: '4000.00',
+        rateToEgp: '15.2000',
+        amountEgp: '60800.00',
+      },
+    ]);
+    expect(view.freightEgp).toBe('120000.00');
+    expect(view.perPiece).toEqual({ amount: '20.00', currency: 'AED' });
+    expect(await legCost(w)).toBe('120000.00');
+    expect(await cycleFreightIsEstimate(prisma, w.cycle.id)).toBe(true);
+    // Who can be named as paying: the partners and this cycle's investor.
+    const { shipment } = await leg2View(w);
+    const payers = (
+      shipment as unknown as {
+        freightPayers: { id: string; kind: string }[];
+      }
+    ).freightPayers;
+    expect(payers.find((p) => p.id === INVESTOR)?.kind).toBe('INVESTOR');
+    expect(payers.find((p) => p.id === SHADY)?.kind).toBe('PARTNER');
+    // The Funding card reads the leg's cost with the estimate in it:
+    // goods 40,000 + leg 1 157,586.78 + 120,000.
+    let { data } = await accounts.cycleFunding(w.cycle.id);
+    expect(data.toFundEgp).toBe('317586.78');
+    expect(data.equalShares!.ofEgp).toBe('317586.78');
+
+    // The page moving restates nothing by itself (§22)…
+    await pageRate(15.4);
+    expect(await legCost(w)).toBe('120000.00');
+    // …the next freight change, or Count at today's rate, takes it.
+    await handovers.recount(w.leg2.id, ABDALLAH);
+    expect(await legCost(w)).toBe('120800.00');
+    await pageRate(15.2);
+    await handovers.recount(w.leg2.id, ABDALLAH);
+    expect(await legCost(w)).toBe('120000.00');
+
+    // The second 4,000 paid at 15.5 by the business.
+    const second = await pay(h.id);
+    expect(second.amountEgp.toFixed(2)).toBe('62000.00');
+    ({ h: view } = await leg2View(w));
+    expect(view.handovers[0].freightToPay).toBe('0.00');
+    expect(view.toPayByCurrency).toEqual([]);
+    expect(view.freightEgp).toBe('121200.00');
+    expect(await legCost(w)).toBe('121200.00');
+    ({ data } = await accounts.cycleFunding(w.cycle.id));
+    expect(data.toFundEgp).toBe('318786.78');
+    // Still an estimate while nothing has arrived; freight is no longer why.
+    expect(view.final).toBe(false);
+  });
+
+  it('The second payment at a different rate re-costs the units already sold: 1,200 EGP more on the leg is 3 a piece, 150 off the profit on the 50 sold — exactly', async () => {
+    const w = await inAjman();
+    await pageRate(15.2);
+    const h = await handOver(w, {
+      pieces: 400,
+      freightAmount: 8000,
+      paidAmount: 4000,
+      freightRateToEgp: 14.8,
+    });
+    // 59,200 + 4,000 × 15.2 = 120,000 over 400 → 300 a piece.
+    const { data: delivery } = await handovers.recordArrival(
+      w.leg2.id,
+      {
+        handoverId: h.id,
+        arrivedOn: '2026-11-20',
+        lines: [{ purchaseOrderItemId: w.A, qty: 100 }],
+      },
+      ABDALLAH,
+    );
+    await inventory.verifyStock(
+      w.cycle.id,
+      {
+        deliveryId: delivery.id,
+        receivedOn: '2026-11-20',
+        items: [{ deliveryLineId: delivery.lines[0].id, receivedQty: 100 }],
+      },
+      ABDALLAH,
+    );
+    const batch = await prisma.inventoryBatch.findFirstOrThrow({
+      where: { cycleId: w.cycle.id },
+    });
+    expect(batch.landedUnitCostEgp.toFixed(4)).toBe('400.0000');
+    await sales.create(
+      {
+        walkIn: true,
+        channel: 'B2C',
+        currency: 'EGP',
+        items: [{ productId: w.products[0].id, quantity: 50, unitPrice: 1000 }],
+      },
+      ABDALLAH,
+    );
+    const profit = async () =>
+      (await analytics.getCycleProfitability()).data.find(
+        (c) => c.cycleId === w.cycle.id,
+      )!;
+    const before = await profit();
+    expect(before.freightEstimate).toBe(true);
+    expect(before.profit).toBe(30_000); // 50 × (1,000 − 400)
+
+    await pay(h.id, { amount: 4000, rateToEgp: 15.5 });
+    expect(await legCost(w)).toBe('121200.00');
+    const after = await prisma.inventoryBatch.findUniqueOrThrow({
+      where: { id: batch.id },
+      include: { saleItemAllocations: true },
+    });
+    expect(after.landedUnitCostEgp.toFixed(4)).toBe('403.0000');
+    expect(after.saleItemAllocations.map((a) => a.cogsEgp.toFixed(2))).toEqual([
+      '20150.00',
+    ]);
+    expect(before.profit - (await profit()).profit).toBe(150);
+
+    // Undone, the rest is to pay again at the page's rate and the profit is back.
+    const [, second] = await paymentsOf(h.id);
+    await handovers.removePayment(second.id, ABDALLAH);
+    expect(await legCost(w)).toBe('120000.00');
+    expect((await profit()).profit).toBe(30_000);
+    expect(await refusal(handovers.removePayment(second.id, ABDALLAH))).toBe(
+      'NOT_FOUND:freightPayment',
+    );
+    // And recorded again: the same figures as the first time.
+    await pay(h.id, { amount: 4000, rateToEgp: 15.5 });
+    expect(await legCost(w)).toBe('121200.00');
+    expect(before.profit - (await profit()).profit).toBe(150);
+  });
+
+  it('Too much, too early, too late, nothing: refused with their codes, and nothing written', async () => {
+    const w = await inAjman();
+    await pageRate(15.2);
+    // More paid now than the freight.
+    expect(
+      await refusal(handOver(w, { freightAmount: 8000, paidAmount: 8000.01 })),
+    ).toBe('FREIGHT_PAYMENT_EXCEEDS_UNPAID');
+    expect(
+      await refusal(handOver(w, { freightAmount: 8000, paidAmount: -1 })),
+    ).toBe('AMOUNT_NOT_POSITIVE');
+    // Named as paying nothing.
+    expect(
+      await refusal(
+        handOver(w, {
+          freightAmount: 8000,
+          paidAmount: 0,
+          paidByUserId: SHADY,
+        }),
+      ),
+    ).toBe('HANDOVER_PAID_BY_NOTHING_PAID');
+    const h = await handOver(w, {
+      pieces: 400,
+      freightAmount: 8000,
+      paidAmount: 3000,
+      freightRateToEgp: 14.8,
+    });
+    const cost = await legCost(w);
+    // 3,000 × 14.8 + 5,000 × 15.2 = 44,400 + 76,000.
+    expect(cost).toBe('120400.00');
+    expect(await refusal(pay(h.id, { amount: 5000.01 }))).toBe(
+      'FREIGHT_PAYMENT_EXCEEDS_UNPAID',
+    );
+    expect(await refusal(pay(h.id, { amount: 0 }))).toBe('AMOUNT_NOT_POSITIVE');
+    expect(await refusal(pay(h.id, { amount: -5 }))).toBe(
+      'AMOUNT_NOT_POSITIVE',
+    );
+    expect(await refusal(pay(h.id, { paidOn: '2099-01-01' }))).toBe(
+      'DATE_IN_FUTURE',
+    );
+    // Before the goods were handed over (3 November).
+    expect(await refusal(pay(h.id, { paidOn: '2026-11-02' }))).toBe(
+      'FREIGHT_PAYMENT_BEFORE_HANDOVER',
+    );
+    expect(await refusal(pay(h.id, { rateToEgp: 0 }))).toBe(
+      'RATE_NOT_POSITIVE',
+    );
+    expect(await refusal(pay(h.id, { paidOn: 'soon' }))).toBe(
+      'VALIDATION_FAILED',
+    );
+    // The second time: 3,000 paid, then 4,000, leaves 1,000 — 1,000.01 is too much.
+    await pay(h.id, { amount: 4000 });
+    expect(await refusal(pay(h.id, { amount: 1000.01 }))).toBe(
+      'FREIGHT_PAYMENT_EXCEEDS_UNPAID',
+    );
+    // Correcting one never makes it more than the freight either.
+    const [first] = await paymentsOf(h.id);
+    expect(
+      await refusal(
+        handovers.updatePayment(first.id, { amount: 4000.01 }, ABDALLAH),
+      ),
+    ).toBe('FREIGHT_PAYMENT_EXCEEDS_UNPAID');
+    // The freight cannot drop below what was paid, nor change currency under it.
+    expect(
+      await refusal(
+        handovers.update(h.id, { freightAmount: 6999.99 }, ABDALLAH),
+      ),
+    ).toBe('HANDOVER_FREIGHT_BELOW_PAID');
+    expect(
+      await refusal(
+        handovers.update(h.id, { freightCurrency: 'USD' }, ABDALLAH),
+      ),
+    ).toBe('HANDOVER_FREIGHT_CURRENCY_HAS_PAYMENTS');
+    // Nothing of the refused ones was written.
+    expect((await paymentsOf(h.id)).map((p) => p.amount.toFixed(2))).toEqual([
+      '3000.00',
+      '4000.00',
+    ]);
+    // 44,400 + 62,000 + 1,000 × 15.2
+    expect(await legCost(w)).toBe('121600.00');
+    // A freight raised later (a bigger bill) is to pay, at the page's rate.
+    await handovers.update(h.id, { freightAmount: 9000 }, ABDALLAH);
+    expect(await legCost(w)).toBe('136800.00');
+    // Nothing still to pay, no page rate known: refused, not costed at 0.
+    await prisma.currencyRate.update({
+      where: { code: 'AED' },
+      data: { rateToEgp: null },
+    });
+    expect(
+      await refusal(
+        handOver(w, { freightAmount: 100, paidAmount: 0, pieces: null }),
+      ),
+    ).toBe('NO_RATE_RECORDED');
+    await pageRate(15.2);
+  });
+
+  it("The wrong context: someone else's investor, a stranger, a departure that is no handover, a leg not in handovers, a cycle being settled", async () => {
+    const w = await cycleTwo();
+    const other = await cycleTwo();
+    await pageRate(15.2);
+    const h = await handOver(w, {
+      pieces: 400,
+      freightAmount: 8000,
+      paidAmount: 0,
+      handedOverOn: '2026-11-20',
+    });
+    // An investor of another cycle only.
+    const STRANGER = randomUUID();
+    await prisma.user.create({
+      data: {
+        id: STRANGER,
+        email: `handover-stranger-${STRANGER}@example.test`,
+        passwordHash: 'x',
+        role: 'TEMP_INVESTOR',
+      },
+    });
+    await prisma.cycleParticipant.create({
+      data: {
+        cycleId: other.cycle.id,
+        participantType: 'TEMP_INVESTOR',
+        investorUserId: STRANGER,
+        investorFeePct: 0,
+        contributionAmount: 1,
+      },
+    });
+    expect(await refusal(pay(h.id, { paidByUserId: STRANGER }))).toBe(
+      'FREIGHT_PAYER_NOT_ON_CYCLE',
+    );
+    expect(await refusal(pay(h.id, { paidByUserId: randomUUID() }))).toBe(
+      'FREIGHT_PAYER_NOT_ON_CYCLE',
+    );
+    expect(await refusal(pay(h.id, { paidByUserId: 'nobody' }))).toBe(
+      'FREIGHT_PAYER_NOT_ON_CYCLE',
+    );
+    // Leg 1's departure is a departure, not a handover.
+    const leg1Departure = await prisma.shipmentDeparture.findFirstOrThrow({
+      where: { legId: w.leg1.id },
+    });
+    expect(await refusal(pay(leg1Departure.id))).toBe('NOT_FOUND:handover');
+    expect(await refusal(pay(randomUUID()))).toBe('NOT_FOUND:handover');
+    expect(await refusal(pay('not-a-uuid'))).toBe('NOT_FOUND:handover');
+    expect(
+      await refusal(
+        handovers.updatePayment(randomUUID(), { amount: 1 }, ABDALLAH),
+      ),
+    ).toBe('NOT_FOUND:freightPayment');
+    expect(await refusal(handovers.recount(w.leg1.id, ABDALLAH))).toBe(
+      'LEG_NOT_IN_HANDOVERS',
+    );
+    // A cycle being settled records nothing.
+    await prisma.importCycle.update({
+      where: { id: w.cycle.id },
+      data: { status: 'SETTLEMENT' },
+    });
+    expect(await refusal(pay(h.id))).toBe('CYCLE_SETTLING');
+    expect(await paymentsOf(h.id)).toEqual([]);
+  });
+
+  it('A partner who paid a payment is owed that payment in AED — two partners on one lot owe each his own; correcting or undoing one moves only his', async () => {
+    const w = await inAjman();
+    await pageRate(15.2);
+    const h = await handOver(w, {
+      pieces: 400,
+      freightAmount: 8000,
+      paidAmount: 4000,
+      freightRateToEgp: 14.8,
+      paidByUserId: SHADY,
+    });
+    await pay(h.id, { amount: 4000, rateToEgp: 15.5, paidByUserId: ABDALLAH });
+    const [shady, abdallah] = await paymentsOf(h.id);
+    const debts = async () =>
+      (
+        await prisma.lenderFinancing.findMany({
+          where: { cycleId: w.cycle.id, removedAt: null },
+          include: { lender: true },
+          orderBy: { createdAt: 'asc' },
+        })
+      ).map((f) => [
+        f.lender.partnerUserId,
+        f.freightPaymentId,
+        f.departureId,
+        f.currency,
+        f.amount.toFixed(2),
+        f.amountEgp.toFixed(2),
+      ]);
+    expect(await debts()).toEqual([
+      [SHADY, shady.id, h.id, 'AED', '4000.00', '59200.00'],
+      [ABDALLAH, abdallah.id, h.id, 'AED', '4000.00', '62000.00'],
+    ]);
+    const { h: view } = await leg2View(w);
+    expect(view.handovers[0].payments.map((p) => p.owed?.owed)).toEqual([
+      '4000.00',
+      '4000.00',
+    ]);
+    // Shady paid 3,000, not 4,000: his debt is replaced; Abdallah's stands.
+    await handovers.updatePayment(shady.id, { amount: 3000 }, ABDALLAH);
+    expect(await debts()).toEqual([
+      [ABDALLAH, abdallah.id, h.id, 'AED', '4000.00', '62000.00'],
+      [SHADY, shady.id, h.id, 'AED', '3000.00', '44400.00'],
+    ]);
+    // 44,400 + 62,000 + 1,000 × 15.2
+    expect(await legCost(w)).toBe('121600.00');
+    // Undoing Abdallah's: his debt removed and its ledger row balanced.
+    await handovers.removePayment(abdallah.id, ABDALLAH);
+    const gone = await prisma.lenderFinancing.findFirstOrThrow({
+      where: { cycleId: w.cycle.id, removalReason: { contains: 'undone' } },
+    });
+    const ledger = await prisma.financialTransaction.findMany({
+      where: { relatedType: 'LENDER_FINANCING', relatedId: gone.id },
+    });
+    expect(
+      ledger
+        .reduce(
+          (s, t) =>
+            t.direction === 'INFLOW' ? s.add(t.amount) : s.sub(t.amount),
+          D(0),
+        )
+        .toFixed(2),
+    ).toBe('0.00');
+    expect(await debts()).toEqual([
+      [SHADY, shady.id, h.id, 'AED', '3000.00', '44400.00'],
+    ]);
+    // Naming the business instead takes Shady's debt away too.
+    await handovers.updatePayment(shady.id, { paidByUserId: null }, ABDALLAH);
+    expect(await debts()).toEqual([]);
+    // A note alone changes no debt and no cost.
+    const cost = await legCost(w);
+    await handovers.updatePayment(shady.id, { note: 'cash' }, ABDALLAH);
+    expect(await legCost(w)).toBe(cost);
+    // Undoing the handover takes its payments with it.
+    await prisma.importCycle.update({
+      where: { id: w.cycle.id },
+      data: { status: 'ARRIVED_UAE' },
+    });
+    await handovers.remove(h.id, ABDALLAH);
+    expect(await paymentsOf(h.id)).toEqual([]);
+  });
+
+  it('Moving a handover day takes the payment made with it; a later payment dated before the new day refuses the move', async () => {
+    const w = await inAjman();
+    await pageRate(15.2);
+    const h = await handOver(w, {
+      pieces: 400,
+      freightAmount: 8000,
+      paidAmount: 4000,
+      freightRateToEgp: 14.8,
+      paidByUserId: SHADY,
+    });
+    await pay(h.id, { amount: 1000, paidOn: '2026-11-05' });
+    await handovers.update(h.id, { handedOverOn: '2026-11-04' }, ABDALLAH);
+    const [first] = await paymentsOf(h.id);
+    expect(first.paidOn.toISOString().slice(0, 10)).toBe('2026-11-04');
+    const debt = await prisma.lenderFinancing.findFirstOrThrow({
+      where: { freightPaymentId: first.id, removedAt: null },
+    });
+    expect(debt.paidOn.toISOString().slice(0, 10)).toBe('2026-11-04');
+    expect(
+      await refusal(
+        handovers.update(h.id, { handedOverOn: '2026-11-06' }, ABDALLAH),
+      ),
+    ).toBe('FREIGHT_PAYMENT_BEFORE_HANDOVER');
+  });
+
+  it('Settling is refused while any handover freight is still to pay — approving the settlement, or moving the cycle to Settlement; paid, it goes through', async () => {
+    const w = await inAjman();
+    await pageRate(15.2);
+    const h = await handOver(w, {
+      pieces: 400,
+      freightAmount: 8000,
+      paidAmount: 4000,
+      freightRateToEgp: 14.8,
+      handedOverOn: '2026-11-20',
+    });
+    const { data: delivery } = await handovers.recordArrival(
+      w.leg2.id,
+      {
+        handoverId: h.id,
+        arrivedOn: '2026-11-20',
+        lines: [
+          { purchaseOrderItemId: w.A, qty: 250 },
+          { purchaseOrderItemId: w.B, qty: 150 },
+        ],
+      },
+      ABDALLAH,
+    );
+    await inventory.verifyStock(
+      w.cycle.id,
+      {
+        deliveryId: delivery.id,
+        receivedOn: '2026-11-20',
+        items: delivery.lines.map((l: { id: string; qty: unknown }) => ({
+          deliveryLineId: l.id,
+          receivedQty: Number(l.qty),
+        })),
+      },
+      ABDALLAH,
+    );
+    await handovers.allArrived(h.id, { on: '2026-11-20' }, ABDALLAH);
+    // Not even a draft: a draft settlement locks the leg's cost, and the
+    // payment could not be recorded after it.
+    expect(await refusal(settlements.calculate(w.cycle.id, ABDALLAH))).toBe(
+      'HANDOVER_FREIGHT_UNPAID',
+    );
+    expect(
+      await prisma.settlement.count({ where: { cycleId: w.cycle.id } }),
+    ).toBe(0);
+    expect(
+      await refusal(cycles.transition(w.cycle.id, 'SETTLEMENT', ABDALLAH)),
+    ).toBe('HANDOVER_FREIGHT_UNPAID');
+    expect(
+      (
+        await prisma.importCycle.findUniqueOrThrow({
+          where: { id: w.cycle.id },
+        })
+      ).status,
+    ).not.toBe('SETTLEMENT');
+    // Everything arrived and counted, and still an estimate: freight is to pay.
+    expect((await leg2View(w)).h.final).toBe(false);
+    expect(await cycleFreightIsEstimate(prisma, w.cycle.id)).toBe(true);
+    await pay(h.id);
+    const { h: view } = await leg2View(w);
+    expect(view.final).toBe(true);
+    expect(await cycleFreightIsEstimate(prisma, w.cycle.id)).toBe(false);
+    const again = (await settlements.calculate(w.cycle.id, ABDALLAH)).data!;
+    await settlements.approve(again.id, ABDALLAH);
+    expect(
+      (
+        await prisma.importCycle.findUniqueOrThrow({
+          where: { id: w.cycle.id },
+        })
+      ).status,
+    ).toBe('SETTLEMENT');
   });
 });

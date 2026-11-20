@@ -6,8 +6,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
 import { ToastProvider } from '@/components/ui/toast';
-import { HandoverSection, HandOverDialog, RecordArrivalDialog, AllArrivedDialog, HandoverLegCost, handoverLegStatus } from './Handovers';
-import type { Handover, LegHandovers, ShipmentLeg } from './shipment-model';
+import {
+  HandoverSection,
+  HandOverDialog,
+  RecordArrivalDialog,
+  AllArrivedDialog,
+  HandoverLegCost,
+  handoverLegStatus,
+  FreightPaymentDialog,
+} from './Handovers';
+import type { FreightPayer, FreightPayment, Handover, LegHandovers, ShipmentLeg } from './shipment-model';
 
 /**
  * A UAE leg in handovers (BUSINESS_LOGIC §1, §18 — owner 2026-11-20, mockup A):
@@ -78,6 +86,25 @@ function wrap(ui: ReactNode, locale: 'en' | 'ar' = 'en') {
 
 const NAMES = { 'poi-a': 'SU8 headset', 'poi-b': 'Y50 headset' };
 
+/** Who can be named as paying, as the shipment sends it: partners and the cycle's investor. */
+const PAYERS: FreightPayer[] = [
+  { id: 'u-shady', name: 'Shady', kind: 'PARTNER' },
+  { id: 'u-youssef', name: 'Mohammed Youssef', kind: 'INVESTOR' },
+];
+
+const payment = (over: Partial<FreightPayment>): FreightPayment => ({
+  id: 'p-1',
+  paidOn: '2026-11-18',
+  amount: '6000.00',
+  rateToEgp: '15.0000',
+  amountEgp: '90000.00',
+  paidByUserId: 'u-shady',
+  note: null,
+  paidBy: { id: 'u-shady', name: 'Shady', kind: 'PARTNER' },
+  owed: { financingId: 'f-1', currency: 'AED', owed: '6000.00' },
+  ...over,
+});
+
 const handover = (over: Partial<Handover>): Handover => ({
   id: 'h-1',
   number: 1,
@@ -87,11 +114,13 @@ const handover = (over: Partial<Handover>): Handover => ({
   freightCurrency: 'AED',
   freightRateToEgp: '15.0000',
   freightAmountEgp: '90000.00',
+  freightPaid: '6000.00',
+  freightPaidEgp: '90000.00',
+  freightToPay: '0.00',
+  freightToPayEgp: '0.00',
+  payments: [payment({})],
   providerId: 'prov-1',
   provider: 'Gulf Freight',
-  paidByUserId: 'u-shady',
-  paidBy: { id: 'u-shady', name: 'Shady' },
-  owed: { financingId: 'f-1', currency: 'AED', owed: '6000.00' },
   arrived: 110,
   lost: 0,
   covered: 150,
@@ -117,9 +146,10 @@ const SUMMARY: LegHandovers = {
       handedOverOn: '2026-11-25',
       pieces: null,
       freightAmount: '4200.00',
-      paidByUserId: null,
-      paidBy: null,
-      owed: null,
+      freightAmountEgp: '63000.00',
+      freightPaid: '4200.00',
+      freightPaidEgp: '63000.00',
+      payments: [payment({ id: 'p-2', amount: '4200.00', amountEgp: '63000.00', paidByUserId: null, paidBy: null, owed: null })],
       arrived: 40,
       covered: 40,
       toCome: null,
@@ -128,6 +158,8 @@ const SUMMARY: LegHandovers = {
   ],
   freightEgp: '153000.00',
   freightByCurrency: [{ currency: 'AED', amount: '10200.00' }],
+  paidByCurrency: [{ currency: 'AED', amount: '10200.00' }],
+  toPayByCurrency: [],
   covered: 190,
   pieces: 400,
   legCostEgp: '322105.26',
@@ -177,7 +209,9 @@ describe('the handover card', () => {
     expect(pill.textContent).toMatch(/estimate/);
     expect(pill.dataset.final).toBe('false');
     const [one, two] = screen.getAllByTestId('handover');
-    expect(within(one).getByTestId('handover-facts').textContent).toMatch(/150 pieces.*6,000\.00.*Gulf Freight.*paid by Shady/);
+    expect(within(one).getByTestId('handover-facts').textContent).toMatch(/150 pieces.*6,000\.00.*Gulf Freight/);
+    expect(within(one).getByTestId('freight-payment-who').textContent).toMatch(/^Paid .* · by Shady$/);
+    expect(within(two).getByTestId('freight-payment-who').textContent).toMatch(/by the business$/);
     expect(within(one).getByTestId('handover-progress').textContent).toBe('110 of 150 arrived');
     expect(within(one).getByRole('progressbar')).toBeTruthy();
     expect(within(one).getAllByTestId('handover-arrival')).toHaveLength(2);
@@ -237,9 +271,9 @@ describe('the handover card', () => {
 
 describe('Hand over goods', () => {
   it('posts the day, forwarder, freight in AED at the Exchange rates page rate, pieces and who paid — no products', async () => {
-    wrap(<HandOverDialog leg={leg()} cycleId="c-1" onClose={() => {}} />);
+    wrap(<HandOverDialog leg={leg()} cycleId="c-1" payers={PAYERS} onClose={() => {}} />);
     const dlg = await screen.findByTestId('hand-over-dialog');
-    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightPaid)), { target: { value: '4200' } });
+    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightForLot)), { target: { value: '4200' } });
     await waitFor(() => expect((within(dlg).getByLabelText(/Rate to EGP for AED/) as HTMLInputElement).value).toBe('15.2'));
     fireEvent.change(within(dlg).getByLabelText(en.handovers.piecesIfKnown), { target: { value: '150' } });
     // Paid by: Shady.
@@ -251,24 +285,31 @@ describe('Hand over goods', () => {
     await waitFor(() => expect(call).toHaveBeenCalled());
     const [, url, body] = call.mock.calls[0];
     expect(url).toBe('/shipping/legs/leg-2/handovers');
-    expect(body).toMatchObject({ freightAmount: 4200, freightCurrency: 'AED', freightRateToEgp: 15.2, pieces: 150, paidByUserId: 'u-shady' });
+    expect(body).toMatchObject({
+      freightAmount: 4200,
+      freightCurrency: 'AED',
+      paidAmount: 4200,
+      freightRateToEgp: 15.2,
+      pieces: 150,
+      paidByUserId: 'u-shady',
+    });
     expect(body).not.toHaveProperty('lines');
   });
 
   it('pieces left empty are "not known" (null); the business paid is no payer', async () => {
-    wrap(<HandOverDialog leg={leg()} cycleId="c-1" onClose={() => {}} />);
+    wrap(<HandOverDialog leg={leg()} cycleId="c-1" payers={PAYERS} onClose={() => {}} />);
     const dlg = await screen.findByTestId('hand-over-dialog');
-    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightPaid)), { target: { value: '0' } });
+    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightForLot)), { target: { value: '0' } });
     fireEvent.click(within(dlg).getByRole('button', { name: en.common.save }));
     await waitFor(() => expect(call).toHaveBeenCalled());
-    expect(call.mock.calls[0][2]).toMatchObject({ freightAmount: 0, pieces: null, paidByUserId: undefined });
+    expect(call.mock.calls[0][2]).toMatchObject({ freightAmount: 0, paidAmount: 0, pieces: null, paidByUserId: undefined });
   });
 
   it('a refusal is said in the dialog, translated, and what was typed stays', async () => {
     state.answer = () => refusal('HANDOVER_PIECES_EXCEED_WAITING', { available: 210, asked: 300 });
-    wrap(<HandOverDialog leg={leg()} cycleId="c-1" onClose={() => {}} />);
+    wrap(<HandOverDialog leg={leg()} cycleId="c-1" payers={PAYERS} onClose={() => {}} />);
     const dlg = await screen.findByTestId('hand-over-dialog');
-    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightPaid)), { target: { value: '100' } });
+    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightForLot)), { target: { value: '100' } });
     fireEvent.change(within(dlg).getByLabelText(en.handovers.piecesIfKnown), { target: { value: '300' } });
     fireEvent.click(within(dlg).getByRole('button', { name: en.common.save }));
     expect((await screen.findByRole('alert')).textContent).toBe(
@@ -279,9 +320,9 @@ describe('Hand over goods', () => {
 
   it('the hint shows the sum saved at the rate typed, and names the page rate only when it differs', async () => {
     // Owner 2026-11-20: "I typed 14.8 it shows 15.2 as current and calculate 14.8".
-    wrap(<HandOverDialog leg={leg()} cycleId="c-1" onClose={() => {}} />);
+    wrap(<HandOverDialog leg={leg()} cycleId="c-1" payers={PAYERS} onClose={() => {}} />);
     const dlg = await screen.findByTestId('hand-over-dialog');
-    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightPaid)), { target: { value: '4000' } });
+    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightForLot)), { target: { value: '4000' } });
     const rateBox = within(dlg).getByLabelText(/Rate to EGP for AED/) as HTMLInputElement;
     await waitFor(() => expect(rateBox.value).toBe('15.2'));
     const hint = () => within(dlg).getByTestId('handover-freight-hint').textContent ?? '';
@@ -297,7 +338,7 @@ describe('Hand over goods', () => {
   });
 
   it('without a freight it sends nothing', async () => {
-    wrap(<HandOverDialog leg={leg()} cycleId="c-1" onClose={() => {}} />);
+    wrap(<HandOverDialog leg={leg()} cycleId="c-1" payers={PAYERS} onClose={() => {}} />);
     const dlg = await screen.findByTestId('hand-over-dialog');
     fireEvent.click(within(dlg).getByRole('button', { name: en.common.save }));
     expect((await screen.findByRole('alert')).textContent).toBe(en.handovers.freightRequired);
@@ -412,4 +453,272 @@ describe('the leg header on a handover leg', () => {
     expect(within(first).getByTestId('arrival-day').textContent).toMatch(/^Arrived /);
     expect(within(first).getByTestId('arrival-products').textContent).toBe('SU8 headset ×30, Y50 headset ×30');
   });
+});
+
+// ─── Freight paid in parts (owner 2026-11-20, mockup approved) ─────────────
+
+/** CYC-2026-0002 leg 2, Handover 1: 8,000 AED, Youssef paid 4,000 at 14.8, 4,000 to pay at the page's 15.2. */
+const OWED_LOT = handover({
+  pieces: 400,
+  freightAmount: '8000.00',
+  freightRateToEgp: '15.2000',
+  freightAmountEgp: '120000.00',
+  freightPaid: '4000.00',
+  freightPaidEgp: '59200.00',
+  freightToPay: '4000.00',
+  freightToPayEgp: '60800.00',
+  payments: [
+    payment({
+      paidOn: '2026-11-20',
+      amount: '4000.00',
+      rateToEgp: '14.8000',
+      amountEgp: '59200.00',
+      paidByUserId: 'u-youssef',
+      paidBy: { id: 'u-youssef', name: 'Mohammed Youssef', kind: 'INVESTOR' },
+      owed: null,
+    }),
+  ],
+  arrived: 0,
+  covered: 400,
+  toCome: 400,
+  arrivals: [],
+});
+const OWED: LegHandovers = {
+  ...SUMMARY,
+  handovers: [OWED_LOT],
+  freightEgp: '120000.00',
+  freightByCurrency: [{ currency: 'AED', amount: '8000.00' }],
+  paidByCurrency: [{ currency: 'AED', amount: '4000.00' }],
+  toPayByCurrency: [{ currency: 'AED', amount: '4000.00', rateToEgp: '15.2000', amountEgp: '60800.00' }],
+  covered: 400,
+  legCostEgp: '120000.00',
+  perPiece: { amount: '20.00', currency: 'AED' },
+  perPieceEgp: '300.00',
+  stillInUae: 0,
+  withForwarder: 400,
+  withForwarderUnknown: 0,
+  arrived: 0,
+};
+
+describe('freight paid in parts on the card', () => {
+  it('a green row for what Youssef paid, an amber row for what is to pay at the page rate (today), Record payment — and no "paid" pill yet', async () => {
+    wrap(<HandoverSection cycleId="c-1" leg={leg({ handovers: OWED })} productNames={NAMES} frozen={false} payers={PAYERS} />);
+    const paid = screen.getByTestId('freight-payment');
+    expect(paid.textContent).toMatch(/Paid Nov 20, 2026 · by Mohammed Youssef/);
+    expect(paid.textContent).toMatch(/4,000\.00.*AED × 14\.80/);
+    expect(paid.textContent).toMatch(/59,200\.00/);
+    const rest = screen.getByTestId('freight-to-pay');
+    expect(rest.textContent).toMatch(/To pay · rate not known yet/);
+    expect(rest.textContent).toMatch(/4,000\.00.*AED × 15\.20/);
+    // The page's rate is 15.2 too: the row says it is today's.
+    await waitFor(() => expect(rest.textContent).toMatch(/\(today\)/));
+    expect(rest.textContent).toMatch(/≈ .*60,800\.00/);
+    expect(within(rest).getByTestId('record-payment')).toBeTruthy();
+    expect(screen.queryByTestId('freight-paid-pill')).toBeNull();
+    // An investor's payment is his contribution: nothing is owed to him.
+    expect(screen.queryByTestId('handover-owed')).toBeNull();
+    expect(screen.queryByTestId('page-rate-moved')).toBeNull();
+  });
+
+  it('the leg header: "4,000.00 AED paid · 4,000.00 AED to pay", "≈ 120,000.00 EGP so far · to pay counted at 15.20 until paid"', () => {
+    wrap(<HandoverLegCost leg={leg({ handovers: OWED })} />);
+    expect(screen.getByTestId('leg-freight-paid').textContent).toMatch(/4,000\.00.*AED paid · .*4,000\.00.*AED to pay/);
+    expect(screen.getByTestId('leg-cost-so-far').textContent).toMatch(/≈ .*120,000\.00.* so far · to pay counted at 15\.20 until paid/);
+  });
+
+  it('once paid: "Freight paid · 8,000.00 AED", two green rows, no amber row, no Record payment', () => {
+    const done = handover({
+      ...OWED_LOT,
+      freightToPay: '0.00',
+      freightToPayEgp: '0.00',
+      freightPaid: '8000.00',
+      freightAmountEgp: '121200.00',
+      payments: [
+        OWED_LOT.payments[0],
+        payment({ id: 'p-9', paidOn: '2026-11-20', amount: '4000.00', rateToEgp: '15.5000', amountEgp: '62000.00', paidByUserId: null, paidBy: null, owed: null }),
+      ],
+    });
+    wrap(
+      <HandoverSection
+        cycleId="c-1"
+        leg={leg({ handovers: { ...OWED, handovers: [done], toPayByCurrency: [], freightEgp: '121200.00' } })}
+        productNames={NAMES}
+        frozen={false}
+        payers={PAYERS}
+      />,
+    );
+    expect(screen.getByTestId('freight-paid-pill').textContent).toMatch(/Freight paid · .*8,000\.00/);
+    const rows = screen.getAllByTestId('freight-payment');
+    expect(rows).toHaveLength(2);
+    expect(rows[1].textContent).toMatch(/by the business.*4,000\.00.*AED × 15\.50.*62,000\.00/);
+    expect(screen.queryByTestId('freight-to-pay')).toBeNull();
+    expect(screen.queryByTestId('record-payment')).toBeNull();
+  });
+
+  it('Undo on a payment asks first and then deletes that payment', async () => {
+    wrap(<HandoverSection cycleId="c-1" leg={leg({ handovers: OWED })} productNames={NAMES} frozen={false} payers={PAYERS} />);
+    fireEvent.click(screen.getByTestId('undo-payment'));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain(en.handovers.undoPaymentConfirm);
+    fireEvent.click(within(dialog).getByRole('button', { name: en.handovers.undoPayment }));
+    await waitFor(() => expect(call).toHaveBeenCalledWith('delete', '/shipping/freight-payments/p-1'));
+  });
+
+  it('a frozen cycle offers no Record payment and no undo', () => {
+    wrap(<HandoverSection cycleId="c-1" leg={leg({ handovers: OWED })} productNames={NAMES} frozen payers={PAYERS} />);
+    expect(screen.queryByTestId('record-payment')).toBeNull();
+    expect(screen.queryByTestId('undo-payment')).toBeNull();
+  });
+
+  it("when the Exchange rates page moved since, the card says so (no \"today\") and Count at today's rate recounts the leg", async () => {
+    const stale = {
+      ...OWED,
+      handovers: [{ ...OWED_LOT, freightRateToEgp: '15.0000', freightToPayEgp: '60000.00' }],
+      toPayByCurrency: [{ currency: 'AED', amount: '4000.00', rateToEgp: '15.0000', amountEgp: '60000.00' }],
+    };
+    wrap(<HandoverSection cycleId="c-1" leg={leg({ handovers: stale })} productNames={NAMES} frozen={false} payers={PAYERS} />);
+    const note = await screen.findByTestId('page-rate-moved');
+    expect(note.textContent).toMatch(/now says 1 AED = 15\.20 EGP; the rest to pay is still counted at 15\.00/);
+    expect(screen.getByTestId('freight-to-pay').textContent).not.toMatch(/\(today\)/);
+    fireEvent.click(within(note).getByTestId('recount'));
+    await waitFor(() => expect(call).toHaveBeenCalledWith('post', '/shipping/legs/leg-2/freight/recount', {}));
+  });
+
+  it('in Arabic: the rows, the button and the header are Arabic; a payment is سداد, a handover still never دفعة', () => {
+    wrap(<HandoverSection cycleId="c-1" leg={leg({ handovers: OWED })} productNames={NAMES} frozen={false} payers={PAYERS} />, 'ar');
+    const card = screen.getByTestId('handovers');
+    expect(card.textContent).toContain('للسداد · السعر غير معروف بعد');
+    expect(card.textContent).toContain(ar.handovers.recordPayment);
+    expect(card.textContent).toContain(ar.handovers.freight);
+    expect(screen.getByTestId('freight-payment-who').textContent).toMatch(/^دُفع .* · من Mohammed Youssef$/);
+    expect(card.textContent).not.toMatch(/دفعة/);
+    cleanup();
+    wrap(<HandoverLegCost leg={leg({ handovers: OWED })} />, 'ar');
+    expect(screen.getByTestId('leg-freight-paid').textContent).toMatch(/مدفوع .*للسداد/);
+    expect(screen.getByTestId('leg-cost-so-far').textContent).toMatch(/حتى الآن/);
+  });
+});
+
+describe('Hand over goods: Paid now', () => {
+  it('Paid now follows the freight; 4,000 of 8,000 at 14.8 by Youssef says what is left and posts paidAmount', async () => {
+    wrap(<HandOverDialog leg={leg({ handovers: { ...SUMMARY, handovers: [], stillInUae: 400 } })} cycleId="c-1" payers={PAYERS} onClose={() => {}} />);
+    const dlg = await screen.findByTestId('hand-over-dialog');
+    const freight = () => within(dlg).getByLabelText(new RegExp(en.handovers.freightForLot));
+    fireEvent.change(freight(), { target: { value: '8000' } });
+    const paidNow = within(dlg).getByLabelText(en.handovers.paidNow) as HTMLInputElement;
+    expect(paidNow.value).toBe('8,000');
+    expect(within(dlg).queryByTestId('left-to-pay')).toBeNull();
+    fireEvent.change(paidNow, { target: { value: '4000' } });
+    // Typed once, it is never put back by a change to the freight.
+    fireEvent.change(freight(), { target: { value: '8000.0' } });
+    fireEvent.change(freight(), { target: { value: '8000' } });
+    expect(paidNow.value).toBe('4,000');
+    const rateBox = within(dlg).getByLabelText(/Rate to EGP for AED/) as HTMLInputElement;
+    await waitFor(() => expect(rateBox.value).toBe('15.2'));
+    fireEvent.change(rateBox, { target: { value: '14.8' } });
+    expect(within(dlg).getByTestId('handover-freight-hint').textContent).toMatch(
+      /4000 AED × 14\.8 = .*59,200\.00.*Exchange rates page: 1 AED = 15\.2 EGP/,
+    );
+    expect(within(dlg).getByTestId('left-to-pay').textContent).toMatch(/4,000\.00.*AED left to pay later\. Its rate is asked when you pay it\./);
+    const combos = within(dlg).getAllByRole('combobox');
+    fireEvent.click(combos[combos.length - 1]);
+    fireEvent.click(await screen.findByRole('option', { name: /Mohammed Youssef/ }));
+    expect(within(dlg).getByTestId('handover-paid-by-hint').textContent).toBe(en.handovers.paidByInvestorHint);
+    fireEvent.change(within(dlg).getByLabelText(en.handovers.piecesIfKnown), { target: { value: '400' } });
+    fireEvent.click(within(dlg).getByRole('button', { name: en.common.save }));
+    await waitFor(() => expect(call).toHaveBeenCalled());
+    expect(call.mock.calls[0][2]).toMatchObject({
+      freightAmount: 8000,
+      freightCurrency: 'AED',
+      paidAmount: 4000,
+      freightRateToEgp: 14.8,
+      pieces: 400,
+      paidByUserId: 'u-youssef',
+    });
+  });
+
+  it('more paid now than the freight is said in the dialog and nothing is sent', async () => {
+    wrap(<HandOverDialog leg={leg()} cycleId="c-1" payers={PAYERS} onClose={() => {}} />);
+    const dlg = await screen.findByTestId('hand-over-dialog');
+    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightForLot)), { target: { value: '100' } });
+    fireEvent.change(within(dlg).getByLabelText(en.handovers.paidNow), { target: { value: '101' } });
+    fireEvent.click(within(dlg).getByRole('button', { name: en.common.save }));
+    expect((await screen.findByRole('alert')).textContent).toBe(en.handovers.paidNowMore);
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it('nothing paid now: no rate, no payer, paidAmount 0', async () => {
+    wrap(<HandOverDialog leg={leg()} cycleId="c-1" payers={PAYERS} onClose={() => {}} />);
+    const dlg = await screen.findByTestId('hand-over-dialog');
+    fireEvent.change(within(dlg).getByLabelText(new RegExp(en.handovers.freightForLot)), { target: { value: '8000' } });
+    fireEvent.change(within(dlg).getByLabelText(en.handovers.paidNow), { target: { value: '0' } });
+    expect(within(dlg).queryByLabelText(/Rate to EGP for AED/)).toBeNull();
+    fireEvent.click(within(dlg).getByRole('button', { name: en.common.save }));
+    await waitFor(() => expect(call).toHaveBeenCalled());
+    const body = call.mock.calls[0][2] as Record<string, unknown>;
+    expect(body).toMatchObject({ freightAmount: 8000, paidAmount: 0, paidByUserId: undefined });
+    expect(body).not.toHaveProperty('freightRateToEgp');
+  });
+
+  it('in Arabic the Paid now block is Arabic', async () => {
+    wrap(<HandOverDialog leg={leg()} cycleId="c-1" payers={PAYERS} onClose={() => {}} />, 'ar');
+    const dlg = await screen.findByTestId('hand-over-dialog');
+    expect(dlg.textContent).toContain(ar.handovers.freightForLot);
+    expect(dlg.textContent).toContain(ar.handovers.paidNow);
+  });
+});
+
+describe('Record freight payment', () => {
+  it('starts on the rest (4,000 AED) at the page rate; at 15.5 the hint is the shipped one; posts day, amount, rate and payer', async () => {
+    wrap(<FreightPaymentDialog handover={OWED_LOT} payers={PAYERS} onClose={() => {}} />);
+    const dlg = await screen.findByTestId('freight-payment-dialog');
+    expect(screen.getByTestId('freight-payment-hint').textContent).toMatch(/Handover 1 · .*4,000\.00.*AED still to pay/);
+    const amount = within(dlg).getByLabelText(new RegExp(`^${en.handovers.amount}`)) as HTMLInputElement;
+    expect(amount.value).toBe('4,000');
+    expect(within(dlg).getByTestId('less-leaves-rest').textContent).toBe('Less than 4,000 leaves the rest still to pay');
+    const rateBox = within(dlg).getByLabelText(/Rate to EGP for AED/) as HTMLInputElement;
+    await waitFor(() => expect(rateBox.value).toBe('15.2'));
+    fireEvent.change(rateBox, { target: { value: '15.5' } });
+    expect(within(dlg).getByTestId('freight-payment-rate-hint').textContent).toMatch(
+      /4000 AED × 15\.5 = .*62,000\.00.* · Exchange rates page: 1 AED = 15\.2 EGP/,
+    );
+    fireEvent.click(within(dlg).getByRole('button', { name: en.common.save }));
+    await waitFor(() => expect(call).toHaveBeenCalled());
+    const [method, url, body] = call.mock.calls[0];
+    expect([method, url]).toEqual(['post', '/shipping/handovers/h-1/freight-payments']);
+    expect(body).toMatchObject({ amount: 4000, rateToEgp: 15.5, paidByUserId: undefined });
+    expect((body as { paidOn: string }).paidOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('a partner named as paying is told the business owes him; a refusal is translated and what was typed stays', async () => {
+    state.answer = () => refusal('FREIGHT_PAYMENT_EXCEEDS_UNPAID', { toPay: '4000.00', currency: 'AED', asked: '4500.00', handover: 1 });
+    wrap(<FreightPaymentDialog handover={OWED_LOT} payers={PAYERS} onClose={() => {}} />);
+    const dlg = await screen.findByTestId('freight-payment-dialog');
+    const amount = within(dlg).getByLabelText(new RegExp(`^${en.handovers.amount}`)) as HTMLInputElement;
+    fireEvent.change(amount, { target: { value: '4500' } });
+    const combos = within(dlg).getAllByRole('combobox');
+    fireEvent.click(combos[combos.length - 1]);
+    fireEvent.click(await screen.findByRole('option', { name: /Shady/ }));
+    expect(within(dlg).getByTestId('handover-paid-by-hint').textContent).toMatch(/owes Shady this freight in AED/);
+    fireEvent.click(within(dlg).getByRole('button', { name: en.common.save }));
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      "Only 4000.00 AED of handover 1's freight is still to pay, so 4500.00 cannot be paid on it.",
+    );
+    expect(amount.value).toBe('4,500');
+    expect(call.mock.calls[0][2]).toMatchObject({ paidByUserId: 'u-shady' });
+  });
+
+  it('in Arabic the form is Arabic', async () => {
+    wrap(<FreightPaymentDialog handover={OWED_LOT} payers={PAYERS} onClose={() => {}} />, 'ar');
+    const dlg = await screen.findByTestId('freight-payment-dialog');
+    expect(dlg.textContent).toContain(ar.handovers.paymentTitle);
+    expect(dlg.textContent).toContain(ar.handovers.rateGot);
+    expect(dlg.textContent).toContain(ar.handovers.paidOn);
+  });
+});
+
+it('fully paid with every piece counted: the header is what was paid, with no "for all 400 at the estimate" line', () => {
+  wrap(<HandoverLegCost leg={leg({ handovers: { ...OWED, toPayByCurrency: [], paidByCurrency: [{ currency: 'AED', amount: '8000.00' }], freightEgp: '121200.00' } })} />);
+  expect(screen.getByTestId('leg-freight-paid').textContent).toMatch(/8,000\.00.* paid · .*121,200\.00/);
+  expect(screen.queryByTestId('leg-cost-estimate')).toBeNull();
 });

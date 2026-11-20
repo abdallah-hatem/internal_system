@@ -46,6 +46,7 @@ import {
 } from '../../common/lender-debt';
 import { lossesWithRefunds } from '../../common/loss-refunds';
 import {
+  assertHandoverFreightPaid,
   freightIsEstimate,
   handedOver,
   legHandovers,
@@ -295,6 +296,15 @@ export class CyclesService {
       cycle.shippingLegs.flatMap((l) => l.losses),
     );
     const handovers = await this.handoverViews(cycle, position);
+    // A leg in handovers, or a UAE leg its first handover would put in them.
+    const usesHandovers = cycle.shippingLegs.some(
+      (l) =>
+        l.usesHandovers ||
+        (legLeavesFrom(cycle.originType, l.sequence) === 'UAE' &&
+          l.departures.length === 0 &&
+          l.deliveries.length === 0 &&
+          l.losses.length === 0),
+    );
     return {
       data: {
         cycleId: cycle.id,
@@ -309,6 +319,12 @@ export class CyclesService {
          * there because a handover writes no departure lines (`handedOver`).
          */
         handedOver: handedOver(cycle, position),
+        /**
+         * Who a freight payment can name as paying besides the business (§2,
+         * §18 — 2026-11-20): the active core partners, and this cycle's
+         * investors. Only on a cycle with a UAE leg, which is where they pay.
+         */
+        freightPayers: usesHandovers ? await this.freightPayers(id) : [],
         legs: position.legs.map((p) => {
           const leg = legMeta.get(p.legId)!;
           return {
@@ -376,7 +392,10 @@ export class CyclesService {
 
   /**
    * Each handover leg's summary (`legHandovers`) with the names a screen
-   * shows: the forwarder, the partner who paid and what he is still owed.
+   * shows: the forwarder, who paid each payment of its freight and what a
+   * partner is still owed for it, and who can be named as paying (§2, §18 —
+   * 2026-11-20: the business, an active core partner, an investor in this
+   * cycle).
    */
   private async handoverViews(
     cycle: Parameters<typeof legHandovers>[0],
@@ -388,7 +407,12 @@ export class CyclesService {
       .filter((x) => x !== null);
     if (summaries.length === 0) return out;
     const all = summaries.flatMap((s) => s.handovers);
-    const [providers, partners, financings] = await Promise.all([
+    const payments = all.flatMap((h) => h.payments);
+    const nameOf = (u: {
+      email: string;
+      partner: { displayName: string | null } | null;
+    }) => u.partner?.displayName ?? u.email;
+    const [providers, people, financings] = await Promise.all([
       this.prisma.provider.findMany({
         where: {
           id: { in: all.map((h) => h.providerId).filter((x) => x !== null) },
@@ -397,22 +421,25 @@ export class CyclesService {
       }),
       this.prisma.user.findMany({
         where: {
-          id: { in: all.map((h) => h.paidByUserId).filter((x) => x !== null) },
+          id: {
+            in: payments.map((p) => p.paidByUserId).filter((x) => x !== null),
+          },
         },
         select: {
           id: true,
           email: true,
+          role: true,
           partner: { select: { displayName: true } },
         },
       }),
       this.prisma.lenderFinancing.findMany({
         where: {
-          departureId: { in: all.map((h) => h.id) },
+          freightPaymentId: { in: payments.map((p) => p.id) },
           ...STANDING_FINANCING,
         },
         select: {
           id: true,
-          departureId: true,
+          freightPaymentId: true,
           amount: true,
           currency: true,
           repayments: {
@@ -426,31 +453,88 @@ export class CyclesService {
       out.set(s.legId, {
         ...s,
         handovers: s.handovers.map((h) => {
-          const f = financings.find((x) => x.departureId === h.id);
-          const payer = partners.find((u) => u.id === h.paidByUserId);
+          const view = h.payments.map((p) => {
+            const who = people.find((u) => u.id === p.paidByUserId);
+            const f = financings.find((x) => x.freightPaymentId === p.id);
+            return {
+              ...p,
+              paidBy: who
+                ? {
+                    id: who.id,
+                    name: nameOf(who),
+                    kind:
+                      who.role === 'CORE_PARTNER'
+                        ? ('PARTNER' as const)
+                        : ('INVESTOR' as const),
+                  }
+                : null,
+              /** What the business still owes the partner who paid it, in its currency. */
+              owed: f
+                ? {
+                    financingId: f.id,
+                    currency: f.currency,
+                    owed: owedOn(f.amount, f.repayments).toFixed(2),
+                  }
+                : null,
+            };
+          });
           return {
             ...h,
             provider:
               providers.find((p) => p.id === h.providerId)?.name ?? null,
-            paidBy: payer
-              ? {
-                  id: payer.id,
-                  name: payer.partner?.displayName ?? payer.email,
-                }
-              : null,
-            /** What the business still owes the partner who paid it, in its currency. */
-            owed: f
-              ? {
-                  financingId: f.id,
-                  currency: f.currency,
-                  owed: owedOn(f.amount, f.repayments).toFixed(2),
-                }
-              : null,
+            payments: view,
           };
         }),
       });
     }
     return out;
+  }
+
+  /** The active core partners and this cycle's investors, for "Paid by" on freight. */
+  private async freightPayers(cycleId: string) {
+    const nameOf = (u: {
+      email: string;
+      partner: { displayName: string | null } | null;
+    }) => u.partner?.displayName ?? u.email;
+    const [partners, investors] = await Promise.all([
+      this.prisma.user.findMany({
+        where: {
+          role: 'CORE_PARTNER',
+          status: 'ACTIVE',
+          partner: { active: true },
+        },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          email: true,
+          partner: { select: { displayName: true } },
+        },
+      }),
+      this.prisma.cycleParticipant.findMany({
+        where: { cycleId, investorUserId: { not: null } },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          investor: {
+            select: {
+              id: true,
+              email: true,
+              partner: { select: { displayName: true } },
+            },
+          },
+        },
+      }),
+    ]);
+    return [
+      ...partners.map((u) => ({
+        id: u.id,
+        name: nameOf(u),
+        kind: 'PARTNER' as const,
+      })),
+      ...investors
+        .map((p) => p.investor)
+        .filter((u) => u !== null)
+        .map((u) => ({ id: u.id, name: nameOf(u), kind: 'INVESTOR' as const })),
+    ];
   }
 
   /**
@@ -936,6 +1020,9 @@ export class CyclesService {
       // Nor while a friend who paid a supplier is still owed (§18): the same
       // helper settlement `approve` calls.
       await assertLendersRepaid(db, id, cycle.code);
+      // Nor while a handover's freight is still to pay (§2, GUESS
+      // 2026-11-20): the profit is an estimate until it is.
+      await assertHandoverFreightPaid(db, id, cycle.code);
       // Nor while any of its units are out at shops as samples (§4,
       // samples at shops, 2026-10-18) — the helper settlement calls too.
       await assertCycleHasNoSamplesOut(db, id, cycle.code);
