@@ -15,6 +15,7 @@ import { SalesService } from '../sales/sales.service';
 import { SettlementsService } from '../settlements/settlements.service';
 import { DeliveriesService } from './deliveries.service';
 import { HandoversService } from './handovers.service';
+import { PartnerAccountsService } from '../partner-accounts/partner-accounts.service';
 import { ShippingService } from './shipping.service';
 import { exchangeDifferenceEgp } from '../../common/lender-debt';
 import { cycleFreightIsEstimate } from '../../common/leg-handovers';
@@ -54,6 +55,7 @@ suite('a UAE leg in handovers (Postgres)', () => {
   let analytics: AnalyticsService;
   let lenders: LendersService;
   let cycles: CyclesService;
+  let accounts: PartnerAccountsService;
   /** Two core partners; SHADY pays freight from his pocket. */
   let ABDALLAH: string;
   let SHADY: string;
@@ -99,6 +101,7 @@ suite('a UAE leg in handovers (Postgres)', () => {
     settlements = new SettlementsService(db, audit, costing);
     analytics = new AnalyticsService(db);
     lenders = new LendersService(db, audit, notifications, costing);
+    accounts = new PartnerAccountsService(db, audit, costing);
     ABDALLAH = await partner('Abdallah');
     SHADY = await partner('Shady');
     INVESTOR = randomUUID();
@@ -121,7 +124,7 @@ suite('a UAE leg in handovers (Postgres)', () => {
    * A: 250 pieces for 25,000 EGP (100 each), B: 150 for 15,000 (100 each).
    * Leg 1 free. Two partners fund it 50/50. Leg 2 added in handovers.
    */
-  async function inAjman() {
+  async function inAjman(opts: { leg1Egp?: number } = {}) {
     const tag = randomUUID().slice(0, 8);
     const supplier = await prisma.supplier.create({
       data: { name: `Handover ${tag}`, country: 'CN' },
@@ -193,7 +196,7 @@ suite('a UAE leg in handovers (Postgres)', () => {
         sequence: 1,
         departedOn: '2026-10-01',
         costBasis: 'FLAT',
-        amount: 0,
+        amount: opts.leg1Egp ?? 0,
       },
       ABDALLAH,
     );
@@ -1044,5 +1047,311 @@ suite('a UAE leg in handovers (Postgres)', () => {
         ),
       ),
     ).toBe('HANDOVER_PIECES_EXCEED_WAITING');
+  });
+
+  // ─── Where the goods are, in the leg card's words (owner 2026-11-20: "fix wording") ───
+
+  /**
+   * Everything the cycle page counts about leg 2 must agree with the leg
+   * card: the shipment's `handedOver` (totals line, goods cards) and the leg
+   * card's own `stillInUae` / `withForwarder`; and the pieces add up —
+   * not left + with the forwarder + arrived + lost = what entered the leg.
+   */
+  async function agrees(w: World) {
+    const { shipment, leg, h } = await leg2View(w);
+    const handed = shipment.handedOver;
+    expect(handed.legs).toEqual([
+      {
+        legId: w.leg2.id,
+        stillInUae: h.stillInUae,
+        withForwarder: h.withForwarder,
+        withForwarderUnknown: h.withForwarderUnknown,
+      },
+    ]);
+    expect(handed.withForwarder).toBe(h.withForwarder);
+    expect(handed.withForwarderUnknown).toBe(h.withForwarderUnknown);
+    expect(handed.notLeft).toBe(h.stillInUae);
+    expect(
+      handed.notLeft + handed.withForwarder + leg.delivered + leg.lost,
+    ).toBe(leg.entered);
+    return { handed, shipment, leg };
+  }
+
+  const restStep = async (w: World) =>
+    (await cycles.getTimeline(w.cycle.id)).data.steps.some(
+      (s) => s.key === 'leg2-departed-rest',
+    );
+
+  it('Production’s CYC-2026-0002: 400 handed over with a count, nothing arrived — 400 with the forwarder, none "not left yet", no "rest to leave" on the timeline', async () => {
+    const w = await inAjman();
+    await handOver(w, {
+      pieces: 400,
+      freightAmount: 4000,
+      freightRateToEgp: 14.8,
+      handedOverOn: '2026-11-20',
+    });
+    const { handed, shipment } = await agrees(w);
+    expect(handed).toMatchObject({
+      withForwarder: 400,
+      withForwarderUnknown: 0,
+      notLeft: 0,
+    });
+    // The position itself is unchanged: a handover writes no departure lines.
+    expect(shipment.totals.atOrigin).toBe(400);
+    expect(shipment.status).toBe('IN_TRANSIT_TO_EGYPT');
+    expect(await restStep(w)).toBe(false);
+  });
+
+  it('A handover with no count: nothing counted with the forwarder, one handover "not known", the rest still not left; the timeline does not claim the rest waits', async () => {
+    const w = await inAjman();
+    await handOver(w, { freightAmount: 4200 });
+    const { handed } = await agrees(w);
+    expect(handed).toMatchObject({
+      withForwarder: 0,
+      withForwarderUnknown: 1,
+      notLeft: 400,
+    });
+    expect(await restStep(w)).toBe(false);
+  });
+
+  it('Part handed over, part arrived: 150 counted, 40 arrived → 110 with the forwarder, 250 not left — and the timeline says the rest is still to leave', async () => {
+    const w = await inAjman();
+    const h1 = await handOver(w, { pieces: 150 });
+    await arrive(w, h1.id, [
+      [w.A, 30],
+      [w.B, 10],
+    ]);
+    const { handed, leg } = await agrees(w);
+    expect(handed).toMatchObject({
+      withForwarder: 110,
+      withForwarderUnknown: 0,
+      notLeft: 250,
+    });
+    expect(leg.delivered).toBe(40);
+    expect(await restStep(w)).toBe(true);
+
+    // The second time: another lot for the rest, counted — nothing left to leave.
+    await handOver(w, { pieces: 250, handedOverOn: '2026-11-05' });
+    const again = await agrees(w);
+    expect(again.handed).toMatchObject({ withForwarder: 360, notLeft: 0 });
+    expect(await restStep(w)).toBe(false);
+  });
+
+  it('All arrived with pieces missing: the lost ones leave the forwarder — 150 counted, 145 arrived, 5 lost → 0 with the forwarder, 250 not left, 5 lost', async () => {
+    const w = await inAjman();
+    const h1 = await handOver(w, { pieces: 150 });
+    await arrive(w, h1.id, [
+      [w.A, 100],
+      [w.B, 45],
+    ]);
+    await handovers.allArrived(
+      h1.id,
+      { lost: [{ purchaseOrderItemId: w.B, qty: 5 }] },
+      ABDALLAH,
+    );
+    const { handed, shipment } = await agrees(w);
+    expect(handed).toMatchObject({
+      withForwarder: 0,
+      withForwarderUnknown: 0,
+      notLeft: 250,
+    });
+    expect(shipment.totals.lost).toBe(5);
+  });
+
+  it('A leg in handovers with nothing handed over yet: nothing with the forwarder, not left is what waits at the origin', async () => {
+    const w = await inAjman();
+    const { data } = await cycles.getShipment(w.cycle.id);
+    expect(data.handedOver).toEqual({
+      withForwarder: 0,
+      withForwarderUnknown: 0,
+      notLeft: data.totals.atOrigin,
+      legs: [
+        {
+          legId: w.leg2.id,
+          stillInUae: 400,
+          withForwarder: 0,
+          withForwarderUnknown: 0,
+        },
+      ],
+    });
+  });
+
+  // ─── The equal-shares gap on the Funding card (owner 2026-11-20: "this must be shown") ───
+
+  /**
+   * CYC-2026-0002 as production holds it: three partners at 65,862.26 and
+   * Mohammed Youssef, a temporary investor, at 59,200 (the freight he paid),
+   * the split saved as 25% each. Goods 40,000 + leg 1 157,586.78 = 197,586.78
+   * before the handover; 400 pieces handed over for 4,000 AED at 14.8.
+   */
+  async function cycleTwo(split: (string | null)[] = ['25', '25', '25', '25']) {
+    const w = await inAjman({ leg1Egp: 157_586.78 });
+    const FARES = await partner('Fares');
+    const existing = await prisma.cycleParticipant.findMany({
+      where: { cycleId: w.cycle.id },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    for (const [i, p] of existing.entries()) {
+      await prisma.cycleParticipant.update({
+        where: { id: p.id },
+        data: { contributionAmount: 65_862.26, customProfitPct: split[i] },
+      });
+    }
+    await prisma.financialTransaction.updateMany({
+      where: { cycleId: w.cycle.id, category: 'contribution' },
+      data: { amount: 65_862.26 },
+    });
+    const more = [
+      { who: FARES, type: 'CORE_PARTNER', amount: 65_862.26, pct: split[2] },
+      { who: INVESTOR, type: 'TEMP_INVESTOR', amount: 59_200, pct: split[3] },
+    ] as const;
+    for (const m of more) {
+      const p = await prisma.cycleParticipant.create({
+        data: {
+          cycleId: w.cycle.id,
+          participantType: m.type,
+          ...(m.type === 'CORE_PARTNER'
+            ? { partnerUserId: m.who }
+            : { investorUserId: m.who, investorFeePct: 0 }),
+          contributionAmount: m.amount,
+          customProfitPct: m.pct,
+        },
+      });
+      await prisma.financialTransaction.create({
+        data: {
+          type: 'CAPITAL_CONTRIBUTION',
+          category: 'contribution',
+          direction: 'INFLOW',
+          amount: m.amount,
+          currency: 'EGP',
+          cycleId: w.cycle.id,
+          relatedType: 'CYCLE_PARTICIPANT',
+          relatedId: p.id,
+          createdBy: ABDALLAH,
+        },
+      });
+    }
+    return w;
+  }
+
+  it('Four equal shares of 256,786.78 (goods, leg 1 and the handover’s 59,200): Youssef 4,996.71 short, each partner 1,665.57 over — to the piastre', async () => {
+    const w = await cycleTwo();
+    // Before the handover the card's figure is goods + leg 1.
+    let { data } = await accounts.cycleFunding(w.cycle.id);
+    expect(data.toFundEgp).toBe('197586.78');
+    await handOver(w, {
+      pieces: 400,
+      freightAmount: 4000,
+      freightRateToEgp: 14.8,
+      handedOverOn: '2026-11-20',
+    });
+    ({ data } = await accounts.cycleFunding(w.cycle.id));
+    expect(data.toFundEgp).toBe('256786.78');
+    const gap = data.equalShares!;
+    expect(gap.basis).toBe('COST_TO_FUND');
+    expect(gap.ofEgp).toBe('256786.78');
+    expect(
+      gap.lines.map((l) => [
+        l.participantType,
+        l.shareEgp,
+        l.contributedEgp,
+        l.differenceEgp,
+        l.state,
+      ]),
+    ).toEqual([
+      ['CORE_PARTNER', '64196.69', '65862.26', '1665.57', 'OVER'],
+      ['CORE_PARTNER', '64196.69', '65862.26', '1665.57', 'OVER'],
+      ['CORE_PARTNER', '64196.69', '65862.26', '1665.57', 'OVER'],
+      ['TEMP_INVESTOR', '64196.71', '59200.00', '-4996.71', 'SHORT'],
+    ]);
+    // The shares are the total exactly; the differences cancel exactly.
+    const sum = (k: 'shareEgp' | 'differenceEgp') =>
+      gap.lines.reduce((s, l) => s.add(l[k]), D(0)).toFixed(2);
+    expect(sum('shareEgp')).toBe('256786.78');
+    expect(sum('differenceEgp')).toBe('0.00');
+    // Display only: no contribution moved.
+    const after = await prisma.cycleParticipant.findMany({
+      where: { cycleId: w.cycle.id },
+      select: { contributionAmount: true },
+    });
+    expect(after.map((p) => p.contributionAmount.toFixed(2)).sort()).toEqual([
+      '59200.00',
+      '65862.26',
+      '65862.26',
+      '65862.26',
+    ]);
+  });
+
+  it('Three partners and no investor, equal by agreement (33.33 / 33.33 / 33.34): one even, one short, one over — the last share carrying the odd piastre', async () => {
+    const w = await inAjman({ leg1Egp: 1000 });
+    const FARES = await partner('Fares');
+    // 41,000 to fund; thirds 13,666.66 / 13,666.66 / 13,666.68.
+    const existing = await prisma.cycleParticipant.findMany({
+      where: { cycleId: w.cycle.id },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    await prisma.cycleParticipant.update({
+      where: { id: existing[0].id },
+      data: { contributionAmount: 13_666.66, customProfitPct: '33.33' },
+    });
+    await prisma.cycleParticipant.update({
+      where: { id: existing[1].id },
+      data: { contributionAmount: 10_000, customProfitPct: '33.33' },
+    });
+    await prisma.cycleParticipant.create({
+      data: {
+        cycleId: w.cycle.id,
+        participantType: 'CORE_PARTNER',
+        partnerUserId: FARES,
+        contributionAmount: 17_333.34,
+        customProfitPct: '33.34',
+      },
+    });
+    const { data } = await accounts.cycleFunding(w.cycle.id);
+    expect(data.equalShares!.ofEgp).toBe('41000.00');
+    expect(
+      data.equalShares!.lines.map((l) => [
+        l.shareEgp,
+        l.differenceEgp,
+        l.state,
+      ]),
+    ).toEqual([
+      ['13666.66', '0.00', 'EVEN'],
+      ['13666.66', '-3666.66', 'SHORT'],
+      ['13666.68', '3666.66', 'OVER'],
+    ]);
+  });
+
+  it('An unequal agreed split (30 / 30 / 20 / 20), a partial one, or none at all: no equal-shares section', async () => {
+    for (const split of [
+      ['30', '30', '20', '20'],
+      ['25', '25', '25', null],
+      [null, null, null, null],
+    ]) {
+      const w = await cycleTwo(split);
+      expect(
+        (await accounts.cycleFunding(w.cycle.id)).data.equalShares,
+      ).toBeNull();
+    }
+  });
+
+  it('A target above the cost to fund is what the equal shares are of, as the contributions table reads it', async () => {
+    const w = await cycleTwo();
+    await prisma.importCycle.update({
+      where: { id: w.cycle.id },
+      data: {
+        fundingTargetAmount: 300_000,
+        fundingTargetCurrency: 'EGP',
+        fundingTargetRate: 1,
+      },
+    });
+    const { data } = await accounts.cycleFunding(w.cycle.id);
+    expect(data.equalShares!.basis).toBe('TARGET');
+    expect(data.equalShares!.lines.map((l) => l.shareEgp)).toEqual([
+      '75000.00',
+      '75000.00',
+      '75000.00',
+      '75000.00',
+    ]);
   });
 });

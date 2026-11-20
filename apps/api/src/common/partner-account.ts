@@ -556,6 +556,57 @@ export function contributionShares(args: {
 }
 
 /**
+ * How far each participant's contribution is from an equal share, when the
+ * agreed split gives everyone the same share (§8, owner 2026-11-20: "for
+ * cycle 2 … we 4 share everything equally so 25% contribution each" — "this
+ * must be shown"). Display only: nothing is recorded; Contribute, the
+ * top-ups and Take money are how money moves.
+ *
+ * - **Of what**: `ofEgp` — what funds the cycle, the Funding card's own
+ *   figure (`contributionShares().ofEgp`: the target when set and not below
+ *   the cost to fund, otherwise the cost to fund — goods, every leg's
+ *   freight, handovers' included, expenses charged to it and stock moved in).
+ * - **Each share**: `equalShares` over every participant, investors included,
+ *   in the cycle's order — each rounded down to the piastre, the last taking
+ *   the residual, so the shares add up to the total exactly (CLAUDE.md §10).
+ * - **The difference**: his contribution (his capital in the cycle) less his
+ *   share — above zero he is over, below zero short, zero even. The
+ *   differences add up to everything contributed less the total.
+ *
+ * Nothing to share (zero or less, or fewer than two participants) is null —
+ * rounding never decides who owes what.
+ */
+export function equalShareGap(args: {
+  ofEgp: Prisma.Decimal.Value;
+  participants: { contributionEgp: Prisma.Decimal.Value }[];
+}): {
+  ofEgp: Prisma.Decimal;
+  lines: {
+    share: Prisma.Decimal;
+    contributed: Prisma.Decimal;
+    difference: Prisma.Decimal;
+  }[];
+} | null {
+  const of = new Prisma.Decimal(args.ofEgp).toDecimalPlaces(
+    2,
+    Prisma.Decimal.ROUND_HALF_UP,
+  );
+  if (args.participants.length < 2 || of.lte(0)) return null;
+  const shares = equalShares(of, args.participants.length);
+  return {
+    ofEgp: of,
+    lines: args.participants.map((p, i) => {
+      const contributed = Prisma.Decimal.max(p.contributionEgp, 0);
+      return {
+        share: shares[i],
+        contributed,
+        difference: contributed.sub(shares[i]),
+      };
+    }),
+  };
+}
+
+/**
  * What one partner has put into a cycle so far (DECIDED 2026-10-26, owner:
  * "a bit confusing, seeing funding zero, while each one of us clearly paid
  * 67,056.33 to ahmad"): his contribution on it, plus his advances on it not

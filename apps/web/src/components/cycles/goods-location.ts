@@ -22,6 +22,14 @@
  * own on the cycle that gave them — **moved** — so its units still add up to
  * what it ordered. On the cycle that took them they are not part of what it
  * ordered: they are listed apart, per cycle they came from (`fromCycles`).
+ *
+ * A UAE leg in handovers (§1, owner 2026-11-20: "fix wording"): pieces handed
+ * to the forwarder are on the way to Egypt, but a handover names no products,
+ * so the position still counts them as waiting in the UAE. The cycle's totals
+ * move the server's count of them (`shipment.handedOver.withForwarder`) from
+ * In UAE to To Egypt, so the cards agree with the leg card; per product they
+ * stay where they are — which products is known only as they arrive — and the
+ * table says "In UAE or with the forwarder" (`withForwarder` below).
  */
 
 import { num, type Shipment, type ShipmentLeg, type ShipmentLegLine } from '@/components/shipment/shipment-model';
@@ -74,6 +82,10 @@ export interface GoodsLocation {
   products: ProductLocation[];
   /** Leftovers moved in from other cycles — outside `ordered`. */
   fromCycles: FromCycle[];
+  /** Pieces with the forwarder, counted in `totals.toEgypt` and per product still in `inUae`. */
+  withForwarder: number;
+  /** Open handovers with no count: an unknown number more is with the forwarder. */
+  withForwarderUnknown: number;
 }
 
 /** The batch fields this reads — `GET /cycles/:id` returns them on `inventoryBatches`. */
@@ -113,7 +125,7 @@ function toUnits(b: GoodsBuckets): GoodsBuckets {
 
 export function locateGoods(input: {
   originType: string;
-  shipment: Pick<Shipment, 'lines' | 'legs'> | undefined;
+  shipment: (Pick<Shipment, 'lines' | 'legs'> & Partial<Pick<Shipment, 'handedOver'>>) | undefined;
   batches: LocationBatch[];
   /** Transfers out of and into this cycle; only those that stand are counted. */
   transfers?: { out: LocationTransfer[]; in: LocationTransfer[] };
@@ -227,7 +239,21 @@ export function locateGoods(input: {
     movedOn: fromMilli(f.movedOn),
   }));
 
-  return { direct, totals: toUnits(totals), products, fromCycles };
+  // With the forwarder: on the way to Egypt in the cycle's totals (the
+  // server's figure, never more than what waits in the UAE).
+  const handed = input.shipment?.handedOver;
+  const withForwarder = Math.min(milli(handed?.withForwarder ?? 0), totals.inUae);
+  totals.inUae -= withForwarder;
+  totals.toEgypt += withForwarder;
+
+  return {
+    direct,
+    totals: toUnits(totals),
+    products,
+    fromCycles,
+    withForwarder: fromMilli(withForwarder),
+    withForwarderUnknown: handed?.withForwarderUnknown ?? 0,
+  };
 }
 
 /**

@@ -192,7 +192,26 @@ export interface Shipment {
   costChangeRecosts?: boolean;
   /** A leg in handovers whose freight is not final yet (§2, 2026-11-20). */
   freightEstimate?: boolean;
+  /**
+   * Pieces handed to the forwarder and not arrived (§1, 2026-11-20, the
+   * server's `handedOver`): on the way to Egypt, though `totals.atOrigin`
+   * still counts them — a handover writes no departure lines. `notLeft` is
+   * `atOrigin` less them. Per product nobody knows which they are.
+   */
+  handedOver?: HandedOver;
 }
+
+export interface HandedOver {
+  withForwarder: number;
+  /** Open handovers given no count: an unknown number more is with the forwarder. */
+  withForwarderUnknown: number;
+  notLeft: number;
+  legs: { legId: string; stillInUae: number; withForwarder: number; withForwarderUnknown: number }[];
+}
+
+/** Whether anything is with the forwarder — counted or not. */
+export const anyWithForwarder = (h: HandedOver | undefined): boolean =>
+  !!h && (h.withForwarder > 0 || h.withForwarderUnknown > 0);
 
 export const num = (v: unknown): number => {
   const n = Number(v ?? 0);
