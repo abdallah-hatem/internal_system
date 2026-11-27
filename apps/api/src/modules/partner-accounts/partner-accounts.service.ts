@@ -8,6 +8,7 @@ import { badRequest, notFound } from '../../common/api-error';
 import { formatMoney } from '../../common/money';
 import { isUuid } from '../../common/uuid';
 import { lockCycle } from '../../common/shipment-load';
+import { cycleFreightToPay } from '../../common/leg-handovers';
 import { assertFundingOpen, fundingLockOf } from '../../common/funding-lock';
 import {
   assertNotFuture,
@@ -38,6 +39,7 @@ import {
   balanceOf,
   contributionShares,
   equalShareGap,
+  equalShareSettleUp,
   equalShares,
   inTargetCurrency,
   isUntiedMovement,
@@ -414,6 +416,17 @@ export class PartnerAccountsService {
           })),
         })
       : null;
+    // Who pays whom to make it equal (owner 2026-11-27): the part of the
+    // shortfall that is handover freight still to pay goes to the forwarder.
+    const freightToPay = equalGap
+      ? await cycleFreightToPay(this.prisma, cycleId)
+      : null;
+    const settleUp = equalGap
+      ? equalShareSettleUp({
+          differences: equalGap.lines.map((l) => l.difference),
+          unpaidFreightEgp: freightToPay!.egp,
+        })
+      : [];
     const personName = (p: (typeof cycle.participants)[number]) =>
       p.partner?.partner?.displayName ??
       p.investor?.partner?.displayName ??
@@ -688,6 +701,30 @@ export class PartnerAccountsService {
                     : line.difference.lt(0)
                       ? ('SHORT' as const)
                       : ('EVEN' as const),
+                };
+              }),
+              /** Handover freight still to pay, per currency and in pounds at the rate it is counted at. */
+              freightToPay: {
+                egp: m2(freightToPay!.egp),
+                byCurrency: freightToPay!.byCurrency,
+              },
+              /**
+               * Who pays whom to make it equal (`equalShareSettleUp`): the
+               * short pay toward the freight still to pay, into the cycle, or
+               * to those over; those over with nobody left to pay them take
+               * it back. Display only.
+               */
+              settleUp: settleUp.map((x) => {
+                const from = cycle.participants[x.from];
+                const to = x.to === null ? null : cycle.participants[x.to];
+                return {
+                  fromParticipantId: from.id,
+                  fromParticipantType: from.participantType,
+                  fromName: personName(from),
+                  toKind: x.kind,
+                  toParticipantId: to?.id ?? null,
+                  toName: to ? personName(to) : null,
+                  amountEgp: m2(x.amount),
                 };
               }),
             }

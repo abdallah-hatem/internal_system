@@ -191,6 +191,24 @@ export interface EqualShares {
     differenceEgp: string;
     state: 'OVER' | 'SHORT' | 'EVEN';
   }[];
+  /** Handover freight still to pay (owner 2026-11-27): per currency, and in pounds at the rate it is counted at. */
+  freightToPay?: { egp: string; byCurrency: { currency: string; amount: string; amountEgp: string }[] };
+  /**
+   * Who pays whom to make it equal (`equalShareSettleUp`, owner 2026-11-27):
+   * toward the freight still to pay, into the cycle, to a participant who is
+   * over, or, for one over with nobody left to pay him, taken back.
+   */
+  settleUp?: SettleUpLine[];
+}
+
+export interface SettleUpLine {
+  fromParticipantId: string;
+  fromParticipantType: string;
+  fromName: string;
+  toKind: 'PARTICIPANT' | 'FREIGHT' | 'COST' | 'TAKE_BACK';
+  toParticipantId: string | null;
+  toName: string | null;
+  amountEgp: string;
 }
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -985,39 +1003,12 @@ function SectionHeading({ children, first }: { children: ReactNode; first?: bool
  * Everyone shares equally by the agreed split, investors too (owner
  * 2026-11-20: "we 4 share everything equally so 25% contribution each" —
  * "this must be shown"): each one's equal share of what funds the cycle, what
- * he contributed, over / short / even, and one line saying what would make it
+ * he contributed, over / short / even, and who pays whom to make it
  * equal. Every figure is the server's (`equalShareGap`); nothing is recorded.
  */
 function EqualSharesRows({ gap }: { gap: EqualShares }) {
   const t = useTranslations('fundingCard');
-  const locale = useLocale();
   const abs = (v: string) => Math.abs(num(v));
-  const short = gap.lines.filter((l) => l.state === 'SHORT');
-  const over = gap.lines.filter((l) => l.state === 'OVER');
-  const overPartners = over.filter((l) => l.participantType === 'CORE_PARTNER');
-  const overOthers = over.filter((l) => l.participantType !== 'CORE_PARTNER');
-  // Partners over by the same figure read as one: "A, B and C each take back X".
-  const together = overPartners.length > 1 && overPartners.every((l) => l.differenceEgp === overPartners[0].differenceEgp);
-  const parts: ReactNode[] = [
-    ...short.map((l) => (
-      <span key={`p-${l.participantId}`}>{t.rich('equal.pays', { name: l.name, amount: () => <Money value={abs(l.differenceEgp)} /> })}</span>
-    )),
-    ...(together
-      ? [
-          <span key="each">
-            {t.rich('equal.takesBackEach', {
-              names: lenderList(overPartners.map((l) => l.name), locale),
-              amount: () => <Money value={abs(overPartners[0].differenceEgp)} />,
-            })}
-          </span>,
-        ]
-      : overPartners.map((l) => (
-          <span key={`t-${l.participantId}`}>{t.rich('equal.takesBack', { name: l.name, amount: () => <Money value={abs(l.differenceEgp)} /> })}</span>
-        ))),
-    ...overOthers.map((l) => (
-      <span key={`i-${l.participantId}`}>{t.rich('equal.takesBackInvestor', { name: l.name, amount: () => <Money value={abs(l.differenceEgp)} /> })}</span>
-    )),
-  ];
   return (
     <div data-testid="equal-shares">
       <SectionHeading first>
@@ -1056,22 +1047,129 @@ function EqualSharesRows({ gap }: { gap: EqualShares }) {
           </div>
         ))}
       </div>
-      <p data-testid="equal-settle" className="mt-2 rounded-lg bg-muted/50 px-3 py-2 text-sm text-foreground">
-        {parts.length === 0 ? (
-          t('equal.allEven')
-        ) : (
-          <>
-            {t('equal.settleIntro')}{' '}
-            {parts.map((part, i) => (
-              <span key={i}>
-                {i > 0 && t('equal.separator')}
-                {part}
-              </span>
+      <SettleUpList lines={gap.settleUp ?? []} owed={gap.freightToPay?.byCurrency ?? []} />
+    </div>
+  );
+}
+
+/**
+ * Who pays whom to make everyone's share equal (owner 2026-11-27: "beside
+ * showing short we should show also, pay for who to be equal"), one line a
+ * payment, as the server planned it (`equalShareSettleUp`). Lines that say the
+ * same thing of several people read as one: "Abdallah, Shady, and Fares each
+ * pay 13,509.43 toward the freight still to pay", "Mohammed Youssef pays
+ * Abdallah, Shady, and Fares 1,665.57 each". Nothing is recorded.
+ */
+function SettleUpList({ lines, owed }: { lines: SettleUpLine[]; owed: { currency: string; amount: string }[] }) {
+  const t = useTranslations('fundingCard');
+  const locale = useLocale();
+  const list = (names: string[]) => lenderList(names, locale);
+  const amount = (v: string) =>
+    function SettleAmount() {
+      return <Money value={num(v)} />;
+    };
+  const owedTag = () =>
+    owed.map((o, i) => (
+      <span key={o.currency}>
+        {i > 0 && ' + '}
+        <Money value={num(o.amount)} currency={o.currency} />
+      </span>
+    ));
+  const items: { key: string; kind: SettleUpLine['toKind']; node: ReactNode }[] = [];
+  const taken = new Set<SettleUpLine>();
+  const groupBy = (pick: (l: SettleUpLine) => boolean, key: (l: SettleUpLine) => string) => {
+    const groups = new Map<string, SettleUpLine[]>();
+    for (const l of lines) {
+      if (taken.has(l) || !pick(l)) continue;
+      const k = key(l);
+      groups.set(k, [...(groups.get(k) ?? []), l]);
+    }
+    return [...groups.values()];
+  };
+  const take = (g: SettleUpLine[]) => g.forEach((l) => taken.add(l));
+
+  // Toward the freight still to pay, and into the cycle: by amount.
+  for (const kind of ['FREIGHT', 'COST'] as const) {
+    for (const g of groupBy((l) => l.toKind === kind, (l) => l.amountEgp)) {
+      take(g);
+      const one = g.length === 1;
+      const names = list(g.map((l) => l.fromName));
+      const key =
+        kind === 'FREIGHT'
+          ? one
+            ? 'equal.towardFreight'
+            : 'equal.towardFreightEach'
+          : one
+            ? 'equal.intoCycle'
+            : 'equal.intoCycleEach';
+      items.push({
+        key: `${kind}-${g[0].fromParticipantId}`,
+        kind,
+        node: t.rich(key, { name: names, names, amount: amount(g[0].amountEgp), owed: owedTag }),
+      });
+    }
+  }
+  // One payer, several people, the same figure: "Youssef pays A, B, and C X each".
+  for (const g of groupBy((l) => l.toKind === 'PARTICIPANT', (l) => `${l.fromParticipantId}|${l.amountEgp}`)) {
+    if (g.length < 2) continue;
+    take(g);
+    items.push({
+      key: `from-${g[0].fromParticipantId}-${g[0].amountEgp}`,
+      kind: 'PARTICIPANT',
+      node: t.rich('equal.paysToEach', {
+        name: g[0].fromName,
+        names: list(g.map((l) => l.toName ?? '')),
+        amount: amount(g[0].amountEgp),
+      }),
+    });
+  }
+  // Several payers, one person, the same figure: "A and B each pay C X"; otherwise one by one.
+  for (const g of groupBy((l) => l.toKind === 'PARTICIPANT', (l) => `${l.toParticipantId}|${l.amountEgp}`)) {
+    take(g);
+    items.push({
+      key: `to-${g[0].fromParticipantId}-${g[0].toParticipantId}`,
+      kind: 'PARTICIPANT',
+      node: t.rich(g.length === 1 ? 'equal.paysTo' : 'equal.eachPayTo', {
+        name: g[0].fromName,
+        names: list(g.map((l) => l.fromName)),
+        to: g[0].toName ?? '',
+        amount: amount(g[0].amountEgp),
+      }),
+    });
+  }
+  // Nobody short left to pay them: partners back to their accounts, an investor as himself.
+  for (const g of groupBy(
+    (l) => l.toKind === 'TAKE_BACK',
+    (l) => `${l.fromParticipantType === 'CORE_PARTNER' ? 'p' : l.fromParticipantId}|${l.amountEgp}`,
+  )) {
+    take(g);
+    const partner = g[0].fromParticipantType === 'CORE_PARTNER';
+    const key = !partner ? 'equal.takesBackInvestor' : g.length === 1 ? 'equal.takesBack' : 'equal.takesBackEach';
+    const names = list(g.map((l) => l.fromName));
+    items.push({
+      key: `back-${g[0].fromParticipantId}`,
+      kind: 'TAKE_BACK',
+      node: t.rich(key, { name: names, names, amount: amount(g[0].amountEgp) }),
+    });
+  }
+
+  return (
+    <div data-testid="equal-settle" className="mt-2 rounded-lg bg-muted/50 px-3 py-2 text-sm text-foreground">
+      {items.length === 0 ? (
+        <p>{t('equal.allEven')}</p>
+      ) : (
+        <>
+          <p className="font-medium">{t('equal.settleTitle')}</p>
+          <ul className="mt-1 space-y-1">
+            {items.map((x) => (
+              <li key={x.key} data-testid="settle-line" data-kind={x.kind} className="flex gap-2">
+                <span aria-hidden="true" className="mt-2 size-1 shrink-0 rounded-full bg-muted-foreground" />
+                <span className="min-w-0">{x.node}</span>
+              </li>
             ))}
-            {t('equal.end')}
-          </>
-        )}
-      </p>
+          </ul>
+        </>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   balanceOf,
   contributionShares,
   equalShareGap,
+  equalShareSettleUp,
   equalShares,
   inTargetCurrency,
   isUntiedMovement,
@@ -864,5 +865,173 @@ describe('equal shares for everyone, investors included (owner 2026-11-20)', () 
       '-50.00',
       '70.00',
     ]);
+  });
+});
+
+/**
+ * Who pays whom to make it equal (§8, owner 2026-11-27: "beside showing short
+ * we should show also, pay for who to be equal"). Display only.
+ */
+describe('equalShareSettleUp — who pays whom, to the piastre', () => {
+  type Line = ReturnType<typeof equalShareSettleUp>[number];
+  const view = (lines: Line[]) =>
+    lines.map((l) => [l.from, l.kind, l.to, l.amount.toFixed(2)]);
+  const sum = (lines: Line[], pred: (l: Line) => boolean) =>
+    lines
+      .filter(pred)
+      .reduce((s, l) => s.add(l.amount), D(0))
+      .toFixed(2);
+  /** Every invariant the plan promises, for any input. */
+  const holds = (differences: string[], lines: Line[]) => {
+    const short = differences.map((d) => (D(d).lt(0) ? D(d).neg() : D(0)));
+    const over = differences.map((d) => (D(d).gt(0) ? D(d) : D(0)));
+    const S = short.reduce((s, x) => s.add(x), D(0)).toFixed(2);
+    const O = over.reduce((s, x) => s.add(x), D(0)).toFixed(2);
+    expect(sum(lines, (l) => l.kind !== 'TAKE_BACK')).toBe(S);
+    expect(
+      sum(lines, (l) => l.kind === 'PARTICIPANT' || l.kind === 'TAKE_BACK'),
+    ).toBe(O);
+    for (const l of lines) {
+      expect(l.amount.gt(0)).toBe(true);
+      expect(l.amount.decimalPlaces()).toBeLessThanOrEqual(2);
+    }
+    differences.forEach((_, i) => {
+      // Nobody pays more than he is short, nor receives more than he is over.
+      expect(
+        D(sum(lines, (l) => l.from === i && l.kind !== 'TAKE_BACK')).lte(
+          short[i],
+        ),
+      ).toBe(true);
+      expect(
+        D(
+          sum(
+            lines,
+            (l) =>
+              (l.kind === 'PARTICIPANT' && l.to === i) ||
+              (l.kind === 'TAKE_BACK' && l.from === i),
+          ),
+        ).equals(over[i]),
+      ).toBe(true);
+      // Nobody both pays and is paid.
+      const pays = lines.some((l) => l.from === i && l.kind !== 'TAKE_BACK');
+      const paid = lines.some(
+        (l) => l.to === i || (l.kind === 'TAKE_BACK' && l.from === i),
+      );
+      expect(pays && paid).toBe(false);
+    });
+  };
+
+  it('production CYC-2026-0002: everyone short by the 3,000 AED still to pay at 15.2 — every line is toward the freight, nobody pays a person', () => {
+    const differences = ['-13509.43', '-13509.43', '-13509.43', '-5071.71'];
+    const lines = equalShareSettleUp({
+      differences,
+      unpaidFreightEgp: '45600.00',
+    });
+    expect(view(lines)).toEqual([
+      [0, 'FREIGHT', null, '13509.43'],
+      [1, 'FREIGHT', null, '13509.43'],
+      [2, 'FREIGHT', null, '13509.43'],
+      [3, 'FREIGHT', null, '5071.71'],
+    ]);
+    expect(sum(lines, () => true)).toBe('45600.00');
+    holds(differences, lines);
+  });
+
+  it('2026-11-20: nothing unpaid — Youssef pays each partner his 1,665.57, in the cycle’s order', () => {
+    const differences = ['1665.57', '1665.57', '1665.57', '-4996.71'];
+    const lines = equalShareSettleUp({ differences, unpaidFreightEgp: 0 });
+    expect(view(lines)).toEqual([
+      [3, 'PARTICIPANT', 0, '1665.57'],
+      [3, 'PARTICIPANT', 1, '1665.57'],
+      [3, 'PARTICIPANT', 2, '1665.57'],
+    ]);
+    holds(differences, lines);
+  });
+
+  it('mixed: some over, some short, and freight still to pay — the short pay toward the freight in proportion to their shortfalls, the rest to the one over', () => {
+    // Shares of 100,000; A over 10,000; B, C, D short 5,000 / 20,000 / 15,000.
+    // 30,000 nobody has put in is exactly the freight still to pay.
+    const differences = ['10000', '-5000', '-20000', '-15000'];
+    const lines = equalShareSettleUp({ differences, unpaidFreightEgp: 30000 });
+    expect(view(lines)).toEqual([
+      [1, 'FREIGHT', null, '3750.00'],
+      [2, 'FREIGHT', null, '15000.00'],
+      [3, 'FREIGHT', null, '11250.00'],
+      [2, 'PARTICIPANT', 0, '5000.00'],
+      [3, 'PARTICIPANT', 0, '3750.00'],
+      [1, 'PARTICIPANT', 0, '1250.00'],
+    ]);
+    expect(sum(lines, (l) => l.kind === 'PARTICIPANT')).toBe('10000.00');
+    holds(differences, lines);
+  });
+
+  it('more unpaid freight than nobody has put in: only the uncovered part goes toward it — the cycle already holds the rest', () => {
+    // 30,000 not put in, 50,000 still to pay: contributions already hold 20,000 of it.
+    const differences = ['10000', '-5000', '-20000', '-15000'];
+    const lines = equalShareSettleUp({ differences, unpaidFreightEgp: 50000 });
+    expect(sum(lines, (l) => l.kind === 'FREIGHT')).toBe('30000.00');
+    expect(sum(lines, (l) => l.kind === 'PARTICIPANT')).toBe('10000.00');
+    holds(differences, lines);
+  });
+
+  it('less unpaid freight than nobody has put in: the rest is put into the cycle, not paid to anyone', () => {
+    const differences = ['10000', '-5000', '-20000', '-15000'];
+    const lines = equalShareSettleUp({ differences, unpaidFreightEgp: 12000 });
+    expect(sum(lines, (l) => l.kind === 'FREIGHT')).toBe('12000.00');
+    expect(sum(lines, (l) => l.kind === 'COST')).toBe('18000.00');
+    expect(sum(lines, (l) => l.kind === 'PARTICIPANT')).toBe('10000.00');
+    holds(differences, lines);
+  });
+
+  it('more put in than the shares: the over who have nobody to pay them take it back', () => {
+    const differences = ['300', '200', '-100'];
+    const lines = equalShareSettleUp({ differences, unpaidFreightEgp: 500 });
+    expect(view(lines)).toEqual([
+      [2, 'PARTICIPANT', 0, '100.00'],
+      [0, 'TAKE_BACK', null, '200.00'],
+      [1, 'TAKE_BACK', null, '200.00'],
+    ]);
+    holds(differences, lines);
+  });
+
+  it('odd piastres: two piastres of freight over three one-piastre shortfalls — the first two pay it, the third puts his into the cycle; never more than he is short', () => {
+    const differences = ['-0.01', '-0.01', '-0.01'];
+    const lines = equalShareSettleUp({ differences, unpaidFreightEgp: '0.02' });
+    expect(view(lines)).toEqual([
+      [0, 'FREIGHT', null, '0.01'],
+      [1, 'FREIGHT', null, '0.01'],
+      [2, 'COST', null, '0.01'],
+    ]);
+    holds(differences, lines);
+  });
+
+  it('everyone even, or an empty cycle, is nothing to pay; a negative "unpaid" counts as none', () => {
+    expect(
+      equalShareSettleUp({ differences: ['0', '0'], unpaidFreightEgp: 100 }),
+    ).toEqual([]);
+    expect(equalShareSettleUp({ differences: [] })).toEqual([]);
+    const differences = ['50', '-50'];
+    expect(
+      view(equalShareSettleUp({ differences, unpaidFreightEgp: -40 })),
+    ).toEqual([[1, 'PARTICIPANT', 0, '50.00']]);
+  });
+
+  it('the sums hold for any mix of shortfalls, overs and freight (a thousand seeded cases)', () => {
+    let seed = 7;
+    const rand = () =>
+      (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let n = 0; n < 1000; n++) {
+      const people = 2 + Math.floor(rand() * 5);
+      const differences = Array.from({ length: people }, () =>
+        D(Math.floor((rand() - 0.6) * 2000000))
+          .div(100)
+          .toFixed(2),
+      );
+      const unpaid = D(Math.floor(rand() * 1500000)).div(100);
+      holds(
+        differences,
+        equalShareSettleUp({ differences, unpaidFreightEgp: unpaid }),
+      );
+    }
   });
 });
