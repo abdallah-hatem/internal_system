@@ -91,6 +91,7 @@ const ENDPOINTS = {
   'shipment.takeBack': ['shipping/shipping.controller.ts', 'ShippingController', 'Delete', 'losses/:id'],
   'shipment.recordRefund': ['shipping/shipping.controller.ts', 'ShippingController', 'Post', 'losses/:id/refunds'],
   'shipment.undoRefund': ['purchases/purchases.controller.ts', 'PurchasesController', 'Post', 'refunds/:id/reverse'],
+  'shipment.handover': ['shipping/shipping.controller.ts', 'ShippingController', 'Post', 'legs/:id/handovers'],
   'inventory.receive': ['inventory/inventory.controller.ts', 'InventoryController', 'Post', 'receipts/verify'],
   'settlement.calculate': ['settlements/settlements.controller.ts', 'SettlementsController', 'Post', 'calculate/:cycleId'],
   'settlement.approve': ['settlements/settlements.controller.ts', 'SettlementsController', 'Post', ':id/approve'],

@@ -2836,6 +2836,7 @@
     "choosePaymentMethod": "Choose how they paid",
     "chooseChannel": "Choose a sales channel",
     "chooseCurrency": "Choose a currency",
+    "choosePayer": "Choose who paid",
     "chooseCostBasis": "Choose how it is charged",
     "chooseCycle": "Choose a cycle",
     "noCyclesToBuyFor": "No cycle is taking purchases. Start an import cycle first, under Import Cycles.",

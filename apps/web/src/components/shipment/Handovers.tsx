@@ -826,6 +826,7 @@ export function HandOverDialog({
           />
           <Select
             name="freightCurrency"
+            placeholder={tph('chooseCurrency')}
             value={currency}
             onChange={(v) => {
               setCurrency(v);
@@ -868,7 +869,7 @@ export function HandOverDialog({
         {!paysNothing && (
           <div>
             <label className="mb-1 block text-sm font-medium text-foreground">{t('paidBy')}</label>
-            <Select name="paidBy" value={paidBy} onChange={(v) => setPaidBy(v || BUSINESS)} options={options} />
+            <Select name="paidBy" value={paidBy} placeholder={tph('choosePayer')} onChange={(v) => setPaidBy(v || BUSINESS)} options={options} />
             <PayerHint payer={payer} currency={currency} />
           </div>
         )}
@@ -1046,7 +1047,7 @@ export function FreightPaymentDialog({
 
       <div>
         <label className="mb-1 block text-sm font-medium text-foreground">{t('paidBy')}</label>
-        <Select name="paidBy" value={paidBy} onChange={(v) => setPaidBy(v || BUSINESS)} options={options} />
+        <Select name="paidBy" value={paidBy} placeholder={tph('choosePayer')} onChange={(v) => setPaidBy(v || BUSINESS)} options={options} />
         <PayerHint payer={payer} currency={currency} />
       </div>
 
@@ -1072,6 +1073,7 @@ export function RecordArrivalDialog({
   onClose: () => void;
 }) {
   const t = useTranslations('handovers');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const announce = useAnnounceStatusMove();
@@ -1193,7 +1195,7 @@ export function RecordArrivalDialog({
                     setTyped((p) => ({ ...p, [id]: v }));
                     setRefusal(null);
                   }}
-                  placeholder="0"
+                  placeholder={tph('quantitySmall')}
                   className={qtyInputClass}
                 />
               </li>
@@ -1226,6 +1228,7 @@ export function AllArrivedDialog({
   onClose: () => void;
 }) {
   const t = useTranslations('handovers');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const announce = useAnnounceStatusMove();
@@ -1308,7 +1311,7 @@ export function AllArrivedDialog({
                       setTyped((p) => ({ ...p, [id]: v }));
                       setRefusal(null);
                     }}
-                    placeholder="0"
+                    placeholder={tph('quantitySmall')}
                     className={qtyInputClass}
                   />
                 </li>
