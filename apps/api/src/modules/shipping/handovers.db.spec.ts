@@ -2022,4 +2022,169 @@ suite('a UAE leg in handovers (Postgres)', () => {
       ).status,
     ).toBe('SETTLEMENT');
   });
+
+  // ─── Who pays whom to make it equal (owner 2026-11-27) ──────────────────
+
+  /** Youssef's contribution as production holds it: the freight he paid. */
+  const youssefPutIn = async (cycleId: string, amount: number) => {
+    const p = await prisma.cycleParticipant.findFirstOrThrow({
+      where: { cycleId, participantType: 'TEMP_INVESTOR' },
+    });
+    await prisma.cycleParticipant.update({
+      where: { id: p.id },
+      data: { contributionAmount: amount },
+    });
+    await prisma.financialTransaction.updateMany({
+      where: { cycleId, relatedId: p.id, category: 'contribution' },
+      data: { amount },
+    });
+  };
+  const total = (xs: { amountEgp: string }[]) =>
+    xs.reduce((s, x) => s.add(x.amountEgp), D(0)).toFixed(2);
+
+  it('Production CYC-2026-0002 today: 3,000 AED still to pay at 15.2 — everyone short, and every shortfall goes toward that freight; nobody pays a person', async () => {
+    const w = await cycleTwo();
+    await pageRate(15.2);
+    const h = await handOver(w, {
+      pieces: 400,
+      freightAmount: 8000,
+      paidAmount: 4000,
+      freightRateToEgp: 14.8,
+      paidByUserId: INVESTOR,
+      handedOverOn: '2026-11-20',
+    });
+    await pay(h.id, { amount: 1000, rateToEgp: 15.1, paidByUserId: INVESTOR });
+    await youssefPutIn(w.cycle.id, 74_300);
+    const { data } = await accounts.cycleFunding(w.cycle.id);
+    const gap = data.equalShares!;
+    expect(gap.ofEgp).toBe('317486.78');
+    expect(gap.lines.map((l) => [l.shareEgp, l.differenceEgp])).toEqual([
+      ['79371.69', '-13509.43'],
+      ['79371.69', '-13509.43'],
+      ['79371.69', '-13509.43'],
+      ['79371.71', '-5071.71'],
+    ]);
+    expect(gap.freightToPay).toEqual({
+      egp: '45600.00',
+      byCurrency: [
+        { currency: 'AED', amount: '3000.00', amountEgp: '45600.00' },
+      ],
+    });
+    expect(
+      gap.settleUp.map((x) => [
+        x.fromParticipantId,
+        x.fromName,
+        x.toKind,
+        x.toParticipantId,
+        x.amountEgp,
+      ]),
+    ).toEqual(
+      gap.lines.map((l) => [
+        l.participantId,
+        l.name,
+        'FREIGHT',
+        null,
+        l.differenceEgp.slice(1),
+      ]),
+    );
+    expect(total(gap.settleUp)).toBe('45600.00');
+
+    // The rest paid by the business: nothing left toward the freight; the
+    // shortfalls are now money to put into the cycle.
+    await pay(h.id, { amount: 3000, rateToEgp: 15.2 });
+    const after = (await accounts.cycleFunding(w.cycle.id)).data.equalShares!;
+    expect(after.freightToPay).toEqual({ egp: '0.00', byCurrency: [] });
+    expect(after.settleUp.every((x) => x.toKind === 'COST')).toBe(true);
+    expect(total(after.settleUp)).toBe('45600.00');
+  });
+
+  it('2026-11-20, nothing still to pay: Youssef pays Abdallah, Shady and Fares 1,665.57 each — 4,996.71 between them', async () => {
+    const w = await cycleTwo();
+    await handOver(w, {
+      pieces: 400,
+      freightAmount: 4000,
+      freightRateToEgp: 14.8,
+      handedOverOn: '2026-11-20',
+    });
+    const gap = (await accounts.cycleFunding(w.cycle.id)).data.equalShares!;
+    expect(gap.freightToPay.egp).toBe('0.00');
+    // Participants created in the same instant may come in either order; the
+    // odd piastre goes with the last share, whoever holds it.
+    const youssef = gap.lines.find(
+      (l) => l.participantType === 'TEMP_INVESTOR',
+    )!;
+    const partners = gap.lines.filter((l) => l !== youssef);
+    expect(youssef.state).toBe('SHORT');
+    const byTo = new Map(gap.settleUp.map((x) => [x.toParticipantId, x]));
+    expect(gap.settleUp).toHaveLength(3);
+    for (const p of partners) {
+      const x = byTo.get(p.participantId)!;
+      expect([
+        x.fromParticipantId,
+        x.fromParticipantType,
+        x.toKind,
+        x.toName,
+        x.amountEgp,
+      ]).toEqual([
+        youssef.participantId,
+        'TEMP_INVESTOR',
+        'PARTICIPANT',
+        p.name,
+        p.differenceEgp,
+      ]);
+    }
+    expect(total(gap.settleUp)).toBe(youssef.differenceEgp.slice(1));
+  });
+
+  it('Mixed: partners over, Youssef short by more than the freight still to pay — he pays toward the freight what nobody put in, and the partners the rest', async () => {
+    const w = await cycleTwo();
+    await pageRate(15.2);
+    await handOver(w, {
+      pieces: 400,
+      freightAmount: 8000,
+      paidAmount: 4000,
+      freightRateToEgp: 14.8,
+      paidByUserId: INVESTOR,
+      handedOverOn: '2026-11-20',
+    });
+    // Partners at 90,000 each, Youssef 40,000: 310,000 put in against
+    // 317,586.78 (4,000 AED still to pay at 15.2 = 60,800).
+    const ps = await prisma.cycleParticipant.findMany({
+      where: { cycleId: w.cycle.id, participantType: 'CORE_PARTNER' },
+    });
+    for (const p of ps) {
+      await prisma.cycleParticipant.update({
+        where: { id: p.id },
+        data: { contributionAmount: 90_000 },
+      });
+    }
+    await youssefPutIn(w.cycle.id, 40_000);
+    const gap = (await accounts.cycleFunding(w.cycle.id)).data.equalShares!;
+    expect(gap.ofEgp).toBe('317586.78');
+    // Quarters 79,396.69 ×3 and …71 for the last: partners ~10,603.31 over,
+    // Youssef ~39,396.71 short (the odd piastre with whoever is last).
+    const youssef = gap.lines.find(
+      (l) => l.participantType === 'TEMP_INVESTOR',
+    )!;
+    const partners = gap.lines.filter((l) => l !== youssef);
+    expect(youssef.state).toBe('SHORT');
+    expect(partners.every((p) => p.state === 'OVER')).toBe(true);
+    // 317,586.78 − 310,000 = 7,586.78 nobody put in: toward the freight, not a person.
+    expect(
+      gap.settleUp
+        .filter((x) => x.toKind !== 'PARTICIPANT')
+        .map((x) => [x.fromParticipantId, x.toKind, x.amountEgp]),
+    ).toEqual([[youssef.participantId, 'FREIGHT', '7586.78']]);
+    const paid = gap.settleUp.filter((x) => x.toKind === 'PARTICIPANT');
+    expect(paid.map((x) => x.fromParticipantId)).toEqual(
+      partners.map(() => youssef.participantId),
+    );
+    expect(
+      partners.map(
+        (p) =>
+          paid.find((x) => x.toParticipantId === p.participantId)?.amountEgp,
+      ),
+    ).toEqual(partners.map((p) => p.differenceEgp));
+    expect(total(gap.settleUp)).toBe(youssef.differenceEgp.slice(1));
+  });
 });

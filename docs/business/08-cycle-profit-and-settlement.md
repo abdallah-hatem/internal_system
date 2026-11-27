@@ -601,3 +601,25 @@ nothing is recorded; Contribute, the top-ups and Take money are how money moves.
 | CYC-2026-0002 | 197,586.78 (goods and leg 1, the existing card's cost to fund) + 59,200 (handover 1, 4,000 AED at 14.8) = **256,786.78**. Quarters: 64,196.69 × 3 and **64,196.71** for Youssef, the last to join. Youssef **4,996.71 short**, each partner **1,665.57 over**; 3 × 1,665.57 = 4,996.71. The owner's message rounded to 64,196.70 / 4,996.70 / 1,665.56, which do not add up to the piastre (4 × 64,196.70 = 256,786.80). Production has repayments to a friend on this cycle, so the basis there is "everything put in" (256,786.78, the same figure: the contributions were entered to make up the cost). | DECIDED (arithmetic) |
 | Arabic | «حصص متساوية», «زيادة», «ينقصه», «لتصبح متساوية: يدفع … ؛ يسترد كلٌّ من … إلى حسابه». | GUESS |
 
+
+*The one-line "To make it equal: … take back … to their accounts" above is superseded 2026-11-27 by the list of who pays whom, below.*
+
+### Who pays whom to make it equal — DECIDED 2026-11-27 (owner: "beside showing short we should show also, pay for who to be equal right ?"), on `feature/equal-shares-who-pays`, not merged, details GUESSED where marked
+
+Under the equal-shares table, "To make it equal" lists one payment a line, each saying who it goes to. Display
+only: nothing is recorded. One definition on the server: `equalShareSettleUp` (`common/partner-account.ts`), returned
+as `equalShares.settleUp` (and `equalShares.freightToPay`) by `GET /cycles/:id/account-funding`.
+
+| Question | Rule | Status |
+|---|---|---|
+| Why some of a shortfall goes to no person | The shares are of the whole cost to fund, so the shortfalls add up to the overs **plus what nobody has put in yet** (Σshort − Σover = cost − contributions). That part is owed outside, not to a partner. | DECIDED (arithmetic) |
+| Toward the freight still to pay | `min(handover freight still to pay, Σshort − Σover)` — the freight counted at the rate it is costed at (`cycleFreightToPay`, `common/leg-handovers.ts`: every handover leg's `toPayByCurrency`, the same figures the leg's cost carries). Paid to the forwarder. More freight to pay than nobody put in means the contributions already hold the rest. | GUESS (owner's case: all of it toward the freight) |
+| Who pays how much of it | Everyone short, **in proportion to his shortfall**, to the piastre: each part rounded down, the piastres left going one by one to the largest remainders (ties to the earlier in the cycle's order). No one pays more than he is short. | GUESS |
+| Into the cycle | Whatever else nobody has put in (not unpaid freight — e.g. the estimate for pieces not handed over yet, or a cost paid outside the contributions): "X puts N more into the cycle", split the same way over what each still has short. | GUESS |
+| To the people over | The rest of each shortfall. The largest still short pays the largest still over, as much as both allow, until nobody is left (greedy; ties in the cycle's order) — the fewest payments that rule gives. | DECIDED (owner: "pay for who"); the matching rule GUESS |
+| More put in than the shares | Those over with nobody short left to pay them take it back from the cycle (to their accounts; an investor "takes back"). | GUESS |
+| Sums | Σ toward the freight + Σ into the cycle + Σ to people = Σ short; Σ to people + Σ taken back = Σ over — exact to the piastre (a thousand seeded cases in the spec). | DECIDED |
+| Wording | One bullet a payment; lines that say the same of several people read as one: "Abdallah, Shady, and Fares each pay 13,509.43 EGP toward the freight still to pay (3,000.00 AED)", "Mohammed Youssef pays Abdallah, Shady, and Fares 1,665.57 EGP each", "Shady and Mohammed Youssef each pay Abdallah 300.00 EGP". The parenthesis is the freight still to pay in its currency (several currencies joined with "+"). Arabic: «لتصبح متساوية»، «يدفع كلٌّ من … مبلغ … لسداد الشحن الباقي (…)»، «يدفع … مبلغ … لكلٍّ من …»، «يضع … مبلغ … إضافيًا في الدورة» — «مبلغ» keeps a Latin name from running into the figure. | GUESS |
+| CYC-2026-0002 today | Cost to fund 317,486.78 (goods and leg 1 197,586.78; handover 1: 4,000 AED @14.8 + 1,000 @15.1 paid = 74,300, 3,000 to pay @15.2 = 45,600). Quarters 79,371.69 ×3 and 79,371.71. Contributions 65,862.26 ×3 and Youssef 74,300 → short 13,509.43 ×3 and 5,071.71 = **45,600.00, exactly the freight to pay**: every line is toward the freight, nobody pays a person. | DECIDED (arithmetic) |
+| The 2026-11-20 case | Cost 256,786.78, nothing to pay: "Mohammed Youssef pays Abdallah, Shady, and Fares 1,665.57 EGP each" (4,996.71). | DECIDED (arithmetic) |
+| Mixed example | 317,586.78 to fund (4,000 AED to pay = 60,800), contributions 90,000 / 85,000 / 60,000 / 40,000: Fares 14,049.92 and Youssef 28,536.86 toward the freight (42,586.78 nobody put in, in proportion to 19,396.69 and 39,396.71), Youssef pays Abdallah 10,603.31, Fares pays Shady 5,346.77, Youssef pays Shady 256.54. | — |

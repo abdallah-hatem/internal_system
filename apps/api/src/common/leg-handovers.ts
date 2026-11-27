@@ -462,6 +462,51 @@ export async function cycleFreightIsEstimate(
 }
 
 /**
+ * A cycle's handover freight still to pay, over all its handover legs (§8,
+ * owner 2026-11-27): in each currency, and in pounds at the rate the rest is
+ * counted at — the same `toPayByCurrency` the leg's cost carries, so the
+ * Funding card's "toward the freight still to pay" is exactly the part of
+ * the cost to fund nobody has paid the forwarder. Nothing to pay: zero and
+ * an empty list.
+ */
+export async function cycleFreightToPay(
+  db: Pick<Prisma.TransactionClient, 'importCycle'>,
+  cycleId: string,
+): Promise<{
+  egp: Prisma.Decimal;
+  byCurrency: { currency: string; amount: string; amountEgp: string }[];
+}> {
+  const none = { egp: ZERO, byCurrency: [] };
+  const legs = await db.importCycle.findUnique({
+    where: { id: cycleId },
+    select: { shippingLegs: { select: { usesHandovers: true } } },
+  });
+  if (!legs?.shippingLegs?.some((l) => l.usesHandovers)) return none;
+  const loaded = await loadShipment(db, cycleId);
+  if (!loaded) return none;
+  const by = new Map<string, { amount: Prisma.Decimal; egp: Prisma.Decimal }>();
+  for (const leg of loaded.cycle.shippingLegs) {
+    const s = legHandovers(loaded.cycle, loaded.position, leg.id);
+    for (const x of s?.toPayByCurrency ?? []) {
+      const was = by.get(x.currency);
+      by.set(x.currency, {
+        amount: (was?.amount ?? ZERO).add(D(x.amount)),
+        egp: (was?.egp ?? ZERO).add(D(x.amountEgp)),
+      });
+    }
+  }
+  const byCurrency = [...by.entries()].map(([currency, x]) => ({
+    currency,
+    amount: x.amount.toFixed(2),
+    amountEgp: x.egp.toFixed(2),
+  }));
+  return {
+    egp: [...by.values()].reduce((s, x) => s.add(x.egp), ZERO),
+    byCurrency,
+  };
+}
+
+/**
  * Refuse settling a cycle while any handover's freight is still to pay (§8,
  * GUESS 2026-11-20): the rest is costed at a rate nobody has paid yet, so the
  * profit being split is an estimate. Pay it (Record payment) first. The same

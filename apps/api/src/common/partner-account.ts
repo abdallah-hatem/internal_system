@@ -613,6 +613,134 @@ export function equalShareGap(args: {
   };
 }
 
+/** Where one settle-up payment goes (§8, owner 2026-11-27). */
+export type SettleUpKind =
+  /** To another participant who is over his share. */
+  | 'PARTICIPANT'
+  /** Toward a handover's freight still to pay — to the forwarder. */
+  | 'FREIGHT'
+  /** Into the cycle, toward a cost nobody has put money in for yet. */
+  | 'COST'
+  /** Nobody short is left to pay him: he takes it back from the cycle. */
+  | 'TAKE_BACK';
+
+export interface SettleUpLine {
+  /** Index into the gap's lines: the one who pays (or, for TAKE_BACK, takes back). */
+  from: number;
+  kind: SettleUpKind;
+  /** Index of the one paid, for PARTICIPANT; null otherwise. */
+  to: number | null;
+  amount: Prisma.Decimal;
+}
+
+/**
+ * Split `total` cents in proportion to `weights` (cents, none negative),
+ * piastre-exact: each part rounded down, the piastres left over going one by
+ * one to the largest remainders (ties to the earlier one). A part never
+ * exceeds its weight when `total` does not exceed their sum, since no part
+ * passes its exact share rounded up.
+ */
+function proportionalCents(
+  total: Prisma.Decimal,
+  weights: Prisma.Decimal[],
+): Prisma.Decimal[] {
+  const zero = new Prisma.Decimal(0);
+  const sum = weights.reduce((s, w) => s.add(w), zero);
+  if (total.lte(0) || sum.lte(0)) return weights.map(() => zero);
+  const exact = weights.map((w) => w.mul(total).div(sum));
+  const parts = exact.map((e) => e.floor());
+  let left = total.sub(parts.reduce((s, p) => s.add(p), zero)).toNumber();
+  const order = exact
+    .map((e, i) => ({ i, rest: e.sub(e.floor()) }))
+    .sort((a, b) => b.rest.comparedTo(a.rest) || a.i - b.i);
+  for (const { i } of order) {
+    if (left <= 0) break;
+    parts[i] = parts[i].add(1);
+    left -= 1;
+  }
+  return parts;
+}
+
+/**
+ * Who pays whom to make everyone's contribution an equal share (§8, owner
+ * 2026-11-27: "beside showing short we should show also, pay for who to be
+ * equal"). Display only, like the gap it reads.
+ *
+ * The shortfalls add up to the overs plus what nobody has put in yet (the
+ * shares are of the whole cost to fund). That part is not owed to a person:
+ *
+ * 1. **Toward the freight still to pay** (`FREIGHT`): the part of the money
+ *    nobody has put in that is a handover's freight not paid yet, at the rate
+ *    it is counted at — `min(unpaid, Σshort − Σover)`. It is paid to the
+ *    forwarder. Shared among those short **in proportion to their
+ *    shortfalls**, piastre-exact (largest remainder), so each pays toward it
+ *    the same fraction of what he is short.
+ * 2. **Into the cycle** (`COST`): whatever else nobody has put in (a cost the
+ *    contributions do not reach and that is not unpaid freight — an estimate
+ *    for pieces not handed over yet, a cost someone paid outside the
+ *    contributions), split the same way over what each still has short.
+ * 3. **To the people over** (`PARTICIPANT`): the rest of each shortfall. The
+ *    largest still short pays the largest still over, as much as both allow,
+ *    until nobody is left — the fewest payments a greedy match gives; ties in
+ *    the cycle's order.
+ * 4. **Take back** (`TAKE_BACK`): when the overs are more than the shortfalls
+ *    (more put in than the shares), what is left of each over after step 3.
+ *
+ * So, to the piastre: Σ FREIGHT + Σ COST + Σ PARTICIPANT = Σ short, and
+ * Σ PARTICIPANT + Σ TAKE_BACK = Σ over. Lines come in that order.
+ */
+export function equalShareSettleUp(args: {
+  /** Each participant's contribution less his share (`equalShareGap`). */
+  differences: Prisma.Decimal.Value[];
+  /** Handover freight still to pay, in pounds (`cycleFreightToPay`). */
+  unpaidFreightEgp?: Prisma.Decimal.Value;
+}): SettleUpLine[] {
+  const zero = new Prisma.Decimal(0);
+  const cents = (v: Prisma.Decimal.Value) =>
+    new Prisma.Decimal(v).mul(100).toDecimalPlaces(0);
+  const diff = args.differences.map(cents);
+  const short = diff.map((d) => (d.lt(0) ? d.neg() : zero));
+  const over = diff.map((d) => (d.gt(0) ? d : zero));
+  const S = short.reduce((s, x) => s.add(x), zero);
+  const O = over.reduce((s, x) => s.add(x), zero);
+  const unpaid = Prisma.Decimal.max(cents(args.unpaidFreightEgp ?? 0), 0);
+  const notPutIn = Prisma.Decimal.max(S.sub(O), 0);
+  const freight = Prisma.Decimal.min(unpaid, notPutIn);
+  const cost = notPutIn.sub(freight);
+
+  const lines: SettleUpLine[] = [];
+  const out = (c: Prisma.Decimal) => c.div(100);
+  const freightParts = proportionalCents(freight, short);
+  freightParts.forEach((p, i) => {
+    if (p.gt(0))
+      lines.push({ from: i, kind: 'FREIGHT', to: null, amount: out(p) });
+  });
+  const afterFreight = short.map((s, i) => s.sub(freightParts[i]));
+  const costParts = proportionalCents(cost, afterFreight);
+  costParts.forEach((p, i) => {
+    if (p.gt(0))
+      lines.push({ from: i, kind: 'COST', to: null, amount: out(p) });
+  });
+  const owes = afterFreight.map((s, i) => s.sub(costParts[i]));
+  const owed = [...over];
+  const largest = (xs: Prisma.Decimal[]) =>
+    xs.reduce((best, x, i) => (x.gt(xs[best]) ? i : best), 0);
+  while (owes.length > 0) {
+    const a = largest(owes);
+    const b = largest(owed);
+    if (owes[a].lte(0) || owed[b].lte(0)) break;
+    const amount = Prisma.Decimal.min(owes[a], owed[b]);
+    lines.push({ from: a, kind: 'PARTICIPANT', to: b, amount: out(amount) });
+    owes[a] = owes[a].sub(amount);
+    owed[b] = owed[b].sub(amount);
+  }
+  owed.forEach((o, i) => {
+    if (o.gt(0))
+      lines.push({ from: i, kind: 'TAKE_BACK', to: null, amount: out(o) });
+  });
+  return lines;
+}
+
 /**
  * What one partner has put into a cycle so far (DECIDED 2026-10-26, owner:
  * "a bit confusing, seeing funding zero, while each one of us clearly paid

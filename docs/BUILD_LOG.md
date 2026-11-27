@@ -5,6 +5,11 @@ feature by feature at the owner's word, each on its own branch, merged and shipp
 Goal (current, 2026-10-27): the "Next up" list below, top first.
 
 ## Current stage
+- **2026-11-27 — who pays whom to make the equal shares equal (owner), on `feature/equal-shares-who-pays`, PR to
+  `dev`, not merged:** `equalShareSettleUp` (`common/partner-account.ts`) plans the payments from each one's gap and
+  the handover freight still to pay (`cycleFreightToPay`, `common/leg-handovers.ts`); returned as
+  `equalShares.settleUp` / `freightToPay` on `GET /cycles/:id/account-funding`; the Funding card's `SettleUpList`
+  reads it, grouped, EN/AR. Display only. BUSINESS_LOGIC §8.
 - **2026-11-20 — a handover's freight paid in parts (owner, mockup approved), on `feature/handover-freight-payments`,
   PR to `dev`, not merged:** `handover_freight_payments` (migration `20261120180000_handover_freight_payments`,
   additive, backfills one payment per existing handover so nothing changes); the rest to pay counted at the Exchange

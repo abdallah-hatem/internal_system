@@ -1280,8 +1280,66 @@ function cycleTwoEqual(): AccountFunding {
         line('f', 'Fares', 'CORE_PARTNER', '64196.69', '65862.26', '1665.57', 'OVER'),
         line('y', 'Mohammed Youssef', 'TEMP_INVESTOR', '64196.71', '59200.00', '-4996.71', 'SHORT'),
       ],
+      freightToPay: { egp: '0.00', byCurrency: [] },
+      settleUp: [
+        settle('y', 'Mohammed Youssef', 'PARTICIPANT', '1665.57', 'a', 'Abdallah'),
+        settle('y', 'Mohammed Youssef', 'PARTICIPANT', '1665.57', 's', 'Shady'),
+        settle('y', 'Mohammed Youssef', 'PARTICIPANT', '1665.57', 'f', 'Fares'),
+      ],
     },
   };
+}
+
+/** One line of the server's settle-up plan, as `equalShareSettleUp` gives it. */
+function settle(
+  from: string,
+  fromName: string,
+  toKind: 'PARTICIPANT' | 'FREIGHT' | 'COST' | 'TAKE_BACK',
+  amountEgp: string,
+  to: string | null = null,
+  toName: string | null = null,
+) {
+  return {
+    fromParticipantId: `p-${from}`,
+    fromParticipantType: from === 'y' ? 'TEMP_INVESTOR' : 'CORE_PARTNER',
+    fromName,
+    toKind,
+    toParticipantId: to ? `p-${to}` : null,
+    toName,
+    amountEgp,
+  };
+}
+
+/**
+ * Production's CYC-2026-0002 on 2026-11-27: 317,486.78 to fund with 3,000 AED
+ * of handover freight still to pay at 15.2 (45,600) — everyone short, by
+ * exactly that much between them.
+ */
+function cycleTwoFreightOwed(): AccountFunding {
+  const f = cycleTwoEqual();
+  const line = (l: NonNullable<AccountFunding['equalShares']>['lines'][number], share: string, contributed: string, diff: string) => ({
+    ...l, shareEgp: share, contributedEgp: contributed, differenceEgp: diff, state: 'SHORT' as const,
+  });
+  const [a, s, fa, y] = f.equalShares!.lines;
+  f.toFundEgp = '317486.78';
+  f.equalShares = {
+    basis: 'COST_TO_FUND',
+    ofEgp: '317486.78',
+    lines: [
+      line(a, '79371.69', '65862.26', '-13509.43'),
+      line(s, '79371.69', '65862.26', '-13509.43'),
+      line(fa, '79371.69', '65862.26', '-13509.43'),
+      line(y, '79371.71', '74300.00', '-5071.71'),
+    ],
+    freightToPay: { egp: '45600.00', byCurrency: [{ currency: 'AED', amount: '3000.00', amountEgp: '45600.00' }] },
+    settleUp: [
+      settle('a', 'Abdallah', 'FREIGHT', '13509.43'),
+      settle('s', 'Shady', 'FREIGHT', '13509.43'),
+      settle('f', 'Fares', 'FREIGHT', '13509.43'),
+      settle('y', 'Mohammed Youssef', 'FREIGHT', '5071.71'),
+    ],
+  };
+  return f;
 }
 
 describe('everyone shares equally: the gap to an equal share (owner 2026-11-20)', () => {
@@ -1299,8 +1357,12 @@ describe('everyone shares equally: the gap to an equal share (owner 2026-11-20)'
       ['SHORT', expect.stringContaining('64,196.71'), '4,996.71 EGP short'],
     ]);
     expect(text(within(rows[3]).getByTestId('equal-contributed'))).toContain('59,200.00');
-    const settle = text(screen.getByTestId('equal-settle'));
-    expect(settle).toMatch(/^To make it equal: Mohammed Youssef pays [^;]*4,996.71[^;]*; Abdallah, Shady, and Fares each take back [^.]*1,665.57[^.]* to their accounts\.$/);
+    // Who pays whom: Youssef pays each partner his 1,665.57, read as one line.
+    const settleBox = screen.getByTestId('equal-settle');
+    expect(text(settleBox)).toMatch(/^To make it equal/);
+    expect(within(settleBox).getAllByTestId('settle-line').map((l) => [l.dataset.kind, text(l)])).toEqual([
+      ['PARTICIPANT', 'Mohammed Youssef pays Abdallah, Shady, and Fares 1,665.57 EGP each'],
+    ]);
     // The old rows are gone: no "not a share" line for him, no second set of partner shares.
     const contributions = screen.getByTestId('funding-contributions');
     expect(contributions.textContent).not.toContain(en.fundingCard.investorOwnMoney);
@@ -1312,6 +1374,7 @@ describe('everyone shares equally: the gap to an equal share (owner 2026-11-20)'
   it('nobody over or short reads "everyone has put in his equal share"; one partner over on his own takes back to his account', async () => {
     const even = cycleTwoEqual();
     even.equalShares!.lines = even.equalShares!.lines.map((l) => ({ ...l, contributedEgp: l.shareEgp, differenceEgp: '0.00', state: 'EVEN' as const }));
+    even.equalShares!.settleUp = [];
     state.funding = even;
     wrap();
     expect(text(await screen.findByTestId('equal-settle'))).toBe(en.fundingCard.equal.allEven);
@@ -1323,9 +1386,64 @@ describe('everyone shares equally: the gap to an equal share (owner 2026-11-20)'
       { ...one.equalShares!.lines[0], differenceEgp: '100.00', state: 'OVER' },
       { ...one.equalShares!.lines[1], differenceEgp: '-100.00', state: 'SHORT' },
     ];
+    one.equalShares!.settleUp = [settle('s', 'Shady', 'PARTICIPANT', '100.00', 'a', 'Abdallah')];
     state.funding = one;
     wrap();
-    expect(text(await screen.findByTestId('equal-settle'))).toMatch(/^To make it equal: Shady pays [^;]*100.00[^;]*; Abdallah takes back [^.]*100.00[^.]* to his account\.$/);
+    const lines = within(await screen.findByTestId('equal-settle')).getAllByTestId('settle-line');
+    expect(lines.map(text)).toEqual(['Shady pays Abdallah 100.00 EGP']);
+  });
+
+  it('production’s cycle 2 today: everyone short by the 3,000 AED still to pay — every payment goes toward the freight, the partners’ three as one line; nobody pays a person', async () => {
+    state.funding = cycleTwoFreightOwed();
+    wrap();
+    const rows = within(await screen.findByTestId('equal-shares')).getAllByTestId('equal-row');
+    expect(rows.map((r) => text(within(r).getByTestId('share-status')))).toEqual([
+      '13,509.43 EGP short',
+      '13,509.43 EGP short',
+      '13,509.43 EGP short',
+      '5,071.71 EGP short',
+    ]);
+    const lines = within(screen.getByTestId('equal-settle')).getAllByTestId('settle-line');
+    expect(lines.map((l) => [l.dataset.kind, text(l)])).toEqual([
+      ['FREIGHT', 'Abdallah, Shady, and Fares each pay 13,509.43 EGP toward the freight still to pay (3,000.00 AED)'],
+      ['FREIGHT', 'Mohammed Youssef pays 5,071.71 EGP toward the freight still to pay (3,000.00 AED)'],
+    ]);
+    expect(screen.queryAllByText(/take back/)).toHaveLength(0);
+  });
+
+  it('a mixed plan reads every payment once, grouped only where it says the same thing: toward the freight, into the cycle, two paying one, one paying two, taking back', async () => {
+    const mixed = cycleTwoEqual();
+    mixed.equalShares!.freightToPay = {
+      egp: '1500.00',
+      byCurrency: [
+        { currency: 'AED', amount: '50.00', amountEgp: '760.00' },
+        { currency: 'USD', amount: '15.00', amountEgp: '740.00' },
+      ],
+    };
+    mixed.equalShares!.settleUp = [
+      settle('s', 'Shady', 'FREIGHT', '1000.00'),
+      settle('y', 'Mohammed Youssef', 'FREIGHT', '500.00'),
+      settle('y', 'Mohammed Youssef', 'COST', '20.00'),
+      settle('s', 'Shady', 'PARTICIPANT', '300.00', 'a', 'Abdallah'),
+      settle('y', 'Mohammed Youssef', 'PARTICIPANT', '300.00', 'a', 'Abdallah'),
+      settle('s', 'Shady', 'PARTICIPANT', '45.50', 'f', 'Fares'),
+      settle('f', 'Fares', 'TAKE_BACK', '10.00'),
+      settle('a', 'Abdallah', 'TAKE_BACK', '10.00'),
+    ];
+    state.funding = mixed;
+    wrap();
+    const lines = within(await screen.findByTestId('equal-settle')).getAllByTestId('settle-line');
+    expect(lines.map((l) => [l.dataset.kind, text(l)])).toEqual([
+      ['FREIGHT', 'Shady pays 1,000.00 EGP toward the freight still to pay (50.00 AED + 15.00 USD)'],
+      ['FREIGHT', 'Mohammed Youssef pays 500.00 EGP toward the freight still to pay (50.00 AED + 15.00 USD)'],
+      ['COST', 'Mohammed Youssef puts 20.00 EGP more into the cycle'],
+      ['PARTICIPANT', 'Shady and Mohammed Youssef each pay Abdallah 300.00 EGP'],
+      ['PARTICIPANT', 'Shady pays Fares 45.50 EGP'],
+      ['TAKE_BACK', 'Fares and Abdallah each take back 10.00 EGP to their accounts'],
+    ]);
+    // Every payment of the plan is on the screen exactly once: 1,000 + 500 + 20 + 2×300 + 45.50 + 2×10.
+    const shown = lines.map(text).join(' ');
+    expect(shown.match(/EGP/g)).toHaveLength(6);
   });
 
   it('no equal split: the contributions table is as it was, with no equal-shares section', async () => {
@@ -1345,9 +1463,21 @@ describe('everyone shares equally: the gap to an equal share (owner 2026-11-20)'
     expect(text(pills[0])).toContain('زيادة');
     expect(text(pills[3])).toContain('ينقصه');
     const settle = text(screen.getByTestId('equal-settle'));
-    expect(settle).toContain('لتصبح متساوية:');
-    expect(settle).toContain('يدفع Mohammed Youssef');
-    expect(settle).toContain('يسترد كلٌّ من');
+    expect(settle).toContain('لتصبح متساوية');
+    expect(settle).toContain('يدفع Mohammed Youssef مبلغ');
+    expect(settle).toContain('لكلٍّ من');
     expect(pills[3].querySelector('[data-slot="money"]')?.getAttribute('dir')).toBe('ltr');
+    cleanup();
+
+    state.funding = cycleTwoFreightOwed();
+    wrap('ar');
+    const box = await screen.findByTestId('equal-settle');
+    expect(box.textContent).not.toMatch(/(fundingCard|equal)\.[a-zA-Z]|toward|each/);
+    const lines = within(box).getAllByTestId('settle-line');
+    expect(lines).toHaveLength(2);
+    expect(text(lines[0])).toContain('يدفع كلٌّ من');
+    expect(text(lines[0])).toContain('لسداد الشحن الباقي');
+    expect(text(lines[0])).toContain('AED');
+    for (const m of box.querySelectorAll('[data-slot="money"]')) expect(m.getAttribute('dir')).toBe('ltr');
   });
 });
