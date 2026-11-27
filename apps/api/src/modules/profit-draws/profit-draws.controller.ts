@@ -9,6 +9,7 @@ import { PROFIT_DRAW_ROLES } from './profit-draw-roles';
 import {
   CreateCapitalBackDto,
   CreateProfitDrawDto,
+  ExitInvestorDto,
   ReverseProfitDrawDto,
   TakeMoneyDto,
 } from './dto/profit-draw.dto';
@@ -90,6 +91,34 @@ export class CycleProfitDrawsController {
     @CurrentUser() user: Viewer,
   ) {
     return this.draws.take(id, body, user.id);
+  }
+
+  @Get(':id/participants/:participantId/exit')
+  @Roles(...PROFIT_DRAW_ROLES)
+  @ApiOperation({
+    summary:
+      'What paying a temporary investor out and removing him would hand over today',
+  })
+  exitPreview(
+    @Param('id') id: string,
+    @Param('participantId') participantId: string,
+  ) {
+    return this.draws.exitPreview(id, participantId);
+  }
+
+  @Post(':id/participants/:participantId/exit')
+  @Roles(...PROFIT_DRAW_ROLES)
+  @ApiOperation({
+    summary:
+      'Pay a temporary investor his capital and profit share now and remove him from the cycle',
+  })
+  exit(
+    @Param('id') id: string,
+    @Param('participantId') participantId: string,
+    @Body() body: ExitInvestorDto,
+    @CurrentUser() user: Viewer,
+  ) {
+    return this.draws.exit(id, participantId, body, user.id);
   }
 }
 

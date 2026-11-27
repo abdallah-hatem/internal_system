@@ -1054,7 +1054,8 @@
     "payoutHistory": "Payouts",
     "noPayouts": "Nothing paid out yet",
     "paidOn": "Paid {date}",
-    "showBreakdown": "How this was worked out"
+    "showBreakdown": "How this was worked out",
+    "exitedOn": "Exited {day} · paid {paid}"
   },
   "analytics": {
     "title": "Analytics & Reports",
@@ -1572,7 +1573,9 @@
     "runningCostsDay": "Share of running costs ({day})",
     "costSamplesWrittenOff": "Samples written off",
     "capitalTakenBack": "Capital taken back",
-    "capitalTakenBackLine": "Capital taken back before settlement"
+    "capitalTakenBackLine": "Capital taken back before settlement",
+    "exitedLine": "Exited {day}: capital <capital></capital>, profit <profit></profit> — paid <paid></paid> then",
+    "exitedTag": "Exited — paid out"
   },
   "contracts": {
     "title": "Contracts",
@@ -2014,7 +2017,13 @@
     "FREIGHT_PAYER_NOT_ON_CYCLE": "Freight is paid by the business, a core partner, or an investor in this cycle; that is none of them.",
     "HANDOVER_FREIGHT_BELOW_PAID": "{paid} {currency} of handover {handover}'s freight is already paid, so it cannot be {asked}.",
     "HANDOVER_FREIGHT_CURRENCY_HAS_PAYMENTS": "{paid} {currency} of handover {handover}'s freight is paid in {currency}; undo those payments to change its currency.",
-    "HANDOVER_FREIGHT_UNPAID": "{cycle} still has {amount} {currency} of handover freight to pay; record that payment before settling."
+    "HANDOVER_FREIGHT_UNPAID": "{cycle} still has {amount} {currency} of handover freight to pay; record that payment before settling.",
+    "EXIT_NOT_AN_INVESTOR": "{name} is a core partner on {cycle}; only a temporary investor can be paid out and removed.",
+    "EXIT_ALREADY_EXITED": "{name} was already paid out and removed from {cycle} on {day}.",
+    "EXIT_CYCLE_LOCKED": "{cycle} is being settled or is closed; nobody can be paid out of it now.",
+    "EXIT_NO_PARTNER_LEFT": "{cycle} has no core partner to take over {name}'s share, so he cannot be removed.",
+    "EXIT_PAYOUT_NEGATIVE": "{name} has already taken {owes} EGP more than his capital and his share of {cycle}'s profit come to; paying him out cannot collect money from him.",
+    "EXIT_PARTICIPANT_EXITED": "This investor was paid out and removed on {day}; what he put in and took can no longer change."
   },
   "requests": {
     "tabs": {
@@ -2274,7 +2283,8 @@
       "PRICE_ADJUSTED": "Price lowered",
       "ASSISTANT_CHAT": "Asked the assistant",
       "CAPITAL_BACK_EARLY": "Capital taken back",
-      "CAPITAL_BACK_REVERSE": "Capital taken back undone"
+      "CAPITAL_BACK_REVERSE": "Capital taken back undone",
+      "INVESTOR_EXIT": "Investor paid out and removed"
     },
     "entityType": {
       "ProfitDraw": "Profit taken",
@@ -2336,7 +2346,8 @@
       "ACCOUNT_CONTRIBUTED": "The date of a contribution from an account",
       "CAPITAL_TAKEN_BACK": "The date capital was taken back",
       "MONEY_TAKEN": "The date money was taken from a cycle",
-      "FREIGHT_PAID": "The date freight was paid"
+      "FREIGHT_PAID": "The date freight was paid",
+      "INVESTOR_EXITED": "The date an investor was paid out"
     },
     "country": {
       "CN": "China",
@@ -3118,7 +3129,29 @@
     "problem": "This cycle’s funding or profit split isn’t entered yet, so no profit can be taken.",
     "loadFailed": "Could not load what can be taken",
     "retry": "Try again",
-    "noPeople": "Nobody has put money into this cycle."
+    "noPeople": "Nobody has put money into this cycle.",
+    "remainingRecovered": "After the exits: <pct></pct>% of the remaining partners’ capital",
+    "exit": {
+      "button": "Pay out and remove",
+      "exitedBadge": "Exited",
+      "exitedLine": "Exited {day} · paid <paid></paid>",
+      "exitedParts": "Capital <capital></capital> · profit <profit></profit> — he shares nothing more",
+      "paidAtExit": "Paid out when he left",
+      "title": "Pay out and remove {name}",
+      "hint": "He gets his capital and his share of the profit as it stands today, after every expense, less what he already took. From then on he shares nothing: no later profit, cost, unsold stock or customers’ debt — that passes to the partners.",
+      "capital": "His capital",
+      "profitShare": "His share of the profit (<pct></pct> of <profit></profit>)",
+      "afterFee": "After his fee of <fee></fee> on <gross></gross>",
+      "takenProfit": "Profit he already took",
+      "takenCapital": "Capital he already took back",
+      "payout": "Paid to him now",
+      "split": "<profit></profit> profit + <capital></capital> capital",
+      "from": "Paid from the business’s cash today, even beyond what customers have paid so far: the partners advance the rest, and take less from this cycle until it comes in.",
+      "date": "Date paid",
+      "submit": "Pay out and remove",
+      "saved": "{name} paid out and removed",
+      "failed": "Could not pay him out"
+    }
   },
   "fundingCard": {
     "putInSoFar": "<paid></paid> put in so far",
@@ -3236,7 +3269,8 @@
       "takesBackInvestor": "{name} takes back <amount></amount>",
       "allEven": "Everyone has put in exactly his equal share.",
       "hint": "The agreed split gives everyone the same share, investors too, so each should put in the same: an equal share of what funds the cycle — the cost to fund (goods, every leg’s freight, handovers included, and the cycle’s expenses), or the target when it is higher. The last share carries the odd piastre. Nothing here is recorded."
-    }
+    },
+    "investorExited": "Exited {day} · paid <paid></paid>"
   },
   "cycleTimeline": {
     "title": "Timeline",

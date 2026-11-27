@@ -1054,7 +1054,8 @@
     "payoutHistory": "التوزيعات",
     "noPayouts": "لم يُصرف شيء بعد",
     "paidOn": "صُرف في {date}",
-    "showBreakdown": "كيف حُسب هذا"
+    "showBreakdown": "كيف حُسب هذا",
+    "exitedOn": "خرج يوم {day} · صُرف له {paid}"
   },
   "analytics": {
     "title": "التحليلات والتقارير",
@@ -1424,7 +1425,9 @@
     "runningCostsDay": "حصته من المصروفات العامة ({day})",
     "costSamplesWrittenOff": "عينات مشطوبة",
     "capitalTakenBack": "رأس مال مسترد",
-    "capitalTakenBackLine": "رأس مال استُرد قبل التسوية"
+    "capitalTakenBackLine": "رأس مال استُرد قبل التسوية",
+    "exitedLine": "خرج يوم {day}: رأس المال <capital></capital>، الربح <profit></profit> — صُرف له <paid></paid> حينها",
+    "exitedTag": "خرج — صُرف له"
   },
   "providers": {
     "title": "شركات الشحن",
@@ -2014,7 +2017,13 @@
     "FREIGHT_PAYER_NOT_ON_CYCLE": "يدفع الشحنَ النشاطُ أو شريكٌ أساسي أو مستثمرٌ في هذه الدورة، وهذا ليس أياً منهم.",
     "HANDOVER_FREIGHT_BELOW_PAID": "دُفع {paid} {currency} من شحن الإرسالية {handover} بالفعل، فلا يمكن أن يكون {asked}.",
     "HANDOVER_FREIGHT_CURRENCY_HAS_PAYMENTS": "دُفع {paid} {currency} من شحن الإرسالية {handover} بعملة {currency}؛ تراجع عن هذه المبالغ لتغيير عملته.",
-    "HANDOVER_FREIGHT_UNPAID": "ما زال على {cycle} شحن إرساليات للسداد قدره {amount} {currency}؛ سجّل سداده قبل التسوية."
+    "HANDOVER_FREIGHT_UNPAID": "ما زال على {cycle} شحن إرساليات للسداد قدره {amount} {currency}؛ سجّل سداده قبل التسوية.",
+    "EXIT_NOT_AN_INVESTOR": "{name} شريك أساسي في الدورة {cycle}؛ لا يُصرف ويُخرج إلا المستثمر المؤقت.",
+    "EXIT_ALREADY_EXITED": "سبق صرف مستحقات {name} وإخراجه من الدورة {cycle} يوم {day}.",
+    "EXIT_CYCLE_LOCKED": "الدورة {cycle} قيد التسوية أو مغلقة؛ لا يمكن صرف مستحقات أحد منها الآن.",
+    "EXIT_NO_PARTNER_LEFT": "لا يوجد في الدورة {cycle} شريك أساسي يتولى حصة {name}، فلا يمكن إخراجه.",
+    "EXIT_PAYOUT_NEGATIVE": "سحب {name} بالفعل {owes} ج.م أكثر من رأس ماله وحصته من ربح الدورة {cycle}؛ الصرف عند الخروج لا يحصّل منه مالًا.",
+    "EXIT_PARTICIPANT_EXITED": "صُرفت مستحقات هذا المستثمر وأُخرج يوم {day}؛ لم يعد ممكنًا تغيير ما وضعه أو سحبه."
   },
   "requests": {
     "tabs": {
@@ -2274,7 +2283,8 @@
       "PRICE_ADJUSTED": "تخفيض السعر",
       "ASSISTANT_CHAT": "سؤال للمساعد",
       "CAPITAL_BACK_EARLY": "استرداد رأس مال",
-      "CAPITAL_BACK_REVERSE": "إلغاء استرداد رأس مال"
+      "CAPITAL_BACK_REVERSE": "إلغاء استرداد رأس مال",
+      "INVESTOR_EXIT": "صرف مستحقات مستثمر وإخراجه"
     },
     "entityType": {
       "ProfitDraw": "أرباح مسحوبة",
@@ -2336,7 +2346,8 @@
       "ACCOUNT_CONTRIBUTED": "تاريخ المساهمة من الحساب",
       "CAPITAL_TAKEN_BACK": "تاريخ استرداد رأس المال",
       "MONEY_TAKEN": "تاريخ سحب الأموال من الدورة",
-      "FREIGHT_PAID": "تاريخ سداد الشحن"
+      "FREIGHT_PAID": "تاريخ سداد الشحن",
+      "INVESTOR_EXITED": "تاريخ صرف مستحقات المستثمر"
     },
     "country": {
       "CN": "الصين",
@@ -3118,7 +3129,29 @@
     "problem": "تمويل الدورة أو تقسيم أرباحها لم يُدخل بعد، فلا يمكن سحب أرباح.",
     "loadFailed": "تعذّر تحميل ما يمكن سحبه",
     "retry": "حاول مرة أخرى",
-    "noPeople": "لم يضع أحد أموالًا في هذه الدورة."
+    "noPeople": "لم يضع أحد أموالًا في هذه الدورة.",
+    "remainingRecovered": "بعد الخروج: <pct></pct>٪ من رأس مال الشركاء الباقين",
+    "exit": {
+      "button": "صرف وإخراج",
+      "exitedBadge": "خرج",
+      "exitedLine": "خرج يوم {day} · صُرف له <paid></paid>",
+      "exitedParts": "رأس المال <capital></capital> · الربح <profit></profit> — لا يشارك في شيء بعد ذلك",
+      "paidAtExit": "صُرف عند خروجه",
+      "title": "صرف مستحقات {name} وإخراجه",
+      "hint": "يحصل على رأس ماله وحصته من الربح كما هو اليوم بعد كل المصروفات، ناقص ما سحبه من قبل. بعدها لا يشارك في شيء: لا ربح ولا تكلفة لاحقة ولا بضاعة غير مباعة ولا ديون عملاء — كل ذلك ينتقل إلى الشركاء.",
+      "capital": "رأس ماله",
+      "profitShare": "حصته من الربح (<pct></pct> من <profit></profit>)",
+      "afterFee": "بعد عمولته <fee></fee> من <gross></gross>",
+      "takenProfit": "ربح سحبه من قبل",
+      "takenCapital": "رأس مال استرده من قبل",
+      "payout": "يُصرف له الآن",
+      "split": "<profit></profit> ربح + <capital></capital> رأس مال",
+      "from": "يُصرف من نقدية الشركة اليوم، حتى لو تجاوز ما دفعه العملاء حتى الآن: يقدّم الشركاء الباقي، ويسحبون أقل من هذه الدورة حتى يُحصَّل.",
+      "date": "تاريخ الصرف",
+      "submit": "صرف وإخراج",
+      "saved": "صُرفت مستحقات {name} وأُخرج",
+      "failed": "تعذّر صرف مستحقاته"
+    }
   },
   "fundingCard": {
     "putInSoFar": "دُفع في الدورة <paid></paid> حتى الآن",
@@ -3236,7 +3269,8 @@
       "takesBackInvestor": "يسترد {name} <amount></amount>",
       "allEven": "وضع كل واحد حصته المتساوية بالضبط.",
       "hint": "التقسيم المتفق عليه يعطي الجميع الحصة نفسها، والمستثمرين أيضًا، فيضع كل واحد المبلغ نفسه: حصة متساوية مما يموّل الدورة — تكلفة التمويل (البضاعة وشحن كل مرحلة، بما فيه الإرساليات، ومصروفات الدورة)، أو الهدف إذا كان أعلى. آخر حصة تحمل القرش الزائد. لا يُسجَّل هنا شيء."
-    }
+    },
+    "investorExited": "خرج يوم {day} · صُرف له <paid></paid>"
   },
   "cycleTimeline": {
     "title": "المسار الزمني",

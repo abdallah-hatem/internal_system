@@ -64,6 +64,9 @@ export interface ParticipantPayout {
   owedEgp?: string;
   /** What he is paid: the lines above plus what is owed — never below zero because of draws. */
   paidEgp: string;
+  /** Paid out and taken off the cycle before it settled (§8, 2026-11-27): the day and what he was handed. */
+  exitedOn?: string | null;
+  exitPaidEgp?: string | null;
 }
 
 export interface PayoutBreakdown {
@@ -266,6 +269,16 @@ export function PayoutBreakdownView({
               <h4 className="mb-1 font-medium text-foreground">
                 <bdi>{names[p.participantId] ?? t('unknownParticipant')}</bdi>
               </h4>
+              {p.exitedOn && (
+                <p data-testid={`breakdown-exited-${p.participantId}`} className="mb-1 text-xs text-muted-foreground">
+                  {t.rich('exitedLine', {
+                    day: day(p.exitedOn),
+                    capital: () => <Money value={p.capitalBackEgp} />,
+                    profit: () => <Money value={p.profitShareEgp} />,
+                    paid: () => <Money value={p.exitPaidEgp ?? '0'} />,
+                  })}
+                </p>
+              )}
               <dl data-testid={`breakdown-${p.participantId}`}>
                 <Line
                   label={pct === null ? t('shareOfProfit') : t('shareOfProfitPct', { pct })}

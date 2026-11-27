@@ -164,6 +164,8 @@ export interface AccountFunding {
     customProfitPct: string | null;
     investorFeePct: string | null;
     profitPct: string | null;
+    /** Paid out and taken off the cycle before it settled (§8, 2026-11-27); null while on it. */
+    exit?: { exitedOn: string; paidEgp: string; capitalEgp: string; profitEgp: string } | null;
   }[];
   profitSplit: {
     basis: 'CUSTOM_SPLIT' | 'CONTRIBUTIONS' | 'NONE';
@@ -703,7 +705,7 @@ export function FundingCard({
             );
           })}
           {investors.map((p) => (
-            <div key={p.participantId} data-testid="investor-row" className={ROW}>
+            <div key={p.participantId} data-testid="investor-row" data-exited={p.exit ? 'true' : undefined} className={cn(ROW, p.exit && 'opacity-70')}>
               <span className="min-w-0">
                 <bdi className="block truncate font-medium text-foreground">{p.name}</bdi>
                 <span className="block text-[11px] text-muted-foreground">
@@ -714,7 +716,11 @@ export function FundingCard({
               <span className="text-end text-sm tabular-nums md:text-start">
                 <Money value={p.contributionEgp} />
               </span>
-              <span className="col-span-2 text-xs text-muted-foreground md:col-span-2">{t('investorOwnMoney')}</span>
+              <span data-testid={p.exit ? 'investor-exited' : undefined} className="col-span-2 text-xs text-muted-foreground md:col-span-2">
+                {p.exit
+                  ? t.rich('investorExited', { day: formatDate(p.exit.exitedOn), paid: () => <Money value={p.exit!.paidEgp} /> })
+                  : t('investorOwnMoney')}
+              </span>
             </div>
           ))}
         </div>

@@ -20,6 +20,8 @@ export interface SettlementLine {
   participant: {
     id: string;
     participantType: string;
+    /** Paid out and taken off the cycle before it settled (§8, 2026-11-27). */
+    exitedOn?: string | null;
     partner?: { id?: string; email?: string; partner?: { displayName?: string } } | null;
     investor?: { email?: string; partner?: { displayName?: string } } | null;
   };
@@ -29,6 +31,8 @@ export interface ParticipantRow {
   key: string;
   name: string | null;
   isInvestor: boolean;
+  /** Paid out and removed before the cycle settled (§8, 2026-11-27): he is paid nothing here. */
+  exited: boolean;
   capital: number;
   share: number;
   feeCharged: number;
@@ -93,6 +97,7 @@ export function participantRows(lines: SettlementLine[]): ParticipantRow[] {
       key,
       name: nameOf(group[0]),
       isInvestor: group[0].participant?.participantType === 'TEMP_INVESTOR',
+      exited: !!group[0].participant?.exitedOn,
       capital,
       share,
       feeCharged,
@@ -174,6 +179,11 @@ export function SettlementParticipants({
               {t('investor')}
             </span>
           )}
+          {r.exited && (
+            <span data-testid="settlement-exited" className="ms-2 text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground whitespace-nowrap">
+              {t('exitedTag')}
+            </span>
+          )}
         </>
       ),
     },
@@ -208,6 +218,11 @@ export function SettlementParticipants({
               {r.isInvestor && (
                 <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                   {t('investor')}
+                </span>
+              )}
+              {r.exited && (
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  {t('exitedTag')}
                 </span>
               )}
             </div>
