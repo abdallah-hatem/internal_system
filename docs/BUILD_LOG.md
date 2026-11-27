@@ -5,6 +5,16 @@ feature by feature at the owner's word, each on its own branch, merged and shipp
 Goal (current, 2026-10-27): the "Next up" list below, top first.
 
 ## Current stage
+- **2026-11-27 — a temporary investor paid out and removed (owner, CYC-2026-0001's two investors), on
+  `feature/investor-exit`, PR to `dev`, not merged:** migration `20261127100000_investor_exit` (exit columns on
+  `cycle_participants`, `exit_participant_id` on `profit_draws`, additive). `GET/POST
+  /cycles/:id/participants/:participantId/exit` (core partners; `ProfitDrawsService.exitPreview` / `exit`), the payout
+  cut by `exitPayout` (`common/investor-exit.ts`) and written as a `profit_draw` + `capital_back_early`;
+  `distributeCycleProfit` keeps an exited share fixed and splits the rest among the others (`exitedShareOf`), so the
+  settlement, Take money, the Partners page and the Funding card all read it; the partners' capital room through
+  `remainingRecoveredShare`. Card: Pay out and remove, the exit dialog, the exited row; the Funding card, settlement
+  table and payout breakdown mark him. CYC-2026-0001 gives 32,207.15 each. Tests: `investor-exit.spec.ts`,
+  `investor-exit.db.spec.ts`, take-money card. BUSINESS_LOGIC §8.
 - **2026-11-27 — who pays whom to make the equal shares equal (owner), on `feature/equal-shares-who-pays`, PR to
   `dev`, not merged:** `equalShareSettleUp` (`common/partner-account.ts`) plans the payments from each one's gap and
   the handover freight still to pay (`cycleFreightToPay`, `common/leg-handovers.ts`); returned as

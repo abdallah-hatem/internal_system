@@ -1426,7 +1426,8 @@
     "costSamplesWrittenOff": "عينات مشطوبة",
     "capitalTakenBack": "رأس مال مسترد",
     "capitalTakenBackLine": "رأس مال استُرد قبل التسوية",
-    "exitedLine": "خرج يوم {day}: رأس المال <capital></capital>، الربح <profit></profit> — صُرف له <paid></paid> حينها"
+    "exitedLine": "خرج يوم {day}: رأس المال <capital></capital>، الربح <profit></profit> — صُرف له <paid></paid> حينها",
+    "exitedTag": "خرج — صُرف له"
   },
   "providers": {
     "title": "شركات الشحن",

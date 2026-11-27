@@ -540,6 +540,7 @@ describe('every new word, in both languages', () => {
     'codes.auditAction.INVESTOR_EXIT',
     'fundingCard.investorExited',
     'settlementsPage.exitedLine',
+    'settlementsPage.exitedTag',
     'partners.exitedOn',
   ];
 

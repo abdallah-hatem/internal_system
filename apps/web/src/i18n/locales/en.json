@@ -1574,7 +1574,8 @@
     "costSamplesWrittenOff": "Samples written off",
     "capitalTakenBack": "Capital taken back",
     "capitalTakenBackLine": "Capital taken back before settlement",
-    "exitedLine": "Exited {day}: capital <capital></capital>, profit <profit></profit> — paid <paid></paid> then"
+    "exitedLine": "Exited {day}: capital <capital></capital>, profit <profit></profit> — paid <paid></paid> then",
+    "exitedTag": "Exited — paid out"
   },
   "contracts": {
     "title": "Contracts",

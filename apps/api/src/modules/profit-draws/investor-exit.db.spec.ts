@@ -420,6 +420,8 @@ suite('an investor paid out and removed (Postgres)', () => {
     const second = (await exit(cycle.id, participants[4].id)).data;
     expect(first.payoutEgp).toBe('32207.15');
     expect(second.payoutEgp).toBe('32207.15');
+    // Said as a share of the whole profit, not of what the first exit left.
+    expect(second.sharePct).toBe('13.6701');
 
     const id = await settle(cycle.id);
     const lines = await prisma.settlementLine.findMany({

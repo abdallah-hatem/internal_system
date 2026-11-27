@@ -1042,7 +1042,15 @@ export class ProfitDrawsService {
       name,
       capital,
       cycleProfit: projected.pnl.grossProfit,
-      sharePct: line.sharePct,
+      // His share of the cycle's whole profit — after an earlier exit the
+      // split's own % is of what was left, which would not read as a share
+      // of the profit shown beside it.
+      sharePct: projected.pnl.grossProfit.isZero()
+        ? line.sharePct
+        : line.grossProfit
+            .div(projected.pnl.grossProfit)
+            .mul(100)
+            .toDecimalPlaces(4),
       grossProfit: line.grossProfit,
       investorFee: line.investorFee,
       netProfit: line.netProfit,
