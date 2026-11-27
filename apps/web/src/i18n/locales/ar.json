@@ -2836,6 +2836,7 @@
     "choosePaymentMethod": "اختر طريقة الدفع",
     "chooseChannel": "اختر قناة البيع",
     "chooseCurrency": "اختر عملة",
+    "choosePayer": "اختر من دفع",
     "chooseCostBasis": "اختر طريقة الاحتساب",
     "chooseCycle": "اختر دورة",
     "noCyclesToBuyFor": "لا توجد دورة تقبل مشتريات الآن. ابدأ دورة استيراد أولًا من صفحة دورات الاستيراد.",
