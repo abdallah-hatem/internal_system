@@ -38,10 +38,16 @@ import {
   recoveredShare,
 } from '../../common/capital-back-early';
 import { splitTake } from '../../common/take-money';
+import {
+  exitPayout,
+  remainingRecoveredShare,
+} from '../../common/investor-exit';
+import { deductionsFor } from '../../common/profit-draws';
 import { cycleFreightIsEstimate } from '../../common/leg-handovers';
 import type {
   CreateCapitalBackDto,
   CreateProfitDrawDto,
+  ExitInvestorDto,
   ReverseProfitDrawDto,
   TakeMoneyDto,
 } from './dto/profit-draw.dto';
@@ -131,6 +137,42 @@ export interface CapitalRoom {
   takenEgp: string;
   /** What he may take now: recovered − taken, never below zero. */
   availableEgp: string;
+  /** His participant row on the cycle (the exit endpoint's id). */
+  participantId: string;
+  /** Paid out and off the cycle (§8, 2026-11-27), his figures frozen; null while on it. */
+  exit: ExitView | null;
+}
+
+/** An investor's exit as the cards show it (§8, 2026-11-27). */
+export interface ExitView {
+  exitedOn: string;
+  capitalEgp: string;
+  /** His profit share, net of any fee. */
+  profitEgp: string;
+  feeEgp: string;
+  sharePct: string;
+  /** Cash handed over at exit: capital + profit − what he had taken early. */
+  paidEgp: string;
+}
+
+/** The exit columns of a participant row, for the cards; null while he is on the cycle. */
+export function exitViewOf(p: {
+  exitedOn: Date | null;
+  exitCapitalEgp: Prisma.Decimal | null;
+  exitProfitEgp: Prisma.Decimal | null;
+  exitFeeEgp: Prisma.Decimal | null;
+  exitSharePct: Prisma.Decimal | null;
+  exitPaidEgp: Prisma.Decimal | null;
+}): ExitView | null {
+  if (!p.exitedOn) return null;
+  return {
+    exitedOn: p.exitedOn.toISOString().slice(0, 10),
+    capitalEgp: m2(p.exitCapitalEgp ?? 0),
+    profitEgp: m2(p.exitProfitEgp ?? 0),
+    feeEgp: m2(p.exitFeeEgp ?? 0),
+    sharePct: new Prisma.Decimal(p.exitSharePct ?? 0).toFixed(4),
+    paidEgp: m2(p.exitPaidEgp ?? 0),
+  };
 }
 
 /**
@@ -214,6 +256,8 @@ export class ProfitDrawsService {
           reversalReason: d.reversalReason,
           /** Taken off a paid settlement's payout: undo that settlement first. */
           settled: d.settledById !== null,
+          /** Paid out at an investor's exit (§8, 2026-11-27): final, never undone on its own. */
+          exit: d.exitParticipantId !== null,
         })),
       },
     };
@@ -315,7 +359,8 @@ export class ProfitDrawsService {
         .reduce((s, r) => s.add(r.amountEgp), ZERO);
       const part = parts.get(userId);
       const share = part?.takeable ?? ZERO;
-      const left = share.sub(drawn).sub(owed);
+      // Paid out and off the cycle (§8, 2026-11-27): nothing more to take.
+      const left = c.exitedOn ? ZERO : share.sub(drawn).sub(owed);
       partners.push({
         partnerUserId: userId,
         participantType: c.participantType,
@@ -376,6 +421,8 @@ export class ProfitDrawsService {
         recoveredEgp: m2(room.recovered),
         /** The share of the cost to fund recovered, in percent. */
         recoveredPct: room.share.mul(100).toFixed(2),
+        /** After exits took their capital: the share of the remaining participants' capital still covered. */
+        remainingRecoveredPct: room.liveShare.mul(100).toFixed(2),
         people: room.people,
         taken: rows.map((d) => ({
           id: d.id,
@@ -388,6 +435,8 @@ export class ProfitDrawsService {
           reversedAt: d.reversedAt,
           reversalReason: d.reversalReason,
           settled: d.settledById !== null,
+          /** Paid out at an investor's exit (§8, 2026-11-27): final, never undone on its own. */
+          exit: d.exitParticipantId !== null,
         })),
       },
     };
@@ -410,8 +459,11 @@ export class ProfitDrawsService {
       const profitAvailable = p && !profit.problem ? p.availableEgp : '0.00';
       return {
         userId: c.userId,
+        participantId: c.participantId,
         name: c.name,
         participantType: c.participantType,
+        /** Paid out and off the cycle, figures frozen (§8, 2026-11-27); null while on it. */
+        exit: c.exit,
         /** Null only for someone not in the profit split at all. */
         profit: p
           ? {
@@ -449,6 +501,7 @@ export class ProfitDrawsService {
         reversedAt: d.reversedAt,
         reversalReason: d.reversalReason,
         settled: d.settled,
+        exit: d.exit,
       })),
       ...capital.taken.map((d) => ({ ...d, kind: 'CAPITAL' as const })),
     ].sort(
@@ -472,6 +525,7 @@ export class ProfitDrawsService {
         toFundEgp: capital.toFundEgp,
         recoveredEgp: capital.recoveredEgp,
         recoveredPct: capital.recoveredPct,
+        remainingRecoveredPct: capital.remainingRecoveredPct,
         people,
         taken,
       },
@@ -518,6 +572,27 @@ export class ProfitDrawsService {
         })
       : [];
 
+    // What exits paid as capital came out of the cash recovered: the rest is
+    // the remaining participants' (§8, 2026-11-27), so the partners who
+    // advanced an exit cannot take that same money again.
+    const takenBy = (userId: string | null) =>
+      standing
+        .filter((s) => s.partnerUserId === userId)
+        .reduce((s, r) => s.add(r.amountEgp), ZERO);
+    const sumOf = (rows: typeof participants) =>
+      rows.reduce((s, p) => s.add(p.contributionAmount), ZERO);
+    const exited = participants.filter((p) => p.exitedOn);
+    const liveShare = remainingRecoveredShare({
+      share,
+      allContributions: sumOf(participants),
+      liveContributions: sumOf(participants.filter((p) => !p.exitedOn)),
+      exitedCapitalTaken: exited.reduce(
+        (s, p) => s.add(takenBy(p.investorUserId)),
+        ZERO,
+      ),
+      anyExited: exited.length > 0,
+    });
+
     const seen = new Set<string>();
     const people: CapitalRoom[] = [];
     for (const p of participants) {
@@ -525,11 +600,11 @@ export class ProfitDrawsService {
       if (!userId || seen.has(userId)) continue;
       seen.add(userId);
       const who = p.partner ?? p.investor;
-      const taken = standing
-        .filter((s) => s.partnerUserId === userId)
-        .reduce((s, r) => s.add(r.amountEgp), ZERO);
+      const taken = takenBy(userId);
       const contribution = new Prisma.Decimal(p.contributionAmount);
-      const r = capitalRoom({ share, contribution, taken });
+      const r = p.exitedOn
+        ? { recoveredEgp: contribution, availableEgp: ZERO }
+        : capitalRoom({ share: liveShare, contribution, taken });
       people.push({
         userId,
         participantType: p.participantType,
@@ -538,9 +613,11 @@ export class ProfitDrawsService {
         recoveredEgp: m2(r.recoveredEgp),
         takenEgp: m2(taken),
         availableEgp: m2(r.availableEgp),
+        participantId: p.id,
+        exit: exitViewOf(p),
       });
     }
-    return { toFund, recovered, share, people };
+    return { toFund, recovered, share, liveShare, people };
   }
 
   // ─── Writing ─────────────────────────────────────────────────────────
@@ -728,6 +805,253 @@ export class ProfitDrawsService {
     };
   }
 
+  // ─── An investor's exit (§8, owner 2026-11-27) ──────────────────────
+
+  /**
+   * What paying this investor out and taking him off the cycle would hand
+   * over today — the dialog's figures, from the very reckoning `exit`
+   * records. Nothing is written.
+   */
+  async exitPreview(cycleId: string, participantId: string) {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    if (!isUuid(participantId)) throw notFound('participant');
+    const f = await this.prisma.$transaction(
+      (tx) => this.exitFigures(tx, cycleId, participantId),
+      { timeout: 30_000 },
+    );
+    return { data: exitFiguresView(f) };
+  }
+
+  /**
+   * Pay a temporary investor out and take him off the cycle (§8, owner
+   * 2026-11-27: "kick them both out by giving them their money", with his
+   * profit "until today with all expenses"). Capital + his share of the
+   * profit as the settlement projects it now, less what he already took
+   * early, in cash from the business today — even beyond what customers have
+   * paid so far: the partners advance the rest. Written in one transaction
+   * under the cycle's lock and his account's: his frozen figures on his
+   * participant row, and the payout as a profit draw and a capital taken back
+   * (their own ledger categories), so the cycle's profit does not move and
+   * his settlement payout comes to exactly nothing.
+   */
+  async exit(
+    cycleId: string,
+    participantId: string,
+    dto: ExitInvestorDto,
+    actorId: string,
+  ) {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    if (!isUuid(participantId)) throw notFound('participant');
+    assertNotFuture(dto.exitedOn, 'INVESTOR_EXITED');
+    const day = dto.exitedOn ? businessDay(dto.exitedOn) : businessToday();
+
+    const done = await this.prisma.$transaction(
+      async (tx) => {
+        const f = await this.exitFigures(tx, cycleId, participantId);
+        const holder = { id: f.userId, name: f.name };
+        const note = dto.note?.trim() || undefined;
+        const write = async (
+          amount: Prisma.Decimal,
+          kind: 'DRAW' | 'CAPITAL',
+        ) => {
+          if (amount.lte(0)) return null;
+          return this.writeRows(
+            tx,
+            {
+              id: randomUUID(),
+              cycle: f.cycle,
+              holder,
+              room: null,
+              amount,
+              day,
+              note,
+              actorId,
+            },
+            kind === 'DRAW'
+              ? {
+                  kind,
+                  type: 'PROFIT_DRAW',
+                  category: PROFIT_DRAW_CATEGORY,
+                  reason: `${holder.name} paid out and removed from ${f.cycle.code}: his profit`,
+                  exitParticipantId: participantId,
+                }
+              : {
+                  kind,
+                  type: CAPITAL_BACK_TYPE,
+                  category: CAPITAL_BACK_CATEGORY,
+                  reason: `${holder.name} paid out and removed from ${f.cycle.code}: his capital`,
+                  exitParticipantId: participantId,
+                },
+          );
+        };
+        const profitRow = await write(f.split.profitPart, 'DRAW');
+        const capitalRow = await write(f.split.capitalPart, 'CAPITAL');
+        await tx.cycleParticipant.update({
+          where: { id: participantId },
+          data: {
+            exitedOn: dayDate(day),
+            exitCapitalEgp: f.capital,
+            exitGrossProfitEgp: f.grossProfit,
+            exitFeeEgp: f.investorFee,
+            exitProfitEgp: f.netProfit,
+            exitSharePct: f.sharePct,
+            exitCycleProfitEgp: f.cycleProfit,
+            exitPaidEgp: f.split.payout,
+            exitedAt: new Date(),
+            exitedBy: actorId,
+          },
+        });
+        return { f, profitRow, capitalRow };
+      },
+      { timeout: 30_000 },
+    );
+
+    // After the commit, never inside it (one connection in production).
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'INVESTOR_EXIT',
+      entityType: 'CycleParticipant',
+      entityId: participantId,
+      afterJson: {
+        cycleId,
+        exitedOn: day,
+        ...exitFiguresView(done.f),
+        profitDrawId: done.profitRow?.id ?? null,
+        capitalRowId: done.capitalRow?.id ?? null,
+      },
+    });
+    return { data: { ...exitFiguresView(done.f), exitedOn: day } };
+  }
+
+  /**
+   * The reckoning of an exit, under the cycle's lock then his account's, with
+   * every refusal: only a temporary investor, once, on a cycle not being
+   * settled, with a core partner left to take the rest, a split with a
+   * basis, and a payout of nothing or more.
+   */
+  private async exitFigures(tx: Db, cycleId: string, participantId: string) {
+    await lockCycle(tx, cycleId);
+    const cycle = await tx.importCycle.findUnique({
+      where: { id: cycleId },
+      select: { id: true, code: true, status: true },
+    });
+    if (!cycle) throw notFound('cycle');
+    const row = await tx.cycleParticipant.findFirst({
+      where: { id: participantId, cycleId },
+      include: {
+        investor: {
+          select: { email: true, partner: { select: { displayName: true } } },
+        },
+        partner: {
+          select: { email: true, partner: { select: { displayName: true } } },
+        },
+      },
+    });
+    if (!row) throw notFound('participant');
+    const who = row.investor ?? row.partner;
+    const name = who?.partner?.displayName ?? who?.email ?? row.id;
+    const userId = row.investorUserId ?? row.partnerUserId;
+    if (row.participantType !== 'TEMP_INVESTOR' || !row.investorUserId) {
+      throw badRequest(
+        'EXIT_NOT_AN_INVESTOR',
+        `${name} is a core partner on ${cycle.code}; only a temporary investor can be paid out and removed.`,
+        { name, cycle: cycle.code },
+      );
+    }
+    if (row.exitedOn) {
+      throw badRequest(
+        'EXIT_ALREADY_EXITED',
+        `${name} was already paid out and removed from ${cycle.code} on ${row.exitedOn.toISOString().slice(0, 10)}.`,
+        {
+          name,
+          cycle: cycle.code,
+          day: row.exitedOn.toISOString().slice(0, 10),
+        },
+      );
+    }
+    const settled = await tx.settlement.findFirst({
+      where: { cycleId, status: { in: ['APPROVED', 'PAID'] } },
+      select: { status: true },
+    });
+    if (settled || CLOSED_FOR_DRAWS.includes(cycle.status)) {
+      throw badRequest(
+        'EXIT_CYCLE_LOCKED',
+        `${cycle.code} is being settled or is closed; nobody can be paid out of it now.`,
+        { cycle: cycle.code, status: settled?.status ?? cycle.status },
+      );
+    }
+    // The same person on the cycle as a core partner too: his deductions
+    // cannot be told apart, so no exit (GUESS — the case does not exist).
+    const twice = await tx.cycleParticipant.count({
+      where: { cycleId, partnerUserId: row.investorUserId },
+    });
+    if (twice > 0) {
+      throw badRequest(
+        'EXIT_NOT_AN_INVESTOR',
+        `${name} is a core partner on ${cycle.code}; only a temporary investor can be paid out and removed.`,
+        { name, cycle: cycle.code },
+      );
+    }
+    const partnersLeft = await tx.cycleParticipant.count({
+      where: { cycleId, participantType: 'CORE_PARTNER' },
+    });
+    if (partnersLeft === 0) {
+      throw badRequest(
+        'EXIT_NO_PARTNER_LEFT',
+        `${cycle.code} has no core partner to take over ${name}'s share, so he cannot be removed.`,
+        { name, cycle: cycle.code },
+      );
+    }
+    await lockAccounts(tx, [row.investorUserId]);
+
+    // The settlement's own projection, now, exits already made included
+    // (rule 11). A split with no basis refuses with its own code.
+    const projected = await this.settlements.project(cycleId, tx);
+    const line = projected?.distribution.lines.find(
+      (l) => l.participantId === row.id,
+    );
+    if (!projected || !line) throw notFound('participant');
+    const capital = line.capitalReturn;
+    const { byPartner, capitalByUser } = await deductionsFor(tx, cycleId, [
+      row.investorUserId,
+    ]);
+    const takenProfit = byPartner.get(row.investorUserId) ?? ZERO;
+    const takenCapital = capitalByUser.get(row.investorUserId) ?? ZERO;
+    const split = exitPayout({
+      capital,
+      netProfit: line.netProfit,
+      takenProfit,
+      takenCapital,
+    });
+    if (!split) {
+      const owes = capital
+        .add(line.netProfit)
+        .sub(takenProfit)
+        .sub(takenCapital)
+        .neg();
+      throw badRequest(
+        'EXIT_PAYOUT_NEGATIVE',
+        `${name} has already taken ${formatMoney(owes)} EGP more than his capital and share of ${cycle.code}'s profit come to; an exit cannot collect money from him.`,
+        { name, cycle: cycle.code, owes: formatMoney(owes) },
+      );
+    }
+    return {
+      cycle,
+      participantId: row.id,
+      userId: userId!,
+      name,
+      capital,
+      cycleProfit: projected.pnl.grossProfit,
+      sharePct: line.sharePct,
+      grossProfit: line.grossProfit,
+      investorFee: line.investorFee,
+      netProfit: line.netProfit,
+      takenProfit,
+      takenCapital,
+      split,
+    };
+  }
+
   /** The person taking: his name as the office knows him. */
   private async holderOf(userId: string): Promise<Holder | null> {
     const user = await this.prisma.user.findUnique({
@@ -755,6 +1079,7 @@ export class ProfitDrawsService {
     });
     if (!cycle) throw notFound('cycle');
     await assertOpenForDraws(tx, cycle);
+    await assertNotExited(tx, cycle, holderId);
     await lockAccounts(tx, [holderId]);
     return cycle;
   }
@@ -860,6 +1185,8 @@ export class ProfitDrawsService {
       type: string;
       category: string;
       reason: string;
+      /** The investor's exit it pays out (§8, 2026-11-27). */
+      exitParticipantId?: string;
     },
   ) {
     const entry = await tx.financialTransaction.create({
@@ -887,6 +1214,7 @@ export class ProfitDrawsService {
         drawnOn: dayDate(w.day),
         note: w.note?.trim() || null,
         ledgerEntryId: entry.id,
+        exitParticipantId: as.exitParticipantId ?? null,
         createdBy: w.actorId,
       },
     });
@@ -969,6 +1297,9 @@ export class ProfitDrawsService {
         select: { id: true, code: true, status: true },
       });
       await assertOpenForDraws(tx, cycle!);
+      // Paid out at an exit, or taken by someone since paid out: his
+      // figures are frozen (§8, 2026-11-27).
+      await assertNotExited(tx, cycle!, draw.partnerUserId);
       await lockAccounts(tx, [draw.partnerUserId]);
 
       const original = draw.ledgerEntryId
@@ -1023,6 +1354,73 @@ export class ProfitDrawsService {
     });
     return { data: { id, reversedAt: done.reversedAt } };
   }
+}
+
+/**
+ * Refuse taking, or undoing, for someone paid out and removed from the cycle
+ * (§8, 2026-11-27): his figures are frozen at what he was paid.
+ */
+async function assertNotExited(
+  tx: Db,
+  cycle: { id: string; code: string },
+  userId: string,
+) {
+  const gone = await tx.cycleParticipant.findFirst({
+    where: {
+      cycleId: cycle.id,
+      investorUserId: userId,
+      exitedOn: { not: null },
+    },
+    select: { exitedOn: true },
+  });
+  if (!gone) return;
+  throw badRequest(
+    'EXIT_PARTICIPANT_EXITED',
+    `This investor was paid out and removed from ${cycle.code} on ${gone.exitedOn!.toISOString().slice(0, 10)}; nothing he took can change.`,
+    { cycle: cycle.code, day: gone.exitedOn!.toISOString().slice(0, 10) },
+  );
+}
+
+/** An exit's figures as the dialog and the audit read them. */
+function exitFiguresView(f: {
+  participantId: string;
+  userId: string;
+  name: string;
+  capital: Prisma.Decimal;
+  cycleProfit: Prisma.Decimal;
+  sharePct: Prisma.Decimal;
+  grossProfit: Prisma.Decimal;
+  investorFee: Prisma.Decimal;
+  netProfit: Prisma.Decimal;
+  takenProfit: Prisma.Decimal;
+  takenCapital: Prisma.Decimal;
+  split: {
+    profitPart: Prisma.Decimal;
+    capitalPart: Prisma.Decimal;
+    payout: Prisma.Decimal;
+  };
+}) {
+  return {
+    participantId: f.participantId,
+    userId: f.userId,
+    name: f.name,
+    /** The cycle's profit now, as the settlement projects it. */
+    cycleProfitEgp: m2(f.cycleProfit),
+    sharePct: f.sharePct.toFixed(4),
+    capitalEgp: m2(f.capital),
+    /** His share before any fee, and the fee off it. */
+    grossProfitEgp: m2(f.grossProfit),
+    investorFeeEgp: m2(f.investorFee),
+    /** His share of the profit, net of his fee: what he is paid for. */
+    profitEgp: m2(f.netProfit),
+    /** Taken early: profit drawn (with anything owed from an earlier payout) and capital back. */
+    takenProfitEgp: m2(f.takenProfit),
+    takenCapitalEgp: m2(f.takenCapital),
+    /** Paid now: profit part, capital part, together. */
+    payProfitEgp: m2(f.split.profitPart),
+    payCapitalEgp: m2(f.split.capitalPart),
+    payoutEgp: m2(f.split.payout),
+  };
 }
 
 /** Refuse once the cycle is being settled, is settled, or never ordered anything. */

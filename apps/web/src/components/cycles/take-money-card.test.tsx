@@ -30,6 +30,11 @@ const state = vi.hoisted(() => ({
   refusal: null as null | Refusal,
   /** POSTs never answer: a save in flight. */
   hang: false,
+  /** What GET /cycles/c-1/participants/:id/exit answers (§8, 2026-11-27). */
+  exitPreview: null as unknown,
+  exitReads: [] as string[],
+  /** A coded refusal the exit preview answers with. */
+  exitRefusal: null as null | Refusal,
 }));
 
 vi.mock('@/lib/auth-context', () => ({
@@ -41,6 +46,16 @@ vi.mock('@/lib/api', () => ({
       if (url === '/cycles/c-1/take') {
         state.reads += 1;
         return Promise.resolve({ data: { data: state.view } });
+      }
+      if (/\/participants\/[^/]+\/exit$/.test(url)) {
+        state.exitReads.push(url);
+        if (state.exitRefusal) {
+          const error = state.exitRefusal;
+          return Promise.reject(
+            Object.assign(new Error(error.message), { isAxiosError: true, response: { status: 400, data: { error } } }),
+          );
+        }
+        return Promise.resolve({ data: { data: state.exitPreview } });
       }
       return Promise.resolve({ data: { data: [] } });
     },
@@ -151,6 +166,9 @@ beforeEach(() => {
   state.posts = [];
   state.refusal = null;
   state.hang = false;
+  state.exitPreview = null;
+  state.exitReads = [];
+  state.exitRefusal = null;
 });
 afterEach(cleanup);
 
@@ -506,14 +524,23 @@ describe('every new word, in both languages', () => {
   const params = (s: string) => [...s.matchAll(/\{(\w+)[,}]|<(\w+)>/g)].map((m) => m[1] ?? m[2]).sort();
 
   const KEYS = [
-    ...Object.keys(en.takeMoney).map((k) => `takeMoney.${k}`),
+    ...Object.entries(en.takeMoney).flatMap(([k, v]) =>
+      typeof v === 'string' ? [`takeMoney.${k}`] : Object.keys(v).map((s) => `takeMoney.${k}.${s}`),
+    ),
     ...Object.keys(en.codes.profitDrawLock).map((k) => `codes.profitDrawLock.${k}`),
     ...[
       'TAKE_OVER_AVAILABLE', 'CAPITAL_BACK_NOT_ON_CYCLE', 'CAPITAL_BACK_OVER_AVAILABLE',
       'PROFIT_DRAW_NOT_ON_CYCLE', 'PROFIT_DRAW_OVER_AVAILABLE', 'PROFIT_DRAW_CYCLE_LOCKED', 'PROFIT_DRAW_REASON_REQUIRED',
       'PROFIT_DRAW_ALREADY_REVERSED', 'PROFIT_DRAW_SETTLED', 'PROFIT_DRAW_AMOUNT_NOT_POSITIVE', 'PROFIT_DRAW_AMOUNT_PRECISION',
+      'EXIT_NOT_AN_INVESTOR', 'EXIT_ALREADY_EXITED', 'EXIT_CYCLE_LOCKED', 'EXIT_NO_PARTNER_LEFT', 'EXIT_PAYOUT_NEGATIVE',
+      'EXIT_PARTICIPANT_EXITED',
     ].map((k) => `errors.${k}`),
     'codes.dateField.MONEY_TAKEN',
+    'codes.dateField.INVESTOR_EXITED',
+    'codes.auditAction.INVESTOR_EXIT',
+    'fundingCard.investorExited',
+    'settlementsPage.exitedLine',
+    'partners.exitedOn',
   ];
 
   it('each is in English and Arabic, not empty, with the same placeholders', () => {
@@ -531,5 +558,179 @@ describe('every new word, in both languages', () => {
 
   it('the combined refusal carries the params the API sends', () => {
     expect(params(en.errors.TAKE_OVER_AVAILABLE)).toEqual(['available', 'capital', 'cycle', 'partner', 'profit']);
+  });
+
+  it('the exit refusals carry the params the API sends (§8, 2026-11-27)', () => {
+    expect(params(en.errors.EXIT_ALREADY_EXITED)).toEqual(['cycle', 'day', 'name']);
+    expect(params(en.errors.EXIT_PAYOUT_NEGATIVE)).toEqual(['cycle', 'name', 'owes']);
+    expect(params(en.errors.EXIT_CYCLE_LOCKED)).toEqual(['cycle']);
+    expect(params(en.errors.EXIT_PARTICIPANT_EXITED)).toEqual(['day']);
+  });
+});
+
+describe('an investor paid out and removed (§8, owner 2026-11-27)', () => {
+  /** CYC-2026-0001's Eraiby as the server reckons him today. */
+  const PREVIEW = {
+    participantId: 'p-m',
+    userId: 'u-m',
+    name: 'Setta',
+    cycleProfitEgp: '34433.90',
+    sharePct: '13.6701',
+    capitalEgp: '27500.00',
+    grossProfitEgp: '4707.15',
+    investorFeeEgp: '0.00',
+    profitEgp: '4707.15',
+    takenProfitEgp: '0.00',
+    takenCapitalEgp: '0.00',
+    payProfitEgp: '4707.15',
+    payCapitalEgp: '27500.00',
+    payoutEgp: '32207.15',
+  };
+  const withIds = (view: TakeMoneyView): TakeMoneyView => ({
+    ...view,
+    people: view.people.map((p) => ({ ...p, participantId: `p-${p.userId.slice(2)}`, exit: null })),
+  });
+  const exited = (): TakeMoneyView => {
+    const v = withIds(fixture());
+    return {
+      ...v,
+      remainingRecoveredPct: '61.50',
+      people: v.people.map((p) =>
+        p.userId === 'u-m'
+          ? {
+              ...p,
+              exit: {
+                exitedOn: '2026-11-27',
+                capitalEgp: '27500.00',
+                profitEgp: '4707.15',
+                feeEgp: '0.00',
+                sharePct: '13.6701',
+                paidEgp: '32207.15',
+              },
+              availableEgp: '0.00',
+            }
+          : p,
+      ),
+      taken: [taken('t-x', 'CAPITAL', 'm', 'Setta', '27500.00', { exit: true }), ...v.taken],
+    };
+  };
+  const exitDialog = () => screen.getByTestId('exit-investor-dialog');
+  async function openExit() {
+    fireEvent.click(within(await screen.findByTestId('take-money-card')).getByTestId('exit-investor'));
+    return screen.findByTestId('exit-investor-dialog');
+  }
+
+  it('only an investor has “Pay out and remove”, a partner never; a locked cycle offers it to nobody', async () => {
+    state.view = withIds(fixture());
+    wrap();
+    await screen.findByTestId('take-money-card');
+    expect(within(rowOf('m')).getByTestId('exit-investor').textContent).toContain(en.takeMoney.exit.button);
+    expect(within(rowOf('a')).queryByTestId('exit-investor')).toBeNull();
+    cleanup();
+    state.view = { ...withIds(fixture()), locked: 'SETTLEMENT_APPROVED' };
+    wrap();
+    await screen.findByTestId('take-money-card');
+    expect(screen.queryByTestId('exit-investor')).toBeNull();
+  });
+
+  it('the dialog shows the server’s figures — capital, his share with its %, the payout — asks only the day, and sends that', async () => {
+    state.view = withIds(fixture());
+    state.exitPreview = PREVIEW;
+    wrap();
+    await openExit();
+    await within(exitDialog()).findByTestId('exit-figures');
+    expect(state.exitReads).toEqual(['/cycles/c-1/participants/p-m/exit']);
+    expect(text(within(exitDialog()).getByTestId('exit-capital'))).toBe('27,500.00 EGP');
+    expect(text(within(exitDialog()).getByTestId('exit-profit'))).toBe('4,707.15 EGP');
+    expect(text(exitDialog())).toContain('13.67% of 34,433.90 EGP');
+    expect(within(exitDialog()).queryByTestId('exit-taken-profit')).toBeNull();
+    expect(text(within(exitDialog()).getByTestId('exit-payout'))).toBe('32,207.15 EGP');
+    expect(text(within(exitDialog()).getByTestId('exit-split'))).toBe('4,707.15 EGP profit + 27,500.00 EGP capital');
+    expect(text(within(exitDialog()).getByTestId('exit-from'))).toBe(en.takeMoney.exit.from);
+    // No amount field: the server decides what he is paid.
+    expect(exitDialog().querySelector('input[name="amountEgp"]')).toBeNull();
+    fireEvent.click(within(exitDialog()).getByRole('button', { name: en.takeMoney.exit.submit }));
+    await waitFor(() => expect(state.posts).toHaveLength(1));
+    expect(state.posts[0].url).toBe('/cycles/c-1/participants/p-m/exit');
+    expect(state.posts[0].body).toEqual({ exitedOn: businessToday(), note: undefined });
+  });
+
+  it('what he already took comes off, each on its own line', async () => {
+    state.view = withIds(fixture());
+    state.exitPreview = {
+      ...PREVIEW,
+      takenProfitEgp: '4473.75',
+      takenCapitalEgp: '22972.73',
+      payProfitEgp: '233.40',
+      payCapitalEgp: '4527.27',
+      payoutEgp: '4760.67',
+    };
+    wrap();
+    await openExit();
+    await within(exitDialog()).findByTestId('exit-figures');
+    expect(text(within(exitDialog()).getByTestId('exit-taken-profit'))).toContain('4,473.75');
+    expect(text(within(exitDialog()).getByTestId('exit-taken-capital'))).toContain('22,972.73');
+    expect(text(within(exitDialog()).getByTestId('exit-payout'))).toBe('4,760.67 EGP');
+  });
+
+  it('the server refuses the reckoning (a loss he would owe): said in Arabic, and nothing can be sent', async () => {
+    state.view = withIds(fixture());
+    state.exitRefusal = {
+      code: 'EXIT_PAYOUT_NEGATIVE',
+      message: 'Setta has already taken 100.00 EGP more…',
+      params: { name: 'Setta', cycle: 'CYC-2026-0001', owes: '100.00' },
+    };
+    wrap('ar');
+    await openExit();
+    const alert = await within(exitDialog()).findByTestId('exit-investor-problem');
+    expect(alert.textContent).toContain('100.00');
+    expect(alert.textContent).not.toContain('already taken');
+    const save = within(exitDialog()).getByRole('button', { name: ar.takeMoney.exit.submit });
+    expect(save.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(save);
+    expect(state.posts).toHaveLength(0);
+  });
+
+  it('after: greyed, “Exited … · paid 32,207.15”, no rooms, no buttons, not in the Take list; his exit rows cannot be undone', async () => {
+    state.view = exited();
+    wrap();
+    const card = await screen.findByTestId('take-money-card');
+    const row = within(card).getByTestId('take-person-exited');
+    expect(text(within(row).getByTestId('take-exited-line'))).toMatch(/^Exited .*2026 · paid 32,207\.15 EGP$/);
+    expect(text(row)).toContain('Capital 27,500.00 EGP · profit 4,707.15 EGP');
+    expect(within(row).queryByRole('button')).toBeNull();
+    expect(within(row).queryByTestId('take-profit-room')).toBeNull();
+    expect(text(within(card).getByTestId('take-money-remaining-recovered'))).toBe(
+      'After the exits: 61.5% of the remaining partners’ capital',
+    );
+    const exitRow = takenRow('t-x');
+    expect(text(within(exitRow).getByTestId('taken-exit'))).toBe(en.takeMoney.exit.paidAtExit);
+    expect(within(exitRow).queryByTestId('undo-taken')).toBeNull();
+    const dlg = await openTake();
+    fireEvent.click(within(dlg).getByRole('combobox'));
+    expect(screen.queryByRole('option', { name: 'Setta' })).toBeNull();
+    expect(screen.getByRole('option', { name: 'Abdallah' })).toBeTruthy();
+  });
+
+  it('Arabic: the exited row and the dialog have no English left', async () => {
+    state.view = exited();
+    wrap('ar');
+    const card = await screen.findByTestId('take-money-card');
+    const row = within(card).getByTestId('take-person-exited');
+    expect(row.textContent).toContain(ar.takeMoney.exit.exitedBadge);
+    for (const word of ['Exited', 'paid', 'Capital', 'profit', 'After the exits']) {
+      expect(card.textContent).not.toContain(word);
+    }
+    for (const m of row.querySelectorAll('[data-slot="money"]')) expect(m.getAttribute('dir')).toBe('ltr');
+    cleanup();
+    state.view = withIds(fixture());
+    state.exitPreview = PREVIEW;
+    wrap('ar');
+    await openExit();
+    await within(exitDialog()).findByTestId('exit-figures');
+    expect(exitDialog().textContent).toContain(ar.takeMoney.exit.payout);
+    for (const word of ['His capital', 'Paid to him now', 'Date paid', 'Pay out and remove']) {
+      expect(exitDialog().textContent).not.toContain(word);
+    }
   });
 });

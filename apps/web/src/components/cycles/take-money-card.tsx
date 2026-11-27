@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -21,7 +21,7 @@ import { FieldLabel, FormActions } from '@/components/ui/fields';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
-import { AlertTriangle, HandCoins, Plus, Undo2 } from '@/components/ui/icons';
+import { AlertTriangle, HandCoins, LogOut, Plus, Undo2 } from '@/components/ui/icons';
 
 /**
  * "Take money from this cycle" / «سحب أموال من هذه الدورة» (BUSINESS_LOGIC §8,
@@ -59,6 +59,10 @@ export interface TakeCapitalRoom {
 
 export interface TakePerson {
   userId: string;
+  /** His participant row: the exit endpoint's id. */
+  participantId?: string;
+  /** Paid out and taken off the cycle, his figures frozen (§8, 2026-11-27); null while on it. */
+  exit?: TakeExit | null;
   name: string;
   participantType: string;
   /** Null only for someone outside the profit split; an investor has one since 2026-11-16. */
@@ -66,6 +70,16 @@ export interface TakePerson {
   capital: TakeCapitalRoom;
   /** Profit and capital he may take now, together. */
   availableEgp: string;
+}
+
+/** An investor paid out and removed (§8, owner 2026-11-27), as the server froze it. */
+export interface TakeExit {
+  exitedOn: string;
+  capitalEgp: string;
+  profitEgp: string;
+  feeEgp: string;
+  sharePct: string;
+  paidEgp: string;
 }
 
 export type TakenKind = 'PROFIT' | 'CAPITAL';
@@ -83,6 +97,8 @@ export interface Taken {
   reversalReason: string | null;
   /** Taken off a paid settlement: only reversing that settlement undoes it. */
   settled: boolean;
+  /** Paid out at an investor's exit: final, never undone on its own. */
+  exit?: boolean;
 }
 
 export interface TakeMoneyView {
@@ -98,6 +114,8 @@ export interface TakeMoneyView {
   toFundEgp: string;
   recoveredEgp: string;
   recoveredPct: string;
+  /** After exits took their capital: the share of the remaining participants' capital still covered. */
+  remainingRecoveredPct?: string;
   people: TakePerson[];
   taken: Taken[];
 }
@@ -156,6 +174,7 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
   const canReverse = useCan('profitDraw.reverse');
   const [taking, setTaking] = useState(false);
   const [undoing, setUndoing] = useState<Taken | null>(null);
+  const [exiting, setExiting] = useState<TakePerson | null>(null);
 
   const query = useQuery<TakeMoneyView>({
     queryKey: ['take-money', cycleId],
@@ -182,9 +201,12 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
   }
 
   const locked = data.locked;
-  const mayTake = canTake && !locked && data.people.length > 0;
+  // Someone paid out and removed takes nothing more (§8, 2026-11-27).
+  const takers = data.people.filter((p) => !p.exit);
+  const mayTake = canTake && !locked && takers.length > 0;
   // He takes for himself by default, when he is on this cycle.
-  const me = data.people.some((p) => p.userId === user?.id) ? user?.id : undefined;
+  const me = takers.some((p) => p.userId === user?.id) ? user?.id : undefined;
+  const anyExited = data.people.some((p) => p.exit);
   const pct = (v: string) => <bdi dir="ltr">{formatNumber(num(v), { maximumFractionDigits: 2 })}</bdi>;
 
   return (
@@ -236,6 +258,11 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
               total: () => <Money value={data.toFundEgp} />,
             })}
           </p>
+          {anyExited && data.remainingRecoveredPct != null && (
+            <p data-testid="take-money-remaining-recovered" className="text-xs text-muted-foreground">
+              {t.rich('remainingRecovered', { pct: () => pct(data.remainingRecoveredPct!) })}
+            </p>
+          )}
         </div>
       </div>
 
@@ -243,8 +270,12 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
         <p className="mt-4 text-sm text-muted-foreground">{t('noPeople')}</p>
       ) : (
         <ul className="mt-4 divide-y divide-border">
-          {data.people.map((p) => (
+          {data.people.map((p) =>
+            p.exit ? (
+              <ExitedRow key={p.userId} person={p} exit={p.exit} />
+            ) : (
             <li key={p.userId} data-testid="take-person" data-person={p.userId} className="py-2">
+              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
               <p className="min-w-0 break-words font-medium text-foreground [overflow-wrap:anywhere]">
                 <bdi>{p.name}</bdi>
                 {p.participantType === 'TEMP_INVESTOR' && (
@@ -256,6 +287,13 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
                   </span>
                 )}
               </p>
+              {p.participantType === 'TEMP_INVESTOR' && p.participantId && canTake && !locked && (
+                <button type="button" data-testid="exit-investor" onClick={() => setExiting(p)} className={linkButton}>
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  {t('exit.button')}
+                </button>
+              )}
+              </div>
               <dl className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
                 <div className="min-w-0">
                   <dt className="text-xs text-muted-foreground">{t('colProfit')}</dt>
@@ -301,7 +339,8 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
                 </p>
               )}
             </li>
-          ))}
+            ),
+          )}
         </ul>
       )}
 
@@ -311,7 +350,7 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
       ) : (
         <ul className="divide-y divide-border">
           {data.taken.map((d) => {
-            const standing = !d.reversedAt && !d.settled;
+            const standing = !d.reversedAt && !d.settled && !d.exit;
             return (
               <li key={d.id} data-testid="taken-row" data-taken={d.id} data-kind={d.kind} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2 text-sm">
                 <div className="min-w-0 flex-1">
@@ -337,6 +376,9 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
                   {d.settled && !d.reversedAt && (
                     <p data-testid="taken-settled" className="text-xs text-muted-foreground">{t(`settled${d.kind}`)}</p>
                   )}
+                  {d.exit && (
+                    <p data-testid="taken-exit" className="text-xs text-muted-foreground">{t('exit.paidAtExit')}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={cn('whitespace-nowrap tabular-nums', d.reversedAt ? 'text-muted-foreground line-through' : 'text-foreground')}>
@@ -355,7 +397,10 @@ export function TakeMoneyCard({ cycleId }: { cycleId: string }) {
         </ul>
       )}
 
-      {taking && <TakeMoneyDialog cycleId={cycleId} people={data.people} defaultPerson={me} onClose={() => setTaking(false)} />}
+      {taking && <TakeMoneyDialog cycleId={cycleId} people={takers} defaultPerson={me} onClose={() => setTaking(false)} />}
+      {exiting?.participantId && (
+        <ExitInvestorDialog cycleId={cycleId} participantId={exiting.participantId} name={exiting.name} onClose={() => setExiting(null)} />
+      )}
       {undoing && <UndoTakenDialog cycleId={cycleId} taken={undoing} onClose={() => setUndoing(null)} />}
     </section>
   );
@@ -528,6 +573,194 @@ export function TakeMoneyDialog({
         </FieldLabel>
         <FieldLabel label={t('note')}>
           <textarea name="note" rows={3} maxLength={500} placeholder={tph('profitDrawNote')} className={inputClass} />
+        </FieldLabel>
+      </ValidatedForm>
+    </Dialog>
+  );
+}
+
+/**
+ * An investor paid out and removed (§8, owner 2026-11-27): shown, greyed, with
+ * what he was handed — no rooms, no buttons. His figures are frozen.
+ */
+export function ExitedRow({ person, exit }: { person: TakePerson; exit: TakeExit }) {
+  const t = useTranslations('takeMoney');
+  const { formatDate } = useDateFormat();
+  return (
+    <li data-testid="take-person-exited" data-person={person.userId} className="py-2 opacity-70">
+      <p className="min-w-0 break-words font-medium text-muted-foreground [overflow-wrap:anywhere]">
+        <bdi>{person.name}</bdi>
+        <span className="ms-2 inline-block whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
+          {t('exit.exitedBadge')}
+        </span>
+      </p>
+      <p data-testid="take-exited-line" className="mt-1 text-sm text-muted-foreground">
+        {t.rich('exit.exitedLine', {
+          day: formatDate(exit.exitedOn),
+          paid: () => <Money value={exit.paidEgp} className="font-medium text-foreground" />,
+        })}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {t.rich('exit.exitedParts', {
+          capital: () => <Money value={exit.capitalEgp} />,
+          profit: () => <Money value={exit.profitEgp} />,
+        })}
+      </p>
+    </li>
+  );
+}
+
+/** The server's reckoning of an exit (`GET /cycles/:id/participants/:pid/exit`). */
+export interface ExitPreview {
+  participantId: string;
+  name: string;
+  cycleProfitEgp: string;
+  sharePct: string;
+  capitalEgp: string;
+  grossProfitEgp: string;
+  investorFeeEgp: string;
+  profitEgp: string;
+  takenProfitEgp: string;
+  takenCapitalEgp: string;
+  payProfitEgp: string;
+  payCapitalEgp: string;
+  payoutEgp: string;
+}
+
+/**
+ * "Pay out and remove" (§8, owner 2026-11-27): every figure is the server's,
+ * worked out from the settlement's own projection as of now; only the day and
+ * a note are asked. Paid from the business's cash (GUESS, docs/business/08).
+ */
+export function ExitInvestorDialog({
+  cycleId,
+  participantId,
+  name,
+  onClose,
+}: {
+  cycleId: string;
+  participantId: string;
+  name: string;
+  onClose: () => void;
+}) {
+  const t = useTranslations('takeMoney');
+  const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
+  const apiError = useApiError();
+  const { formatNumber } = useNumberFormat();
+  const { addToast } = useToast();
+  const refresh = useRefreshTaken(cycleId);
+  const [problem, setProblem] = useState<string | null>(null);
+  const sending = useRef(false);
+
+  const preview = useQuery<ExitPreview>({
+    queryKey: ['take-money', cycleId, 'exit', participantId],
+    queryFn: () => api.get(`/cycles/${cycleId}/participants/${participantId}/exit`).then((r) => r.data.data ?? r.data),
+    retry: false,
+  });
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.post(`/cycles/${cycleId}/participants/${participantId}/exit`, body),
+    onSettled: () => {
+      sending.current = false;
+    },
+    onSuccess: () => {
+      refresh();
+      void preview.refetch();
+      addToast(t('exit.saved', { name }), 'success');
+      onClose();
+    },
+    onError: (e) => {
+      refresh();
+      setProblem(apiError(e, t('exit.failed')));
+    },
+  });
+
+  const f = preview.data;
+  const loadProblem = preview.isError ? apiError(preview.error, t('exit.failed')) : null;
+  const row = (label: ReactNode, value: string, testId: string, strong = false) => (
+    <div className="flex items-baseline justify-between gap-3 py-1">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd data-testid={testId} className={cn('whitespace-nowrap tabular-nums', strong ? 'font-semibold text-foreground' : 'text-foreground')}>
+        <Money value={value} />
+      </dd>
+    </div>
+  );
+
+  return (
+    <Dialog
+      title={t('exit.title', { name })}
+      description={t('exit.hint')}
+      onClose={onClose}
+      busy={save.isPending}
+      cardProps={{ 'data-testid': 'exit-investor-dialog' }}
+      footer={
+        <FormActions
+          form="exit-investor-form"
+          onCancel={onClose}
+          cancelLabel={tc('cancel')}
+          submitLabel={t('exit.submit')}
+          busy={save.isPending}
+          disabled={!f}
+        />
+      }
+    >
+      <ValidatedForm
+        id="exit-investor-form"
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!f || sending.current) return;
+          setProblem(null);
+          sending.current = true;
+          const fd = new FormData(e.currentTarget);
+          save.mutate({
+            exitedOn: (fd.get('exitedOn') as string) || undefined,
+            note: ((fd.get('note') as string) || '').trim() || undefined,
+          });
+        }}
+      >
+        <DialogAlert message={problem ?? loadProblem} testId="exit-investor-problem" />
+        {preview.isLoading && (
+          <SkeletonRegion testId="exit-investor-loading">
+            {repeat(5, (i) => (
+              <SkeletonText key={i} className="w-full" />
+            ))}
+          </SkeletonRegion>
+        )}
+        {f && (
+          <dl data-testid="exit-figures" className="divide-y divide-border rounded-lg border border-border px-3 text-sm">
+            {row(t('exit.capital'), f.capitalEgp, 'exit-capital')}
+            {row(
+              t.rich('exit.profitShare', {
+                pct: () => <bdi dir="ltr">{formatNumber(num(f.sharePct), { maximumFractionDigits: 2 })}%</bdi>,
+                profit: () => <Money value={f.cycleProfitEgp} />,
+              }),
+              f.profitEgp,
+              'exit-profit',
+            )}
+            {num(f.investorFeeEgp) > 0 && (
+              <p data-testid="exit-fee" className="py-1 text-xs text-muted-foreground">
+                {t.rich('exit.afterFee', { fee: () => <Money value={f.investorFeeEgp} />, gross: () => <Money value={f.grossProfitEgp} /> })}
+              </p>
+            )}
+            {num(f.takenProfitEgp) > 0 && row(t('exit.takenProfit'), String(-num(f.takenProfitEgp)), 'exit-taken-profit')}
+            {num(f.takenCapitalEgp) > 0 && row(t('exit.takenCapital'), String(-num(f.takenCapitalEgp)), 'exit-taken-capital')}
+            {row(t('exit.payout'), f.payoutEgp, 'exit-payout', true)}
+          </dl>
+        )}
+        {f && (
+          <p data-testid="exit-split" className="-mt-2 text-xs text-muted-foreground">
+            {t.rich('exit.split', { profit: () => <Money value={f.payProfitEgp} />, capital: () => <Money value={f.payCapitalEgp} /> })}
+          </p>
+        )}
+        <p data-testid="exit-from" className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+          {t('exit.from')}
+        </p>
+        <FieldLabel label={t('exit.date')} required>
+          <DatePicker name="exitedOn" required disableFuture defaultValue={businessToday()} />
+        </FieldLabel>
+        <FieldLabel label={t('note')}>
+          <textarea name="note" rows={2} maxLength={500} placeholder={tph('profitDrawNote')} className={inputClass} />
         </FieldLabel>
       </ValidatedForm>
     </Dialog>

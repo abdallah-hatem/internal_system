@@ -85,6 +85,16 @@ const CYCLE_SORTS = {
 } satisfies Record<string, Prisma.ImportCycleOrderByWithRelationInput[]>;
 
 /** Accept only the two participant kinds the business recognises. */
+/** An investor paid out and taken off the cycle (§8, 2026-11-27): frozen. */
+function exitedRefusal(exitedOn: Date) {
+  const day = exitedOn.toISOString().slice(0, 10);
+  return badRequest(
+    'EXIT_PARTICIPANT_EXITED',
+    `This investor was paid out and removed from the cycle on ${day}; his figures can no longer change.`,
+    { day },
+  );
+}
+
 function assertParticipantType(value: string): ParticipantType {
   if (value === 'CORE_PARTNER' || value === 'TEMP_INVESTOR') return value;
   throw badRequest(
@@ -1490,6 +1500,9 @@ export class CyclesService {
       where: { id },
     });
     if (!existing) throw notFound('participant');
+    // Paid out and taken off the cycle (§8, 2026-11-27): his figures are
+    // frozen at what he was paid.
+    if (existing.exitedOn) throw exitedRefusal(existing.exitedOn);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       // Not once the settlement is approved, paid or the cycle closed (§8,
@@ -1578,6 +1591,18 @@ export class CyclesService {
       }
       const next = rows.map((r) => entries.get(r.id) ?? null);
       assertCustomSplit(next);
+      // An exited investor's share is fixed (§8, 2026-11-27): his percentage
+      // stays as it was; the others may agree theirs afresh.
+      rows.forEach((r, i) => {
+        if (!r.exitedOn) return;
+        const before = r.customProfitPct;
+        const after = next[i];
+        const same =
+          before === null || after === null
+            ? before === after
+            : before.equals(after);
+        if (!same) throw exitedRefusal(r.exitedOn);
+      });
 
       const changed = rows.filter((r, i) => {
         const before = r.customProfitPct;

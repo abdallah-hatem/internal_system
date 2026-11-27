@@ -19,6 +19,24 @@ export interface ParticipantInput {
   customProfitPct: Prisma.Decimal | null;
   /** Percentage of this investor's own profit taken as a fee (0-100). */
   investorFeePct: Prisma.Decimal | null;
+  /**
+   * A temporary investor paid out and taken off the cycle (§8, owner
+   * 2026-11-27): his share as it was frozen at exit. Absent or null for
+   * everyone still on the cycle.
+   */
+  exited?: ExitedShare | null;
+}
+
+/** An exited investor's share of the profit, as frozen when he was paid out. */
+export interface ExitedShare {
+  /** His share before any fee (negative on a loss). */
+  grossProfit: Prisma.Decimal;
+  /** The fee off it, positive — passes to the core partners like any fee. */
+  investorFee: Prisma.Decimal;
+  /** gross − fee: the profit he was paid for. */
+  netProfit: Prisma.Decimal;
+  /** His share of the split at exit, in percent (4dp). */
+  sharePct: Prisma.Decimal;
 }
 
 /**
@@ -34,6 +52,11 @@ export function participantInputsOf(
     contributionAmount: Prisma.Decimal.Value;
     customProfitPct: Prisma.Decimal.Value | null;
     investorFeePct: Prisma.Decimal.Value | null;
+    exitedOn?: Date | null;
+    exitGrossProfitEgp?: Prisma.Decimal.Value | null;
+    exitFeeEgp?: Prisma.Decimal.Value | null;
+    exitProfitEgp?: Prisma.Decimal.Value | null;
+    exitSharePct?: Prisma.Decimal.Value | null;
   }[],
 ): ParticipantInput[] {
   return rows.map((p) => ({
@@ -48,7 +71,28 @@ export function participantInputsOf(
     investorFeePct: p.investorFeePct
       ? new Prisma.Decimal(p.investorFeePct)
       : null,
+    exited: exitedShareOf(p),
   }));
+}
+
+/**
+ * A participant row's frozen exit (§8, 2026-11-27), or null while he is on
+ * the cycle. The one reading of the exit columns for the split.
+ */
+export function exitedShareOf(p: {
+  exitedOn?: Date | null;
+  exitGrossProfitEgp?: Prisma.Decimal.Value | null;
+  exitFeeEgp?: Prisma.Decimal.Value | null;
+  exitProfitEgp?: Prisma.Decimal.Value | null;
+  exitSharePct?: Prisma.Decimal.Value | null;
+}): ExitedShare | null {
+  if (!p.exitedOn) return null;
+  return {
+    grossProfit: new Prisma.Decimal(p.exitGrossProfitEgp ?? 0),
+    investorFee: new Prisma.Decimal(p.exitFeeEgp ?? 0),
+    netProfit: new Prisma.Decimal(p.exitProfitEgp ?? 0),
+    sharePct: new Prisma.Decimal(p.exitSharePct ?? 0),
+  };
 }
 
 export interface SettlementLineResult {
@@ -89,6 +133,14 @@ export interface DistributionResult {
  * Rounding: shares are computed at full precision and each line is rounded to
  * 2dp, with the last line absorbing the residual so the parts always re-sum to
  * the total being distributed.
+ *
+ * An investor who exited (§8, owner 2026-11-27: "kick them both out by giving
+ * them their money") keeps the share frozen when he was paid out, whatever the
+ * profit does afterwards. What is left — `totalProfit` less every exited
+ * share before fees — is split among the participants still on the cycle by
+ * their own basis: their contributions, or their agreed percentages
+ * renormalised among them (GUESS). His fee, if any, still passes to the core
+ * partners. So the lines still re-sum to `totalProfit`.
  */
 export function distributeCycleProfit(
   participants: ParticipantInput[],
@@ -101,24 +153,45 @@ export function distributeCycleProfit(
     );
   }
 
-  const shares = resolveShares(participants);
+  const shares = resolveLiveShares(participants);
+  const isLive = participants.map((p) => !p.exited);
+  // What the participants still on the cycle share: the profit less what the
+  // exited ones were fixed at (before their fees).
+  const toSplit = participants.reduce(
+    (left, p) => (p.exited ? left.sub(p.exited.grossProfit) : left),
+    totalProfit,
+  );
 
   // --- Gross profit per participant, residual to the last line -------------
   // The last line with a share, so the piastres rounding leaves over never
   // land on someone the split gives nothing — a participant who put in
-  // nothing takes nothing.
+  // nothing takes nothing — nor on someone who has exited.
   let residualIdx = participants.length - 1;
-  while (residualIdx > 0 && shares[residualIdx].lte(0)) residualIdx--;
+  while (
+    residualIdx > 0 &&
+    (!isLive[residualIdx] || shares[residualIdx].lte(0))
+  )
+    residualIdx--;
   const amounts = participants.map((p, idx) =>
-    idx === residualIdx ? ZERO : money(totalProfit.mul(shares[idx])),
+    p.exited
+      ? p.exited.grossProfit
+      : idx === residualIdx
+        ? ZERO
+        : money(toSplit.mul(shares[idx])),
   );
-  const allocated = amounts.reduce((s, a) => s.add(a), ZERO);
+  const allocated = amounts.reduce(
+    (s, a, idx) => (isLive[idx] ? s.add(a) : s),
+    ZERO,
+  );
   const gross = amounts.map((amount, idx) =>
-    idx === residualIdx ? totalProfit.sub(allocated) : amount,
+    idx === residualIdx && isLive[idx] ? toSplit.sub(allocated) : amount,
   );
 
   // --- Investor fees: a share of the investor's profit, only on a gain -----
+  // An exited investor's was fixed with his share, and still goes to the
+  // core partners.
   const fees = participants.map((p, idx) => {
+    if (p.exited) return p.exited.investorFee;
     if (p.type !== 'TEMP_INVESTOR' || !p.investorFeePct) return ZERO;
     if (gross[idx].lte(0)) return ZERO; // no fee is charged against a loss
     return money(gross[idx].mul(p.investorFeePct).div(HUNDRED));
@@ -152,7 +225,9 @@ export function distributeCycleProfit(
     return {
       participantId: p.id,
       type: p.type,
-      sharePct: shares[idx].mul(HUNDRED).toDecimalPlaces(4),
+      sharePct: p.exited
+        ? p.exited.sharePct
+        : shares[idx].mul(HUNDRED).toDecimalPlaces(4),
       grossProfit: gross[idx],
       investorFee: fees[idx],
       netProfit,
@@ -353,7 +428,7 @@ export function profitBasisOf(
 export function profitSplitView(
   participants: Pick<
     ParticipantInput,
-    'type' | 'contribution' | 'customProfitPct'
+    'type' | 'contribution' | 'customProfitPct' | 'exited'
   >[],
 ): {
   basis: ProfitBasis;
@@ -362,6 +437,33 @@ export function profitSplitView(
   problem: 'PARTIAL_CUSTOM_SPLIT' | 'SPLIT_NOT_100' | null;
   pcts: (string | null)[];
 } {
+  // An exited investor (§8, 2026-11-27) has his share fixed: the others'
+  // percentages are of what is left, so they read 100 among themselves and
+  // his reads as none.
+  if (participants.some((p) => p.exited)) {
+    const whole = profitSplitView(
+      participants.map((p) => ({ ...p, exited: null })),
+    );
+    const liveIdx = participants
+      .map((p, i) => (p.exited ? -1 : i))
+      .filter((i) => i >= 0);
+    const of =
+      whole.basis === 'CUSTOM_SPLIT'
+        ? liveIdx.map((i) => participants[i].customProfitPct ?? ZERO)
+        : liveIdx.map((i) => participants[i].contribution);
+    const total = of.reduce((s, v) => s.add(v), ZERO);
+    const canShow =
+      whole.basis !== 'NONE' &&
+      whole.problem === null &&
+      total.gt(0) &&
+      of.every((v) => v.gte(0));
+    const live = canShow ? percentagesOf(of) : [];
+    const pcts: (string | null)[] = participants.map(() => null);
+    liveIdx.forEach((i, n) => {
+      pcts[i] = canShow ? live[n].toFixed(2) : null;
+    });
+    return { ...whole, pcts };
+  }
   const basis = profitBasisOf(participants);
   if (basis === 'CUSTOM_SPLIT') {
     return {
@@ -429,6 +531,39 @@ export function percentagesOf(
     missing -= 1;
   }
   return floors.map((f) => f.div(100));
+}
+
+/**
+ * Each participant's fraction (0-1) of what the participants still on the
+ * cycle share; zero for one who exited (§8, 2026-11-27). With nobody exited,
+ * exactly `resolveShares`. Otherwise an agreed split must still be whole
+ * across everyone (the exited's percentage stays as it was), and the
+ * remaining percentages are renormalised among the remaining (GUESS); a split
+ * by contribution is taken over the remaining contributions.
+ */
+function resolveLiveShares(participants: ParticipantInput[]): Prisma.Decimal[] {
+  if (!participants.some((p) => p.exited)) return resolveShares(participants);
+  const live = participants.filter((p) => !p.exited);
+  let liveShares: Prisma.Decimal[];
+  if (profitBasisOf(participants) === 'CUSTOM_SPLIT') {
+    assertCustomSplit(participants.map((p) => p.customProfitPct));
+    const total = live.reduce((s, p) => s.add(p.customProfitPct!), ZERO);
+    if (total.lte(0)) throw notFunded();
+    liveShares = live.map((p) => p.customProfitPct!.div(total));
+  } else {
+    // No exited participant takes part, so contributions are the remaining's.
+    if (live.length === 0) throw notFunded();
+    liveShares = resolveShares(live);
+  }
+  let i = 0;
+  return participants.map((p) => (p.exited ? ZERO : liveShares[i++]));
+}
+
+function notFunded() {
+  return badRequest(
+    'CYCLE_NOT_FUNDED',
+    'No contributions are recorded for this cycle, so there is no basis to split its profit. Record what each participant put in first.',
+  );
 }
 
 /** Fractional share (0-1) per participant, from an agreed split or capital. */

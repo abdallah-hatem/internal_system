@@ -80,6 +80,23 @@ export class TakeMoneyDto {
   note?: string;
 }
 
+/**
+ * POST /cycles/:id/participants/:participantId/exit — a temporary investor
+ * paid out and taken off the cycle (§8, owner 2026-11-27). The amounts are the
+ * server's: only the day and a note are asked.
+ */
+export class ExitInvestorDto {
+  /** The Cairo day he was paid; today when left out. */
+  @IsOptional()
+  @IsDateString()
+  exitedOn?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
 /** POST /profit-draws/:id/reverse — a reason travels with every undo (§9). */
 export class ReverseProfitDrawDto {
   @IsString()

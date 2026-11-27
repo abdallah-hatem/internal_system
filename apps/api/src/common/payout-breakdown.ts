@@ -173,6 +173,13 @@ export interface ParticipantPayout {
   owedEgp: string;
   /** What he is (or was, or would be) paid: the sum of the lines above, plus what is owed. */
   paidEgp: string;
+  /**
+   * Paid out and taken off the cycle before it settled (§8, 2026-11-27): the
+   * day, and what he was handed then. His lines are frozen at that payout, so
+   * this settlement pays him nothing more.
+   */
+  exitedOn: string | null;
+  exitPaidEgp: string | null;
 }
 
 export interface PayoutBreakdown {
@@ -191,7 +198,12 @@ type SettlementLineIn = {
   participantId: string;
   component: string;
   amount: Prisma.Decimal.Value;
-  participant: { participantType: string };
+  participant: {
+    participantType: string;
+    // Paid out and taken off the cycle before it settled (§8, 2026-11-27).
+    exitedOn?: Date | null;
+    exitPaidEgp?: Prisma.Decimal.Value | null;
+  };
 };
 
 /**
@@ -283,6 +295,12 @@ export function buildPayoutBreakdown(input: {
         capitalTakenEarlyEgp: fixed(capitalEarly),
         owedEgp: fixed(owed),
         paidEgp: fixed(payable.add(owed)),
+        exitedOn: group[0].participant.exitedOn
+          ? group[0].participant.exitedOn.toISOString().slice(0, 10)
+          : null,
+        exitPaidEgp: group[0].participant.exitedOn
+          ? fixed(D(group[0].participant.exitPaidEgp ?? 0))
+          : null,
       };
     },
   );

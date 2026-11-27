@@ -394,6 +394,9 @@ model ProfitDraw {
   settledById             String?        @map("settled_by_id") @db.Uuid
   /// The settlement that left it owing (CARRIED only).
   carriedFromSettlementId String?        @map("carried_from_settlement_id") @db.Uuid
+  /// The investor's exit that paid it out (§8, 2026-11-27). An exit is final,
+  /// so a row with this set is never undone on its own.
+  exitParticipantId       String?        @map("exit_participant_id") @db.Uuid
   createdBy               String?        @map("created_by") @db.Uuid
   createdAt               DateTime       @default(now()) @map("created_at") @db.Timestamptz()
   reversedAt              DateTime?      @map("reversed_at") @db.Timestamptz()
@@ -405,9 +408,11 @@ model ProfitDraw {
   ledgerEntry FinancialTransaction? @relation("ProfitDrawLedger", fields: [ledgerEntryId], references: [id])
   settledBy   Settlement?           @relation("ProfitDrawSettledBy", fields: [settledById], references: [id])
   carriedFrom Settlement?           @relation("ProfitDrawCarriedFrom", fields: [carriedFromSettlementId], references: [id])
+  exitOf      CycleParticipant?     @relation("ProfitDrawExit", fields: [exitParticipantId], references: [id])
 
   @@index([cycleId])
   @@index([partnerUserId])
+  @@index([exitParticipantId])
   @@map("profit_draws")
 }
 
@@ -482,6 +487,27 @@ model CycleParticipant {
   createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
   version            Int             @default(1)
+  /// A temporary investor paid out and taken off the cycle before it settled
+  /// (§8, owner 2026-11-27). All the exit columns are set together, or none.
+  /// From then on his figures are frozen: the settlement pays him nothing more
+  /// and the rest of the profit is split among the others.
+  exitedOn           DateTime?       @map("exited_on") @db.Date
+  /// His capital paid back at exit: his contribution.
+  exitCapitalEgp     Decimal?        @map("exit_capital_egp") @db.Decimal(18, 2)
+  /// His share of the cycle's profit at exit, before any fee (negative on a loss).
+  exitGrossProfitEgp Decimal?        @map("exit_gross_profit_egp") @db.Decimal(18, 2)
+  /// The fee off that share (passes to the core partners at settlement).
+  exitFeeEgp         Decimal?        @map("exit_fee_egp") @db.Decimal(18, 2)
+  /// His profit share net of the fee: the profit he was paid for.
+  exitProfitEgp      Decimal?        @map("exit_profit_egp") @db.Decimal(18, 2)
+  /// His share of the profit split at exit, in percent.
+  exitSharePct       Decimal?        @map("exit_share_pct") @db.Decimal(8, 4)
+  /// The cycle's profit (settlement projection) the share was taken of.
+  exitCycleProfitEgp Decimal?        @map("exit_cycle_profit_egp") @db.Decimal(18, 2)
+  /// Cash handed to him at exit: capital + profit − what he had taken early.
+  exitPaidEgp        Decimal?        @map("exit_paid_egp") @db.Decimal(18, 2)
+  exitedAt           DateTime?       @map("exited_at") @db.Timestamptz()
+  exitedBy           String?         @map("exited_by") @db.Uuid
 
   cycle              ImportCycle              @relation(fields: [cycleId], references: [id])
   partner            User?                    @relation("CyclePartnerUser", fields: [partnerUserId], references: [id])
@@ -489,6 +515,7 @@ model CycleParticipant {
   settlementLines    SettlementLine[]
   runningCostCharges RunningCostCharge[]
   accountMovements   PartnerAccountMovement[]
+  exitDraws          ProfitDraw[]             @relation("ProfitDrawExit")
 
   // A person joins a cycle once. Without this a double-add silently dilutes
   // every other participant's profit share.

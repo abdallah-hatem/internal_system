@@ -20,6 +20,7 @@ import { parseCurrencyCode, parseRateToEgp } from '../../common/fx-rate';
 import { recordContributionChange } from '../../common/contribution-ledger';
 import {
   agreedSplitIsEqual,
+  exitedShareOf,
   profitShareOf,
   profitSplitView,
 } from '../settlements/settlement-math';
@@ -254,6 +255,13 @@ export class PartnerAccountsService {
             customProfitPct: true,
             investorFeePct: true,
             createdAt: true,
+            exitedOn: true,
+            exitCapitalEgp: true,
+            exitGrossProfitEgp: true,
+            exitFeeEgp: true,
+            exitProfitEgp: true,
+            exitSharePct: true,
+            exitPaidEgp: true,
             partner: {
               select: {
                 email: true,
@@ -398,6 +406,7 @@ export class PartnerAccountsService {
         contribution: D(p.contributionAmount),
         customProfitPct:
           p.customProfitPct === null ? null : D(p.customProfitPct),
+        exited: exitedShareOf(p),
       })),
     );
     // Everyone shares equally by the agreed split, investors too (owner
@@ -670,6 +679,15 @@ export class PartnerAccountsService {
           investorFeePct:
             p.investorFeePct === null ? null : D(p.investorFeePct).toFixed(2),
           profitPct: split.pcts[i],
+          /** Paid out and taken off the cycle before it settled (§8, 2026-11-27); null while on it. */
+          exit: p.exitedOn
+            ? {
+                exitedOn: p.exitedOn.toISOString().slice(0, 10),
+                paidEgp: m2(p.exitPaidEgp ?? 0),
+                capitalEgp: m2(p.exitCapitalEgp ?? 0),
+                profitEgp: m2(p.exitProfitEgp ?? 0),
+              }
+            : null,
         })),
         profitSplit: {
           basis: split.basis,

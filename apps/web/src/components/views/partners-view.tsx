@@ -16,6 +16,7 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { downloadCsv, datedFilename } from '@/lib/export-csv';
 import { useCodeLabel } from '@/lib/labels';
 import { useNumberFormat } from '@/lib/numbers';
+import { useDateFormat } from '@/lib/dates';
 import { ListToolbar } from '@/components/ui/list-toolbar';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -29,6 +30,9 @@ interface PartnerCycle {
   undrawnAdvancesEgp?: number;
   profitShareEgp: number;
   accruedProfitEgp: number;
+  /** Paid out and taken off the cycle before it settled (§8, 2026-11-27). */
+  exitedOn?: string | null;
+  exitPaidEgp?: number | null;
 }
 
 interface Participation {
@@ -398,6 +402,7 @@ function PartnerCardSkeleton() {
 function PartnerCard({ person, t }: { person: Participation; t: any }) {
   const locale = useLocale();
   const { formatMoney: egp } = useNumberFormat();
+  const { formatDate } = useDateFormat();
 
   return (
     <div data-testid="partner-card" data-email={person.email} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
@@ -476,6 +481,11 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
                 >
                   {c.code}
                 </Link>
+                {c.exitedOn && (
+                  <span data-testid="partner-cycle-exited" className="ms-2 me-auto text-muted-foreground">
+                    {t('exitedOn', { day: formatDate(c.exitedOn), paid: egp(c.exitPaidEgp ?? 0) })}
+                  </span>
+                )}
                 <span className="text-gray-500" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
                   {egp(putInOf(c))}
                   {c.profitShareEgp > 0 && (

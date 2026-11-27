@@ -107,6 +107,10 @@ export class UsersService {
           select: {
             id: true,
             contributionAmount: true,
+            exitedOn: true,
+            exitCapitalEgp: true,
+            exitProfitEgp: true,
+            exitPaidEgp: true,
             cycle: { select: { id: true, code: true, status: true } },
           },
         },
@@ -114,6 +118,10 @@ export class UsersService {
           select: {
             id: true,
             contributionAmount: true,
+            exitedOn: true,
+            exitCapitalEgp: true,
+            exitProfitEgp: true,
+            exitPaidEgp: true,
             cycle: { select: { id: true, code: true, status: true } },
           },
         },
@@ -305,19 +313,35 @@ export class UsersService {
           contribution: Prisma.Decimal;
           profit: Prisma.Decimal;
           accrued: Prisma.Decimal;
+          exitedOn?: string;
+          exitPaid?: Prisma.Decimal;
         }
       >();
 
       for (const entry of entries) {
         contributed = contributed.add(entry.contributionAmount);
-        const settled = byParticipant.get(entry.id);
+        // Paid out and taken off the cycle before it settled (§8,
+        // 2026-11-27): what he was handed is his capital back and his profit,
+        // already — not a projection, and not counted again when the cycle's
+        // settlement (which pays him nothing more) is paid.
+        const exit = entry.exitedOn
+          ? {
+              on: entry.exitedOn,
+              capital: new Prisma.Decimal(entry.exitCapitalEgp ?? 0),
+              profit: new Prisma.Decimal(entry.exitProfitEgp ?? 0),
+              paid: new Prisma.Decimal(entry.exitPaidEgp ?? 0),
+            }
+          : null;
+        const settled = exit
+          ? { returned: exit.capital, profit: exit.profit }
+          : byParticipant.get(entry.id);
         if (settled) {
           returned = returned.add(settled.returned);
           profitShare = profitShare.add(settled.profit);
         }
         // Only while the cycle is open. Once it closes the settled figure is
         // the truth and a projection alongside it would just disagree.
-        const open = entry.cycle.status !== 'CLOSED';
+        const open = entry.cycle.status !== 'CLOSED' && !exit;
         const entryAccrued = open
           ? new Prisma.Decimal(accrued.get(entry.id) ?? 0)
           : new Prisma.Decimal(0);
@@ -334,6 +358,10 @@ export class UsersService {
         row.contribution = row.contribution.add(entry.contributionAmount);
         row.profit = row.profit.add(settled?.profit ?? 0);
         row.accrued = row.accrued.add(entryAccrued);
+        if (exit) {
+          row.exitedOn = exit.on.toISOString().slice(0, 10);
+          row.exitPaid = exit.paid;
+        }
         byCycle.set(entry.cycle.id, row);
       }
 
@@ -420,6 +448,9 @@ export class UsersService {
             undrawnAdvancesEgp: money(c.undrawn),
             profitShareEgp: money(c.profit),
             accruedProfitEgp: money(c.accrued),
+            /** Paid out and taken off the cycle before it settled (§8, 2026-11-27). */
+            exitedOn: c.exitedOn ?? null,
+            exitPaidEgp: c.exitPaid ? money(c.exitPaid) : null,
           }))
           .sort((a, b) => b.code.localeCompare(a.code)),
       };
