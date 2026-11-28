@@ -410,7 +410,7 @@ model ProfitDraw {
   ledgerEntry FinancialTransaction? @relation("ProfitDrawLedger", fields: [ledgerEntryId], references: [id])
   settledBy   Settlement?           @relation("ProfitDrawSettledBy", fields: [settledById], references: [id])
   carriedFrom Settlement?           @relation("ProfitDrawCarriedFrom", fields: [carriedFromSettlementId], references: [id])
-  exitOf      CycleParticipant?     @relation("ProfitDrawExit", fields: [exitParticipantId], references: [id])
+  exitOf      CycleParticipant?     @relation("ProfitDrawExit", fields: [exitParticipantId], references: [id], onDelete: Restrict)
 
   @@index([cycleId])
   @@index([partnerUserId])
