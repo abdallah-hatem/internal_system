@@ -650,3 +650,23 @@ debt; their share passes to the remaining partners. **DECIDED** (owner's words).
 | Reversing the settlement | The exits stand; their rows stand again unsettled, as draws do; settling again pays exactly the same. An exit itself is never undone. | GUESS |
 | Partners page | His cycle row reads "Exited <day> · paid X"; his returned and profit are what he was paid, not counted again when the cycle's settlement is paid; no accrued profit. | GUESS |
 | Arabic | «صرف وإخراج», «خرج يوم … · صُرف له …», the dialog and refusals in the agent's wording. | GUESS |
+
+### Goods damaged in storage in the cycle's profit — DECIDED 2026-11-28 (owner), on `feature/mark-damaged`, not merged, details GUESSED where marked (decided by the assistant 2026-11-28; owner can change)
+
+Marking units damaged (§3) records their landed cost as a loss of the batch's cycle. It is the same kind of figure as
+goods lost on the way and samples written off — goods the cycle paid for that will never sell — so it is one more part
+of the **one** write-off figure, `cycleWriteOffsEgp(...).total` (`damagedInStorage`, beside `lostOnTheWay` and
+`samplesWrittenOff`), never a parallel sum. What it is NOT: not a ledger expense, not cost of goods sold, not a cost
+recovery; no money moves.
+
+| Where | What it does | Status |
+|---|---|---|
+| Settlement and its preview | Off the profit with the other write-offs; its own cost line, **Damaged in storage** (`loss` / `damaged_in_storage`) in the payout breakdown. | DECIDED (owner: a loss of the cycle); own label GUESS |
+| Take money, the Partners page, the Funding card's %, the exit preview | All read the settlement projection, so all see it. A partner's profit room is his share of the profit collected; a damage lowers it, never below 0 — a draw already taken beyond it is not refused nor shown as owed here (it comes off his payout at settlement, as any draw). | DECIDED (one definition); floor at 0 GUESS |
+| An exited investor | His frozen figures never change. A damage recorded after his exit falls only on those still on the cycle (`distributeCycleProfit` reads the frozen share). "After" means recorded after, whatever day it is dated. Undoing a damage that predates the exit is allowed; the gain goes to those still on the cycle. | DECIDED (owner: later costs are theirs); the undo GUESS |
+| Dashboard net profit, Analytics P&L, What made a bar, the cycle comparison and the cycle page's profit card | The same figure; in Analytics its own line **Damaged in storage**, dated by the day entered, one row per damage in What made a bar. The profit card's line is now "Lost and written off" (it already carried samples written off). An undone damage is in no period. | GUESS (label, day) |
+| A draft settlement | A damage marked or undone after it was calculated makes it stale: approving it is refused (`SETTLEMENT_STALE_WRITE_OFFS`) until it is calculated again, so a pre-damage draft is never approved or paid. Approved or paid: the damage is refused (`CYCLE_SETTLING`). | GUESS |
+
+CYC-2026-0001 on a copy of production (2026-11-28): 2 phone holders at 595.382 → **1,190.76**; profit 34,433.90 →
+33,243.14; Abdallah's payout 64,414.30 → 63,966.24, Shady 53,387.15 → 53,015.80, Fares 53,387.14 → 53,015.79; each
+exited investor stays at 32,207.15. Undone: back to 34,433.90.

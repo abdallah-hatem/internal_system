@@ -77,6 +77,7 @@ cycle expense, as before:
 |---|---|---|
 | The cycle has a settlement in draft, approved or paid (a reversed one is ignored), or is being settled, closed or cancelled | `LEG_COST_LOCKED_SETTLEMENT` | The figures were agreed on the old cost. Recalculating is not possible once a settlement exists; record it as a cycle expense. |
 | Anything of the cycle was marked lost | `LEG_COST_LOCKED_LOSSES` | The loss was booked at the old unit cost, and refunds may hang off it. |
+| Units of the cycle were marked damaged in storage and the damage stands (2026-11-28) | `LEG_COST_LOCKED_DAMAGED` | Like a loss, the damage was booked at the old unit cost. Undoing the damage lifts it. **GUESS** (decided by the assistant 2026-11-28; owner can change). |
 | Stock was moved into or out of the cycle and the transfer stands | `LEG_COST_LOCKED_TRANSFERS` | The other cycle took the units at the old cost (§8). Undoing the transfer lifts it. |
 | A batch is not at the cost the legs compute today | `LEG_COST_LOCKED_OVERRIDE` | That is a cost typed by hand at receipt, which a re-cost would silently replace. |
 | An order line's purchase rows do not pair one-to-one with its batches, at their costs | `LEG_COST_LOCKED_LEDGER` | Re-costing would have to guess which row is which. |

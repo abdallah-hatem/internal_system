@@ -336,3 +336,30 @@ record numbers — one per kind of record, never one per row; the screen looks n
 
 Desktop: the movements are the shared table (Movement, Customer, Price, Record, Date); a phone: a card per movement,
 the customer and price on its second line.
+
+---
+
+### Goods damaged in storage — DECIDED 2026-11-28 (owner: "a damaged product or two from cycle CYC-2026-0001"), on `feature/mark-damaged`, not merged, details GUESSED where marked (decided by the assistant 2026-11-28; owner can change)
+
+A unit that breaks on the shelf is written off: it leaves the batch's stock, and what it cost — the batch's landed unit
+cost — is a loss of the cycle that batch belongs to. **No money moves** (the cash left when the goods were bought), so
+no ledger row is written (§9). The loss is read through the one write-off definition every profit figure uses
+(`cycleWriteOffsEgp`, `common/cycle-losses.ts`, CLAUDE.md §11) — see §8.
+
+| Question | Rule | Status |
+|---|---|---|
+| Where | The cycle page's Inventory card: **Mark damaged** on each batch row with units on the shelf. A **Damaged in storage** list below it shows each damage (day, product × units, loss, who, note) with **Undo**. `POST /inventory/batches/:id/damages`, `POST /inventory/damages/:id/undo`, `GET /cycles/:id/damages`. | GUESS (placement) |
+| Who | Core partners only (`RolesGuard`); anyone else `ROLE_NOT_ALLOWED`. An investor reads his own cycles' list. | GUESS |
+| How many | Whole units, more than zero: 0 or negative `STOCK_DAMAGE_QTY_NOT_POSITIVE`, 1.5 `STOCK_DAMAGE_QTY_NOT_WHOLE`. | GUESS (whole units) |
+| From what | What is on the batch's shelf (sellable) less what is held for a shop's storefront request right now — a hold is a promise, as Move leftovers reads it. Sold units, samples out at a shop and damaged returns are not on the shelf. More: `STOCK_DAMAGE_MORE_THAN_ON_SHELF` (`available`, `requested`). A broken sample goes through the samples order's **Write off** (§4). A draft order holds nothing, so it never refuses a damage — confirming it later may be refused for stock (`INSUFFICIENT_STOCK`). Two marks at once cannot take the same units (a guarded update under the cycle's lock). | GUESS (holds count; samples apart) |
+| The day | "Found on": today by default, not in the future (`DATE_IN_FUTURE`, label `STOCK_DAMAGED`), not before the batch was received (`STOCK_DAMAGE_BEFORE_RECEIVED`). Analytics puts the loss on that day. | GUESS |
+| Note | Optional when marking; an undo needs a reason (`STOCK_DAMAGE_REASON_REQUIRED`), like every undo. At most 500 characters. | GUESS |
+| The cost | Units × the batch's landed unit cost, to the piastre, half up — never re-pricing the batch or anything sold from it. When the damage takes the **last units of its order line** (every batch of the line empty, nothing of it moved to another cycle) it takes the rounding residual, as the last receipt or loss does (§2), so the line's sold cost + damages = what it cost. | GUESS (the residual) |
+| Records | A `stock_damages` row (migration `20261128100000_stock_damages`, additive) and a `WRITE_OFF` movement of −N on the batch (reference `STOCK_DAMAGE`). In the batch's movements it reads **Damaged in storage**, no customer, the landed cost as "cost". | GUESS (reuse `WRITE_OFF`) |
+| Undo | Puts the units back on the same batch (an `ADJUSTMENT` +N, reads **Damage undone**) and the loss off the cycle. The row is kept, marked undone with who, when and why; an undone damage counts in no profit figure and in no period. A second undo: `STOCK_DAMAGE_ALREADY_UNDONE` (two at once put the units back once). Allowed even after the rest of the batch sold — it only adds stock. | GUESS |
+| A settled cycle | Refused (marking and undoing) once the settlement is approved or paid, or the cycle is in Settlement or Closed (`CYCLE_SETTLING`), or cancelled (`CYCLE_CLOSED`). Reversing the settlement opens it again. A **draft** settlement does not refuse it: the draft goes stale and is refused at approval (`SETTLEMENT_STALE_WRITE_OFFS`) until calculated again. | GUESS |
+| Stock moved in | A damage on a batch moved in from another cycle is the receiving cycle's loss (it funded those units). Any damage on it — even one undone — makes that transfer permanent (`TRANSFER_UNITS_SOLD`). | GUESS |
+| Leg cost | While a damage stands, the cycle's leg cost cannot be recalculated (`LEG_COST_LOCKED_DAMAGED`), as with a loss (§2). | GUESS |
+| Low stock | A damage that takes a product under its minimum raises the same low-stock alert a sale does. No refund can be recorded against a damage. | GUESS |
+| Where the goods are | Damaged units are counted inside **Lost** ("N damaged in storage" under it), never as sold; the places still add up to what was ordered. | GUESS |
+| Data checks | `scripts/check-data.sh` 12.96–12.991: a damage dated forward; a line or batch with more damaged than received; an undone damage with no movement putting its units back; a damage with no write-off movement. | — |
