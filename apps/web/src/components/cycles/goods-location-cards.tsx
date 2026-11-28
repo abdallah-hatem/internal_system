@@ -92,6 +92,11 @@ function useLocationColumns(places: Place[], fmt: (n: number) => string, forward
               {t('notCheckedIn', { count: fmt(p.notCheckedIn) })}
             </span>
           )}
+          {place === 'lost' && p.damaged > 0 && (
+            <span className="block text-xs font-normal text-muted-foreground">
+              {t('damagedInStorage', { count: fmt(p.damaged) })}
+            </span>
+          )}
         </>
       ),
     })),
@@ -185,6 +190,11 @@ export function GoodsLocationCards({
                       {place === 'inEgypt' && totals.notCheckedIn > 0 && (
                         <p data-testid="location-not-checked-in" className="mt-0.5 text-xs text-muted-foreground">
                           {t('notCheckedIn', { count: fmt(totals.notCheckedIn) })}
+                        </p>
+                      )}
+                      {place === 'lost' && totals.damaged > 0 && (
+                        <p data-testid="location-damaged" className="mt-0.5 text-xs text-muted-foreground">
+                          {t('damagedInStorage', { count: fmt(totals.damaged) })}
                         </p>
                       )}
                       {place === 'toEgypt' && located.withForwarderUnknown > 0 && (

@@ -29,7 +29,7 @@ interface Scenario {
   deliveries?: Array<{ leg: number; line: typeof PAD; qty: number; id?: string }>;
   losses?: Array<{ leg: number; line: typeof PAD; qty: number }>;
   /** Batches received from the last leg: received, and what is left on the shelf. */
-  batches?: Array<{ line: typeof PAD; received: number; remaining: number }>;
+  batches?: Array<{ line: typeof PAD; received: number; remaining: number; damaged?: number }>;
   /** Batches the position does not see (no source order line — older data). */
   extraBatches?: LocationBatch[];
   /** Transfers out of and into the cycle (§8, L5); batches are `batch-1`, `batch-2`… in order. */
@@ -47,6 +47,7 @@ function scenario(s: Scenario) {
     productId: b.line.productId,
     receivedQty: String(b.received),
     remainingQty: String(b.remaining),
+    ...(b.damaged ? { damagedQty: String(b.damaged) } : {}),
   }));
   const extra = s.extraBatches ?? [];
   return locateGoods({
@@ -94,7 +95,7 @@ function build(s: Scenario) {
 }
 
 const expectPlaces = (actual: GoodsBuckets, expected: Partial<GoodsBuckets>) => {
-  const all: GoodsBuckets = { ordered: 0, inChina: 0, toUae: 0, inUae: 0, toEgypt: 0, inEgypt: 0, notCheckedIn: 0, sold: 0, lost: 0, moved: 0, ...expected };
+  const all: GoodsBuckets = { ordered: 0, inChina: 0, toUae: 0, inUae: 0, toEgypt: 0, inEgypt: 0, notCheckedIn: 0, sold: 0, lost: 0, damaged: 0, moved: 0, ...expected };
   const picked = Object.fromEntries(Object.keys(all).map((k) => [k, actual[k as keyof GoodsBuckets]]));
   expect(picked).toEqual(all);
 };
@@ -494,5 +495,30 @@ describe('leftovers moved to another cycle at their cost (§8, L5)', () => {
     });
     expectPlaces(r.totals, { ordered: 10, inEgypt: 10 });
     expect(r.fromCycles[0]).toMatchObject({ units: 20, onShelf: 17, sold: 3 });
+  });
+});
+
+describe('goods damaged in storage (§3, 2026-11-28)', () => {
+  it('TC-DMG-01 damaged units are in Lost, not Sold, and the places still add up to what was ordered', () => {
+    const r = scenario({
+      direct: true,
+      ordered: [[PAD, 100]],
+      legs: ['2026-09-01'],
+      deliveries: [{ leg: 1, line: PAD, qty: 100 }],
+      batches: [{ line: PAD, received: 100, remaining: 56, damaged: 4 }],
+    });
+    expectPlaces(r.totals, { ordered: 100, inEgypt: 56, sold: 40, lost: 4, damaged: 4 });
+    expect(placesSum(r.totals)).toBe(100);
+  });
+
+  it('TC-DMG-16 an undone damage is not counted: the batch sends no damaged units', () => {
+    const r = scenario({
+      direct: true,
+      ordered: [[PAD, 100]],
+      legs: ['2026-09-01'],
+      deliveries: [{ leg: 1, line: PAD, qty: 100 }],
+      batches: [{ line: PAD, received: 100, remaining: 60 }],
+    });
+    expectPlaces(r.totals, { ordered: 100, inEgypt: 60, sold: 40 });
   });
 });

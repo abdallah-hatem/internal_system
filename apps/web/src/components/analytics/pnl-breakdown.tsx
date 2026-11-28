@@ -61,7 +61,7 @@ export interface OrderRow {
 }
 
 export interface ExpenseRow {
-  kind: 'ledger' | 'loss' | 'samples';
+  kind: 'ledger' | 'loss' | 'samples' | 'damaged';
   id: string;
   day: string;
   category: string | null;
@@ -69,6 +69,8 @@ export interface ExpenseRow {
   entry: BreakdownEntry | null;
   order: BreakdownOrder | null;
   loss: { qty: number; reason: string | null; product: string; leg: number; cycle: Ref } | null;
+  /** Goods damaged in storage (§3, 2026-11-28). */
+  damage?: { qty: number; note: string | null; product: string; cycle: Ref } | null;
 }
 
 export interface ExchangeRow {
@@ -423,6 +425,18 @@ function ExpenseLine({ row }: { row: ExpenseRow }) {
         <CycleLink cycle={row.loss.cycle} />
       </p>
     ) : null;
+  } else if (row.kind === 'damaged') {
+    name = row.damage ? t('breakdown.damaged', { product: row.damage.product, qty: row.damage.qty }) : t('damagedInStorage');
+    meta = (
+      <>
+        {row.damage?.note && <p className="truncate text-muted-foreground">{row.damage.note}</p>}
+        {row.damage?.cycle && (
+          <p className="text-xs">
+            <CycleLink cycle={row.damage.cycle} />
+          </p>
+        )}
+      </>
+    );
   } else {
     name = t('breakdown.samplesWrittenOff');
     meta = (

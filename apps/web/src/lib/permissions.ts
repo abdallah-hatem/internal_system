@@ -35,6 +35,9 @@ export const ACTION_ROLES = {
   'shipment.handover': PARTNERS,
   // Receiving into stock — InventoryController
   'inventory.receive': PARTNERS, //       POST /receipts/verify
+  // Goods damaged in storage (§3, 2026-11-28) — StockDamagesController
+  'stockDamage.mark': PARTNERS, //       POST /inventory/batches/:id/damages
+  'stockDamage.undo': PARTNERS, //       POST /inventory/damages/:id/undo
   // Settlements — SettlementsController
   'settlement.calculate': PARTNERS, //    POST /settlements/calculate/:cycleId
   'settlement.approve': PARTNERS, //      POST /settlements/:id/approve

@@ -38,6 +38,7 @@ import { SkeletonRegion, Skeleton, SkeletonText, repeat, type SkeletonTextSize }
 import { viewPath } from '@/lib/page-views';
 import { FundingCard, FundingCardSkeleton } from '@/components/cycles/funding-card';
 import { TakeMoneyCard } from '@/components/cycles/take-money-card';
+import { CycleDamagesSection, MarkDamagedButton, useCycleDamages } from '@/components/cycles/cycle-damages';
 import { TimelineCard, TimelineCardSkeleton } from '@/components/cycles/timeline-card';
 import type { FinancingView } from '@/components/lenders/lender-dialogs';
 
@@ -89,6 +90,8 @@ export default function CycleDetailsPage() {
   const { data: shipment } = useShipment(id);
   // Leftovers moved out of and into this cycle (§8, L5): the cards and the Transfers section.
   const { data: transfers } = useCycleTransfers(id);
+  // Units damaged in storage (§3, 2026-11-28): whether the cycle takes one now.
+  const { data: damages } = useCycleDamages(id);
   const { data: profitability = [] } = useQuery<CycleProfit[]>({
     queryKey: ['analytics', 'cycle-profitability'],
     queryFn: () => api.get('/analytics/cycle-profitability').then((r) => r.data.data ?? r.data),
@@ -288,14 +291,21 @@ export default function CycleDetailsPage() {
               <Row key={b.id}>
                 <span className="text-sm">{localName(b.product, locale) || '—'}</span>
                 <span className="text-xs text-gray-500">{t('received')} {num(b.receivedQty)}</span>
-                <span className="text-xs text-gray-500">{t('remaining')} {num(b.remainingQty)}</span>
+                <span data-testid="batch-remaining" className="text-xs text-gray-500">{t('remaining')} {num(b.remainingQty)}</span>
                 <span className="text-sm"><Money value={num(b.landedUnitCostEgp)} /></span>
-                <span className="text-xs text-gray-400">{codeLabel('verificationStatus', b.verificationStatus)}</span>
+                <span className="flex flex-wrap items-center justify-between gap-1 text-xs text-gray-400">
+                  {codeLabel('verificationStatus', b.verificationStatus)}
+                  {/* Units that broke on the shelf (§3, owner 2026-11-28). */}
+                  <MarkDamagedButton batch={b} cycleCode={cycle.code} locked={!damages || !!damages.locked} />
+                </span>
               </Row>
             ))}
           </Rows>
         )}
       </Card>
+
+      {/* What was written off as damaged in storage, with Undo (§3, 2026-11-28). */}
+      <CycleDamagesSection cycleId={cycle.id} />
     </div>
   );
 }

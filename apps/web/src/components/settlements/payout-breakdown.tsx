@@ -202,7 +202,12 @@ export function PayoutBreakdownView({
     switch (c.kind) {
       case 'loss':
         // Samples the shops kept or lost (§4) are a loss line of their own.
-        return c.category === 'samples_written_off' ? t('costSamplesWrittenOff') : t('costLoss');
+        // And goods damaged in storage (§3, 2026-11-28).
+        return c.category === 'samples_written_off'
+          ? t('costSamplesWrittenOff')
+          : c.category === 'damaged_in_storage'
+            ? t('costDamagedInStorage')
+            : t('costLoss');
       case 'recovery':
         return t('costRecovery', { category });
       case 'otherIncome':

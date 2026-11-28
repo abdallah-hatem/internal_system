@@ -1154,8 +1154,10 @@
         "showMore": "اعرض {count} أخرى",
         "none": "لا شيء في هذه الفترة.",
         "wholeWeek": "ما كوّن هذا الأسبوع",
-        "dayOpen": "اعرض ما كوّن {label}"
-      }
+        "dayOpen": "اعرض ما كوّن {label}",
+        "damaged": "{product} ×{qty} تلف في المخزن"
+      },
+      "damagedInStorage": "تلف في المخزن"
     }
   },
   "notifications": {
@@ -1427,7 +1429,8 @@
     "capitalTakenBack": "رأس مال مسترد",
     "capitalTakenBackLine": "رأس مال استُرد قبل التسوية",
     "exitedLine": "خرج يوم {day}: رأس المال <capital></capital>، الربح <profit></profit> — صُرف له <paid></paid> حينها",
-    "exitedTag": "خرج — صُرف له"
+    "exitedTag": "خرج — صُرف له",
+    "costDamagedInStorage": "تلف في المخزن"
   },
   "providers": {
     "title": "شركات الشحن",
@@ -1658,7 +1661,8 @@
       "partner": "الشريك",
       "accountMovement": "قيد الحساب",
       "handover": "الإرسالية",
-      "freightPayment": "سداد الشحن"
+      "freightPayment": "سداد الشحن",
+      "stockDamage": "التلف"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -2023,7 +2027,15 @@
     "EXIT_CYCLE_LOCKED": "الدورة {cycle} قيد التسوية أو مغلقة؛ لا يمكن صرف مستحقات أحد منها الآن.",
     "EXIT_NO_PARTNER_LEFT": "لا يوجد في الدورة {cycle} شريك أساسي يتولى حصة {name}، فلا يمكن إخراجه.",
     "EXIT_PAYOUT_NEGATIVE": "سحب {name} بالفعل {owes} ج.م أكثر من رأس ماله وحصته من ربح الدورة {cycle}؛ الصرف عند الخروج لا يحصّل منه مالًا.",
-    "EXIT_PARTICIPANT_EXITED": "صُرفت مستحقات هذا المستثمر وأُخرج يوم {day}؛ لم يعد ممكنًا تغيير ما وضعه أو سحبه."
+    "EXIT_PARTICIPANT_EXITED": "صُرفت مستحقات هذا المستثمر وأُخرج يوم {day}؛ لم يعد ممكنًا تغيير ما وضعه أو سحبه.",
+    "STOCK_DAMAGE_QTY_NOT_POSITIVE": "اكتب عدد الوحدات التالفة: رقم صحيح أكبر من صفر.",
+    "STOCK_DAMAGE_QTY_NOT_WHOLE": "{qty} ليس عددًا صحيحًا من الوحدات.",
+    "STOCK_DAMAGE_MORE_THAN_ON_SHELF": "على الرف {available} فقط من {product} يمكن تسجيلها تالفة؛ طُلب {requested}.",
+    "STOCK_DAMAGE_BEFORE_RECEIVED": "تاريخ التلف {day} قبل استلام هذه الدفعة في {received}.",
+    "STOCK_DAMAGE_ALREADY_UNDONE": "تم التراجع عن هذا التلف من قبل.",
+    "STOCK_DAMAGE_REASON_REQUIRED": "اكتب سبب التراجع عن التلف.",
+    "SETTLEMENT_STALE_WRITE_OFFS": "شُطبت بضاعة، أو أُلغي شطب، بعد حساب هذه التسوية. احسبها من جديد.",
+    "LEG_COST_LOCKED_DAMAGED": "سُجّلت بضاعة من الدورة {cycle} تالفة في المخزن بالتكلفة الحالية، لذلك لم يعد ممكنًا إعادة حساب تكلفة هذه المرحلة. تراجع عن التلف أولًا، أو سجّل أي رسوم متأخرة أو مصححة كمصروف على الدورة."
   },
   "requests": {
     "tabs": {
@@ -2247,7 +2259,8 @@
       "LENDER_FINANCING": "ما دفعه صديق",
       "LENDER_REPAYMENT": "سداد لصديق",
       "STOCK_TRANSFER": "نقل بضاعة متبقية بين الدورات",
-      "SAMPLES_ORDER": "طلب عينات"
+      "SAMPLES_ORDER": "طلب عينات",
+      "STOCK_DAMAGE": "تلف في المخزن"
     },
     "auditAction": {
       "PROFIT_DRAW": "سحب أرباح",
@@ -2323,7 +2336,8 @@
       "AssistantChat": "محادثة المساعد",
       "CustomerBranch": "فرع عميل",
       "PartnerAccountMovement": "حركة في حساب شريك",
-      "HandoverFreightPayment": "سداد شحن"
+      "HandoverFreightPayment": "سداد شحن",
+      "StockDamage": "تلف في المخزن"
     },
     "dateField": {
       "PROFIT_DRAWN": "تاريخ سحب الأرباح",
@@ -2347,7 +2361,8 @@
       "CAPITAL_TAKEN_BACK": "تاريخ استرداد رأس المال",
       "MONEY_TAKEN": "تاريخ سحب الأموال من الدورة",
       "FREIGHT_PAID": "تاريخ سداد الشحن",
-      "INVESTOR_EXITED": "تاريخ صرف مستحقات المستثمر"
+      "INVESTOR_EXITED": "تاريخ صرف مستحقات المستثمر",
+      "STOCK_DAMAGED": "تاريخ اكتشاف تلف البضاعة"
     },
     "country": {
       "CN": "الصين",
@@ -2438,7 +2453,8 @@
     "moved": "إلى دورة أخرى",
     "fromCycle": "من <code>الدورة</code>",
     "fromCycleUnits": "{units} وحدة — {onShelf} على الرف، {sold} مُباعة",
-    "fromCycleMovedOn": "{count} نُقلت إلى دورة أخرى"
+    "fromCycleMovedOn": "{count} نُقلت إلى دورة أخرى",
+    "damagedInStorage": "{count} تالف في المخزن"
   },
   "shipment": {
     "title": "الشحنة",
@@ -2874,7 +2890,9 @@
     "branchName": "مدينة نصر",
     "branchAddress": "12 شارع 9، المقطم، القاهرة",
     "chooseBranch": "اختر فرعاً",
-    "investorName": "أحمد محمود"
+    "investorName": "أحمد محمود",
+    "damageNote": "وقعت من على الرف",
+    "damageUndoReason": "أُعيد العدّ: كانت سليمة"
   },
   "fxRates": {
     "title": "أسعار الصرف",
@@ -3439,5 +3457,39 @@
     "paymentRecorded": "تم تسجيل السداد",
     "paymentFailed": "تعذّر تسجيل السداد.",
     "amountRequired": "اذكر المبلغ المدفوع."
+  },
+  "damages": {
+    "title": "تلف في المخزن",
+    "markDamaged": "تسجيل تلف",
+    "markTitle": "تسجيل تلف",
+    "markHint": "الوحدات التي تلفت على الرف تُخصم من المخزون. تكلفتها خسارة على هذه الدورة، ولا تتحرك أي أموال.",
+    "qty": "الوحدات التالفة",
+    "onShelf": "{count} على الرف",
+    "damagedOn": "تاريخ الاكتشاف",
+    "note": "ملاحظة",
+    "cost": "الخسارة",
+    "costLine": "{qty} × {unit} = {total}",
+    "save": "تسجيل التلف",
+    "saved": "تم تسجيل التلف",
+    "saveFailed": "لم يُسجَّل التلف.",
+    "qtyRequired": "اكتب عدد الوحدات التالفة.",
+    "qtyNotWhole": "الوحدات أعداد صحيحة: اكتب عددًا صحيحًا.",
+    "qtyTooMany": "على الرف {count} فقط.",
+    "undo": "تراجع",
+    "undoTitle": "التراجع عن التلف",
+    "undoHint": "تعود الوحدات إلى رف الدفعة نفسها وتُرفع الخسارة عن الدورة.",
+    "reason": "السبب",
+    "reasonRequired": "اكتب سبب التراجع عن التلف.",
+    "undoDone": "تم التراجع عن التلف",
+    "undoFailed": "لم يتم التراجع عن التلف.",
+    "undone": "تم التراجع",
+    "byNote": "بواسطة {name} · {note}",
+    "by": "بواسطة {name}",
+    "undoneBy": "تراجع {name}: {reason}",
+    "line": "{product} × {qty}",
+    "total": "إجمالي التالف",
+    "movementMarked": "تلف في المخزن",
+    "movementUndone": "تراجع عن التلف",
+    "markBatch": "تسجيل تلف {product}"
   }
 }
