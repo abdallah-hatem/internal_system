@@ -31,6 +31,7 @@ import {
   netRecoveredEgp,
 } from '../../common/ledger-categories';
 import { cycleWriteOffsEgp } from '../../common/cycle-losses';
+import { STANDING_DAMAGE } from '../../common/stock-damage';
 import { assertCycleHasNoSamplesOut } from '../../common/samples-out';
 import { lockCycle } from '../../common/shipment-load';
 import { assertShipmentAccounted } from '../../common/shipment-accounted';
@@ -469,6 +470,7 @@ export class SettlementsService {
     // Samples the shops kept or lost (§4, samples at shops) are the same
     // kind of cost — goods paid for that will never sell — through the one
     // definition the dashboard and the P&L read too.
+    // And goods damaged in storage (§3, 2026-11-28), the same way.
     const writeOffs = await cycleWriteOffsEgp(db, cycleId);
     const losses = writeOffs.total;
 
@@ -497,6 +499,7 @@ export class SettlementsService {
       otherIncomeRows: otherIncomeTxns,
       lossesEgp: writeOffs.lostOnTheWay,
       samplesWrittenOffEgp: writeOffs.samplesWrittenOff,
+      damagedInStorageEgp: writeOffs.damagedInStorage,
       exchangeDifferenceEgp: exchangeDiff,
       sharedByCategory: shared?.byCategory,
     });
@@ -542,51 +545,58 @@ export class SettlementsService {
    */
   async cyclesWithProfitActivity(cycleIds: string[]): Promise<Set<string>> {
     if (cycleIds.length === 0) return new Set();
-    const [batches, ledger, losses, repayments, shared] = await Promise.all([
-      this.prisma.inventoryBatch.findMany({
-        where: {
-          cycleId: { in: cycleIds },
-          OR: [
-            { saleItemAllocations: { some: {} } },
-            { returnItems: { some: {} } },
-            { priceAdjustmentItems: { some: {} } },
-          ],
-        },
-        select: { cycleId: true },
-        distinct: ['cycleId'],
-      }),
-      this.prisma.financialTransaction.findMany({
-        where: {
-          cycleId: { in: cycleIds },
-          OR: [
-            { category: { notIn: [...NOT_OPERATING_EXPENSE] } },
-            { category: { in: [...OTHER_INCOME_CATEGORIES] } },
-            { category: { in: [...COST_RECOVERY_CATEGORIES] } },
-          ],
-        },
-        select: { cycleId: true },
-        distinct: ['cycleId'],
-      }),
-      this.prisma.shipmentLoss.findMany({
-        where: { leg: { cycleId: { in: cycleIds } } },
-        select: { leg: { select: { cycleId: true } } },
-      }),
-      this.prisma.lenderRepayment.findMany({
-        where: { financing: { cycleId: { in: cycleIds } } },
-        select: { financing: { select: { cycleId: true } } },
-      }),
-      this.prisma.runningCostAllocation.findMany({
-        where: { cycleId: { in: cycleIds } },
-        select: { cycleId: true },
-        distinct: ['cycleId'],
-      }),
-    ]);
+    const [batches, ledger, losses, repayments, shared, damaged] =
+      await Promise.all([
+        this.prisma.inventoryBatch.findMany({
+          where: {
+            cycleId: { in: cycleIds },
+            OR: [
+              { saleItemAllocations: { some: {} } },
+              { returnItems: { some: {} } },
+              { priceAdjustmentItems: { some: {} } },
+            ],
+          },
+          select: { cycleId: true },
+          distinct: ['cycleId'],
+        }),
+        this.prisma.financialTransaction.findMany({
+          where: {
+            cycleId: { in: cycleIds },
+            OR: [
+              { category: { notIn: [...NOT_OPERATING_EXPENSE] } },
+              { category: { in: [...OTHER_INCOME_CATEGORIES] } },
+              { category: { in: [...COST_RECOVERY_CATEGORIES] } },
+            ],
+          },
+          select: { cycleId: true },
+          distinct: ['cycleId'],
+        }),
+        this.prisma.shipmentLoss.findMany({
+          where: { leg: { cycleId: { in: cycleIds } } },
+          select: { leg: { select: { cycleId: true } } },
+        }),
+        this.prisma.lenderRepayment.findMany({
+          where: { financing: { cycleId: { in: cycleIds } } },
+          select: { financing: { select: { cycleId: true } } },
+        }),
+        this.prisma.runningCostAllocation.findMany({
+          where: { cycleId: { in: cycleIds } },
+          select: { cycleId: true },
+          distinct: ['cycleId'],
+        }),
+        // Goods damaged in storage (§3, 2026-11-28), standing.
+        this.prisma.stockDamage.findMany({
+          where: { ...STANDING_DAMAGE, batch: { cycleId: { in: cycleIds } } },
+          select: { batch: { select: { cycleId: true } } },
+        }),
+      ]);
     return new Set<string>([
       ...batches.map((b) => b.cycleId),
       ...ledger.map((t) => t.cycleId as string),
       ...losses.map((l) => l.leg.cycleId),
       ...repayments.map((r) => r.financing.cycleId),
       ...shared.map((s) => s.cycleId),
+      ...damaged.map((d) => d.batch.cycleId),
     ]);
   }
 
@@ -937,6 +947,9 @@ export class SettlementsService {
       await assertDrawsCurrent(tx, id, settlement.cycleId);
       // A running cost shared to it, or undone, since then (§8, 2026-11-08).
       await assertSharedCostsCurrent(tx, settlement);
+      // A write-off marked or undone since then — goods damaged in storage
+      // above all, which can be marked while a draft stands (§3, 2026-11-28).
+      await assertWriteOffsCurrent(tx, settlement);
       await assertShipmentAccounted(tx, settlement.cycleId);
       // And no friend still owed (§18) — the gate the transition runs too.
       const cycle = await tx.importCycle.findUnique({
@@ -1750,6 +1763,32 @@ async function assertDrawsCurrent(
     }
   }
   return drawIds;
+}
+
+/**
+ * Refuse approving a draft whose write-offs are not the cycle's any more
+ * (§3, GUESS 2026-11-28): goods damaged in storage marked or undone after it
+ * was calculated — or a loss or samples write-off, which the cycle's own gates
+ * mostly stop earlier. Compared on the loss lines the draft stored, so a
+ * settlement calculated before costs were itemised (none stored) is left to
+ * the other checks. A draft calculated at a profit before a damage can never
+ * be approved, nor therefore paid.
+ */
+async function assertWriteOffsCurrent(
+  tx: Prisma.TransactionClient,
+  settlement: { cycleId: string; costBreakdown: Prisma.JsonValue | null },
+) {
+  if (!isStoredCostBreakdown(settlement.costBreakdown)) return;
+  const stored = settlement.costBreakdown.costs
+    .filter((c) => c.kind === 'loss')
+    .reduce((sum, c) => sum.add(c.amountEgp), new Prisma.Decimal(0));
+  const now = (await cycleWriteOffsEgp(tx, settlement.cycleId)).total;
+  if (!now.toDecimalPlaces(2).eq(stored)) {
+    throw badRequest(
+      'SETTLEMENT_STALE_WRITE_OFFS',
+      'Goods were written off, or a write-off undone, after this settlement was calculated. Calculate it again.',
+    );
+  }
 }
 
 /**

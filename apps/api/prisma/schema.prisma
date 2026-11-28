@@ -55,6 +55,8 @@ model User {
   inventoryMovements    InventoryMovement[]
   stockTransfers        StockTransfer[]          @relation("StockTransferCreatedBy")
   stockTransfersUndone  StockTransfer[]          @relation("StockTransferReversedBy")
+  stockDamagesMarked    StockDamage[]            @relation("StockDamageCreatedBy")
+  stockDamagesUndone    StockDamage[]            @relation("StockDamageUndoneBy")
   /// Freight he paid from his own pocket for a UAE handover (§1, §18, 2026-11-20).
   handoversPaid         ShipmentDeparture[]      @relation("HandoverPaidBy")
   freightPaymentsPaid   HandoverFreightPayment[] @relation("FreightPaymentPaidBy")
@@ -1035,6 +1037,8 @@ model InventoryBatch {
   saleItemAllocations  SaleItemAllocation[]
   returnItems          SaleReturnItem[]
   priceAdjustmentItems SalePriceAdjustmentItem[]
+  /// Units found damaged on the shelf and written off (§3, 2026-11-28).
+  damages              StockDamage[]
 
   @@index([sourcePoItemId])
   @@index([sourceDeliveryLineId])
@@ -1056,6 +1060,36 @@ model InventoryMovement {
   actor User?          @relation(fields: [createdBy], references: [id])
 
   @@map("inventory_movements")
+}
+
+/// Units of a batch found damaged in storage and written off (§3, §8 — owner
+/// 2026-11-28). Not a ledger row: no money moves, the cash left when the goods
+/// were bought (§9). Their landed cost is a loss of the batch's cycle, read
+/// through the one definition every profit figure subtracts
+/// (`common/cycle-losses.ts`). Undone, never deleted: an undone row stays, with
+/// who, when and why, and counts nowhere.
+model StockDamage {
+  id          String    @id @default(uuid()) @db.Uuid
+  batchId     String    @map("batch_id") @db.Uuid
+  qty         Decimal   @db.Decimal(18, 3)
+  /// The batch's landed unit cost when it was marked.
+  unitCostEgp Decimal   @map("unit_cost_egp") @db.Decimal(18, 4)
+  costEgp     Decimal   @map("cost_egp") @db.Decimal(18, 2)
+  /// The Cairo day the damage was found: Analytics puts the loss on it.
+  damagedOn   DateTime  @map("damaged_on") @db.Date
+  note        String?
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  undoneAt    DateTime? @map("undone_at") @db.Timestamptz()
+  undoneBy    String?   @map("undone_by") @db.Uuid
+  undoReason  String?   @map("undo_reason")
+
+  batch   InventoryBatch @relation(fields: [batchId], references: [id])
+  creator User?          @relation("StockDamageCreatedBy", fields: [createdBy], references: [id])
+  undoer  User?          @relation("StockDamageUndoneBy", fields: [undoneBy], references: [id])
+
+  @@index([batchId])
+  @@map("stock_damages")
 }
 
 // ─── Leftover stock moved between cycles (BUSINESS_LOGIC §8, L5) ─────

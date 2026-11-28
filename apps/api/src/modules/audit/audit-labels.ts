@@ -62,6 +62,7 @@ type Db = Pick<
   | 'shipmentDelivery'
   | 'shipmentLoss'
   | 'stockTransfer'
+  | 'stockDamage'
   | 'user'
 >;
 
@@ -454,6 +455,29 @@ const RESOLVERS: Record<string, Resolver> = {
         label: legLabel(l.leg),
         href: cycleHref(l.leg.cycleId),
         amount: money(l.costEgp, 'EGP'),
+      }),
+    ),
+  // Goods damaged in storage (§3, 2026-11-28).
+  StockDamage: async (db, ids) =>
+    keyed(
+      await db.stockDamage.findMany({
+        ...asIn(ids),
+        select: {
+          id: true,
+          costEgp: true,
+          batch: {
+            select: {
+              cycleId: true,
+              cycle: { select: { code: true } },
+              product: { select: { name: true } },
+            },
+          },
+        },
+      }),
+      (d) => ({
+        label: `${d.batch.cycle.code} · ${d.batch.product.name}`,
+        href: cycleHref(d.batch.cycleId),
+        amount: money(d.costEgp, 'EGP'),
       }),
     ),
   StockTransfer: async (db, ids) =>

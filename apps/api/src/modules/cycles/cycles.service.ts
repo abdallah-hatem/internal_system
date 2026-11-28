@@ -223,7 +223,14 @@ export class CyclesService {
           },
         },
         shippingLegs: true,
-        inventoryBatches: { include: { product: true } },
+        inventoryBatches: {
+          include: {
+            product: true,
+            // Units damaged in storage that stand (§3, 2026-11-28): off the
+            // shelf and not sold — "where the goods are" counts them apart.
+            damages: { where: { undoneAt: null }, select: { qty: true } },
+          },
+        },
         settlements: true,
       },
     });
@@ -233,6 +240,12 @@ export class CyclesService {
     return {
       data: {
         ...cycle,
+        inventoryBatches: cycle.inventoryBatches.map(({ damages, ...b }) => ({
+          ...b,
+          damagedQty: damages
+            .reduce((sum, d) => sum + Number(d.qty), 0)
+            .toString(),
+        })),
         fundingLock: fundingLockOf(cycle.status, cycle.settlements),
       },
     };

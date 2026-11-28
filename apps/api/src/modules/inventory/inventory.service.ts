@@ -26,6 +26,7 @@ import {
 import { stockValueEgp } from '../../common/stock-value';
 import { unitsAtShopsByProduct } from '../../common/samples-out';
 import { heldUnitPrice } from '../../common/held-price';
+import { STOCK_DAMAGE_REFERENCE } from '../../common/stock-damage';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { assertUuid, isUuid } from '../../common/uuid';
@@ -932,11 +933,11 @@ export interface MovementParty {
 /**
  * The customer and price a movement row shows. A price only where one was
  * really charged or spent on these units: SALE at the line's charged price,
- * RETURN at what was refunded, RECEIVE at the batch's landed cost (said as
- * cost). Samples went at no price; every other movement has none.
+ * RETURN at what was refunded, RECEIVE — and a damage in storage or its undo —
+ * at the batch's landed cost (said as cost). Samples went at no price; every other movement has none.
  */
 function movementParty(
-  m: { movementType: string },
+  m: { movementType: string; referenceType?: string | null },
   ref: ResolvedReference | null,
   batch: { landedUnitCostEgp: Prisma.Decimal.Value | null },
 ): MovementParty {
@@ -961,7 +962,13 @@ function movementParty(
     return priced(ref.unitPrice, 'sale', party?.currency);
   if (m.movementType === 'RETURN' && ref?.kind === 'saleReturn')
     return priced(ref.unitPrice, 'refund', party?.currency);
-  if (m.movementType === 'RECEIVE' && batch.landedUnitCostEgp != null)
+  // Units damaged in storage, and the undo putting them back (§3,
+  // 2026-11-28): no customer, and what they cost — the loss — said as cost.
+  if (
+    (m.movementType === 'RECEIVE' ||
+      m.referenceType === STOCK_DAMAGE_REFERENCE) &&
+    batch.landedUnitCostEgp != null
+  )
     return priced(new Prisma.Decimal(batch.landedUnitCostEgp), 'cost', 'EGP');
   return out;
 }

@@ -1,6 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; money in EGP must not become a float
 import { Prisma } from '@prisma/client';
 import { SAMPLES_WRITTEN_OFF_CATEGORY } from './samples';
+import { DAMAGED_IN_STORAGE_CATEGORY } from './stock-damage';
 import {
   operatingExpenseEgp,
   otherIncomeEgp,
@@ -30,7 +31,8 @@ const fixed = (v: Prisma.Decimal) => v.toFixed(2);
  *
  * - `charge`: a ledger entry charged to the cycle, by category (extra freight,
  *   customs, any other cycle-charged category), net of reversals.
- * - `loss`: goods lost on the way (§2).
+ * - `loss`: goods lost on the way (§2); with a category, samples written off
+ *   (`samples_written_off`) or goods damaged in storage (`damaged_in_storage`).
  * - `exchange`: repaying friends at a moved rate (§18).
  * - `recovery`: money a supplier or shipper gave back (§6).
  * - `otherIncome`: other income credited to the cycle (§9).
@@ -76,6 +78,8 @@ export function cycleCostLines(input: {
   lossesEgp: Prisma.Decimal;
   /** Samples the shops kept or lost (§4, samples at shops): its own line. */
   samplesWrittenOffEgp?: Prisma.Decimal;
+  /** Goods damaged in storage (§3, 2026-11-28): its own line, "Damaged in storage". */
+  damagedInStorageEgp?: Prisma.Decimal;
   exchangeDifferenceEgp: Prisma.Decimal;
   /** Its part of the running costs, by category (§8, 2026-11-08). */
   sharedByCategory?: Map<string, Prisma.Decimal>;
@@ -99,6 +103,13 @@ export function cycleCostLines(input: {
       kind: 'loss',
       category: SAMPLES_WRITTEN_OFF_CATEGORY,
       amountEgp: fixed(input.samplesWrittenOffEgp),
+    });
+  }
+  if (input.damagedInStorageEgp && !input.damagedInStorageEgp.isZero()) {
+    lines.push({
+      kind: 'loss',
+      category: DAMAGED_IN_STORAGE_CATEGORY,
+      amountEgp: fixed(input.damagedInStorageEgp),
     });
   }
   if (!input.exchangeDifferenceEgp.isZero()) {

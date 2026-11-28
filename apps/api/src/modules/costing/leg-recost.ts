@@ -21,6 +21,7 @@ import { CostingService, lineEventCost } from './costing.service';
  * - a settlement in draft, approved or paid, or a cycle being settled, closed
  *   or cancelled — the figures were agreed on the old cost;
  * - a loss — its cost was booked at the old unit and refunds may hang off it;
+ * - goods damaged in storage that stand — booked at the old unit too;
  * - a stock transfer still standing — the other cycle bought at the old unit;
  * - a batch not at the cost its line computes now — a figure typed at receipt,
  *   which a re-cost would erase;
@@ -41,6 +42,7 @@ const money = (v: Prisma.Decimal) =>
 export type LegCostLockReason =
   | 'LEG_COST_LOCKED_SETTLEMENT'
   | 'LEG_COST_LOCKED_LOSSES'
+  | 'LEG_COST_LOCKED_DAMAGED'
   | 'LEG_COST_LOCKED_TRANSFERS'
   | 'LEG_COST_LOCKED_OVERRIDE'
   | 'LEG_COST_LOCKED_LEDGER'
@@ -137,6 +139,7 @@ export async function planRecost(
     | 'inventoryMovement'
     | 'financialTransaction'
     | 'importCycle'
+    | 'stockDamage'
   >,
   costing: CostingService,
   cycle: LoadedShipment,
@@ -161,6 +164,16 @@ export async function planRecost(
 
   if (lost > 0 || cycle.shippingLegs.some((l) => l.losses.length > 0)) {
     return locked('LEG_COST_LOCKED_LOSSES', params);
+  }
+
+  // Goods damaged in storage were booked at the current unit, like a loss
+  // (§3, GUESS 2026-11-28): re-costing around them is not done. Undone ones
+  // count for nothing.
+  const damaged = await db.stockDamage.count({
+    where: { undoneAt: null, batch: { cycleId: cycle.id } },
+  });
+  if (damaged > 0) {
+    return locked('LEG_COST_LOCKED_DAMAGED', params);
   }
 
   const transfers = await db.stockTransfer.findMany({
@@ -292,6 +305,12 @@ export function refuseCostChange(
       throw badRequest(
         'LEG_COST_LOCKED_LOSSES',
         `Goods of cycle ${cycle} were marked lost at the current cost, so the cost of ${leg} cannot be recalculated. Record a late or corrected charge as a cycle expense.`,
+        values,
+      );
+    case 'LEG_COST_LOCKED_DAMAGED':
+      throw badRequest(
+        'LEG_COST_LOCKED_DAMAGED',
+        `Goods of cycle ${cycle} were marked damaged in storage at the current cost, so the cost of ${leg} cannot be recalculated. Undo the damage first, or record a late or corrected charge as a cycle expense.`,
         values,
       );
     case 'LEG_COST_LOCKED_TRANSFERS':

@@ -61,9 +61,9 @@ export interface OrderRow {
   events: OrderEvent[];
 }
 
-/** One expense: a ledger row, goods lost on the way, or an order's samples written off. */
+/** One expense: a ledger row, goods lost on the way, an order's samples written off, or goods damaged in storage. */
 export interface ExpenseRow {
-  kind: 'ledger' | 'loss' | 'samples';
+  kind: 'ledger' | 'loss' | 'samples' | 'damaged';
   /** The ledger row, the loss, or the samples order. */
   id: string;
   day: string;
@@ -175,6 +175,14 @@ export function breakdownOf(parts: readonly ProfitPart[]): Breakdown {
     } else if (p.line === 'losses' && s.kind === 'loss') {
       expenses.push({
         kind: 'loss',
+        id: s.id,
+        day,
+        category: null,
+        amountEgp: p.amount,
+      });
+    } else if (p.line === 'damaged' && s.kind === 'damaged') {
+      expenses.push({
+        kind: 'damaged',
         id: s.id,
         day,
         category: null,

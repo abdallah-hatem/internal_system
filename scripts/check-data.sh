@@ -249,6 +249,46 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM shipment_departures d
    WHERE d.handover AND d.pieces IS NOT NULL
      AND COALESCE((SELECT sum(x.qty) FROM shipment_departure_lines x WHERE x.departure_id = d.id), 0) > d.pieces
+  -- Goods damaged in storage (2026-11-28): records of a damage, as a damage
+  -- writes them. A day after today in Cairo cannot have happened yet.
+  UNION ALL SELECT 12.96, 'a damage in storage dated in the future',
+         count(*) FROM stock_damages
+   WHERE damaged_on > (now() AT TIME ZONE 'Africa/Cairo')::date
+  -- Every unit ordered is received or lost once; a damaged unit was received,
+  -- so a line can never have more damaged than it received.
+  UNION ALL SELECT 12.97, 'order line: received plus lost plus damaged is more than was ordered',
+         count(*) FROM purchase_order_items poi
+   WHERE coalesce((SELECT sum(b.received_qty) FROM inventory_batches b
+                    WHERE b.source_po_item_id = poi.id), 0)
+       + coalesce((SELECT sum(x.qty) FROM shipment_losses x
+                    WHERE x.purchase_order_item_id = poi.id), 0)
+       > poi.ordered_qty
+      OR coalesce((SELECT sum(d.qty) FROM stock_damages d
+                     JOIN inventory_batches b ON b.id = d.batch_id
+                    WHERE b.source_po_item_id = poi.id AND d.undone_at IS NULL), 0)
+       > coalesce((SELECT sum(b.received_qty) FROM inventory_batches b
+                    WHERE b.source_po_item_id = poi.id), 0)
+  -- A batch can only have lost to damage what it held: what it received or
+  -- was moved in with.
+  UNION ALL SELECT 12.98, 'a batch with more damaged than it ever received',
+         count(*) FROM inventory_batches b
+   WHERE (SELECT coalesce(sum(d.qty), 0) FROM stock_damages d
+           WHERE d.batch_id = b.id AND d.undone_at IS NULL) > b.received_qty
+  -- An undone damage put its units back on the shelf: its WRITE_OFF has an
+  -- ADJUSTMENT of the same size pointing at it. One without was undone some
+  -- other way, and its units are still off the shelf.
+  UNION ALL SELECT 12.99, 'an undone damage whose units are still off the shelf',
+         count(*) FROM stock_damages d
+   WHERE d.undone_at IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM inventory_movements m
+                      WHERE m.reference_type = 'STOCK_DAMAGE' AND m.reference_id = d.id
+                        AND m.movement_type = 'ADJUSTMENT' AND m.qty_delta = d.qty)
+  -- And a damage that stands has taken its units off: its WRITE_OFF exists.
+  UNION ALL SELECT 12.991, 'a damage in storage with no write-off movement',
+         count(*) FROM stock_damages d
+   WHERE NOT EXISTS (SELECT 1 FROM inventory_movements m
+                      WHERE m.reference_type = 'STOCK_DAMAGE' AND m.reference_id = d.id
+                        AND m.movement_type = 'WRITE_OFF' AND m.qty_delta = -d.qty)
   UNION ALL SELECT 13,'payment attached to no order at all',
          count(*) FROM payments p
    WHERE p.status='RECORDED'
