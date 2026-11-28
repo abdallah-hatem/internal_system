@@ -240,9 +240,10 @@ export class CyclesService {
     return {
       data: {
         ...cycle,
-        inventoryBatches: cycle.inventoryBatches.map(({ damages, ...b }) => ({
+        inventoryBatches: cycle.inventoryBatches?.map(({ damages, ...b }) => ({
           ...b,
-          damagedQty: damages
+          // A fake or an older read may send no `damages`: none stand.
+          damagedQty: (damages ?? [])
             .reduce((sum, d) => sum + Number(d.qty), 0)
             .toString(),
         })),

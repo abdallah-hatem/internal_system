@@ -1056,6 +1056,12 @@ export function fakePrisma(db: Store) {
     lenderRepayment: {
       aggregate: () => Promise.resolve({ _sum: { exchangeDiffEgp: null } }),
     },
+    // Goods damaged in storage (§3, 2026-11-28): none in these fixtures.
+    stockDamage: {
+      aggregate: () => Promise.resolve({ _sum: { costEgp: null, qty: null } }),
+      count: () => Promise.resolve(0),
+      findMany: () => Promise.resolve([]),
+    },
     shipmentLoss: {
       create: ({ data }: Row) => {
         const row = {

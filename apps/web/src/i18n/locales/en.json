@@ -330,7 +330,7 @@
     "profitNotYet": "No profit yet: nothing from this cycle has been received and sold.",
     "profitRevenue": "Revenue",
     "profitCost": "Cost of goods sold",
-    "profitLosses": "Lost in transit",
+    "profitLosses": "Lost and written off",
     "legDeparted": "Departed {date}",
     "legNotDeparted": "Not departed",
     "legNoDeliveries": "No deliveries yet",

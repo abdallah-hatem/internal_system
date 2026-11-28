@@ -125,6 +125,9 @@ function fakeDb(rows: Row[]) {
     shipmentLoss: {
       aggregate: () => Promise.resolve({ _sum: { costEgp: null } }),
     },
+    stockDamage: {
+      aggregate: () => Promise.resolve({ _sum: { costEgp: null } }),
+    },
     lenderRepayment: {
       aggregate: () => Promise.resolve({ _sum: { exchangeDiffEgp: null } }),
     },

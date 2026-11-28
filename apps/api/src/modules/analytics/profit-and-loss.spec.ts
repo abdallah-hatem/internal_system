@@ -958,7 +958,7 @@ describe('profit and loss — the chart’s buckets', () => {
     expect(p.to).toBe('2026-10-18');
   });
 
-  it('the query count does not grow with the buckets: sixteen for a 31-day month, a week view or all time (thirteen sums, the undone entries once, cash paid out’s two; 2026-10-26)', async () => {
+  it('the query count does not grow with the buckets: seventeen for a 31-day month, a week view or all time (fourteen sums — goods damaged in storage the fourteenth, 2026-11-28 — the undone entries once, cash paid out’s two; 2026-10-26)', async () => {
     const w = spread();
     const now = cairo('2026-10-18', 15);
     const count = async (from?: string, to?: string) => {
@@ -966,13 +966,13 @@ describe('profit and loss — the chart’s buckets', () => {
       await service(w).getProfitAndLoss(from, to, now);
       return calls.n;
     };
-    expect(await count('2026-08-01', '2026-08-31')).toBe(16);
-    expect(await count('2026-07-04', '2026-09-20')).toBe(16);
-    expect(await count(undefined, undefined)).toBe(16);
-    // And the dashboard's reading: thirteen sums and the undone entries.
+    expect(await count('2026-08-01', '2026-08-31')).toBe(17);
+    expect(await count('2026-07-04', '2026-09-20')).toBe(17);
+    expect(await count(undefined, undefined)).toBe(17);
+    // And the dashboard's reading: fourteen sums and the undone entries.
     calls.n = 0;
     await service(w).profitFigures();
-    expect(calls.n).toBe(14);
+    expect(calls.n).toBe(15);
   });
 });
 

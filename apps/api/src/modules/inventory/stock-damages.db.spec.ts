@@ -539,7 +539,7 @@ suite('goods damaged in storage (Postgres)', () => {
     expect(r.params).toMatchObject({ available: '50' });
   });
 
-  it('TC-DMG-07 A draft order holds nothing: 4 marked; confirming a draft of 58 is then refused NOT_ENOUGH_STOCK', async () => {
+  it('TC-DMG-07 A draft order holds nothing: 4 marked; confirming a draft of 58 is then refused for stock', async () => {
     const k = await cycleT1();
     await sales.create(
       {
@@ -556,13 +556,23 @@ suite('goods damaged in storage (Postgres)', () => {
     await mark(k.b1.id, 4);
     expect(await shelf(k.b1.id)).toEqual(['56', '56', '100']);
     const r = await refusal(sales.confirmOrder(draft.id, actor, draft.version));
-    expect(r.code).toBe('NOT_ENOUGH_STOCK');
+    // The blind scenario said NOT_ENOUGH_STOCK (CLAUDE.md §9's example); the
+    // sale's own code is INSUFFICIENT_STOCK.
+    expect(r.code).toBe('INSUFFICIENT_STOCK');
   });
 
   it('TC-DMG-08 Units held by a storefront order request are not on offer: 5 held of 60 → 55 refused at 56', async () => {
     const k = await cycleT1();
+    // A shop's storefront request holding 5 for 48 hours (§12).
+    const request = await prisma.orderRequest.create({
+      data: {
+        requestNo: `REQ-DMG-${randomUUID().slice(0, 8)}`,
+        customerId: k.shop.id,
+      },
+    });
     await prisma.inventoryReservation.create({
       data: {
+        orderRequestId: request.id,
         batchId: k.b1.id,
         qty: 5,
         status: 'ACTIVE',
