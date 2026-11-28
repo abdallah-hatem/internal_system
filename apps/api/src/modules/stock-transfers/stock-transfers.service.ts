@@ -442,6 +442,7 @@ export class StockTransfersService {
             saleableQty: qty,
             saleItemAllocations: { none: {} },
             reservations: { none: {} },
+            damages: { none: {} },
           },
         });
         if (gone.count !== 1) {
@@ -679,6 +680,10 @@ const TRANSFER_INCLUDE = {
               returnItems: true,
               // Moved on again by a transfer that stands.
               transferLinesOut: { where: { transfer: { status: 'ACTIVE' } } },
+              // Any damage marked on it, even one since undone: the batch has
+              // history of its own (§3, GUESS 2026-11-28), and its row would
+              // keep the batch from being removed.
+              damages: true,
             },
           },
         },
@@ -718,6 +723,7 @@ function undoInput(t: LoadedTransfer, fromPaid: boolean) {
             reservations: l.destBatch._count.reservations,
             returns: l.destBatch._count.returnItems,
             movedOn: l.destBatch._count.transferLinesOut,
+            damages: l.destBatch._count.damages,
           }
         : null,
     })),

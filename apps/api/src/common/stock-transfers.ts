@@ -213,6 +213,8 @@ export interface DestBatchState {
   returns: number;
   /** Lines of a later transfer that moved its units on. */
   movedOn: number;
+  /** Damages marked on it, standing or undone (§3, 2026-11-28). */
+  damages?: number;
 }
 
 /**
@@ -220,7 +222,8 @@ export interface DestBatchState {
  * units has sold in B and A has not been paid out").
  *
  * "Sold" is read strictly: any sale ever drawn from the moved batch — even one
- * since cancelled — any hold, any return, or the units moved on again. The
+ * since cancelled — any hold, any return, the units moved on again, or any
+ * damage marked on it (2026-11-28), even one since undone. The
  * batch then has history of its own, and undoing would erase it.
  */
 export function undoRefusal(input: {
@@ -270,6 +273,7 @@ export function undoRefusal(input: {
       d.reservations === 0 &&
       d.returns === 0 &&
       d.movedOn === 0 &&
+      (d.damages ?? 0) === 0 &&
       D(d.remainingQty).eq(qty) &&
       D(d.saleableQty).eq(qty) &&
       D(d.reservedQty).eq(0);

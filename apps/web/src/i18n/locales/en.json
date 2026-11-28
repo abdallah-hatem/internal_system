@@ -330,7 +330,7 @@
     "profitNotYet": "No profit yet: nothing from this cycle has been received and sold.",
     "profitRevenue": "Revenue",
     "profitCost": "Cost of goods sold",
-    "profitLosses": "Lost in transit",
+    "profitLosses": "Lost and written off",
     "legDeparted": "Departed {date}",
     "legNotDeparted": "Not departed",
     "legNoDeliveries": "No deliveries yet",
@@ -1154,8 +1154,10 @@
         "showMore": "Show {count} more",
         "none": "None in this period.",
         "wholeWeek": "What made this week",
-        "dayOpen": "See what made {label}"
-      }
+        "dayOpen": "See what made {label}",
+        "damaged": "{product} ×{qty} damaged in storage"
+      },
+      "damagedInStorage": "Damaged in storage"
     }
   },
   "notifications": {
@@ -1575,7 +1577,8 @@
     "capitalTakenBack": "Capital taken back",
     "capitalTakenBackLine": "Capital taken back before settlement",
     "exitedLine": "Exited {day}: capital <capital></capital>, profit <profit></profit> — paid <paid></paid> then",
-    "exitedTag": "Exited — paid out"
+    "exitedTag": "Exited — paid out",
+    "costDamagedInStorage": "Damaged in storage"
   },
   "contracts": {
     "title": "Contracts",
@@ -1658,7 +1661,8 @@
       "partner": "Partner",
       "accountMovement": "Account entry",
       "handover": "Handover",
-      "freightPayment": "Freight payment"
+      "freightPayment": "Freight payment",
+      "stockDamage": "Damage"
     },
     "generic": "Something went wrong. Please try again.",
     "ACCOUNT_INACTIVE": "This account is not active.",
@@ -2023,7 +2027,15 @@
     "EXIT_CYCLE_LOCKED": "{cycle} is being settled or is closed; nobody can be paid out of it now.",
     "EXIT_NO_PARTNER_LEFT": "{cycle} has no core partner to take over {name}'s share, so he cannot be removed.",
     "EXIT_PAYOUT_NEGATIVE": "{name} has already taken {owes} EGP more than his capital and his share of {cycle}'s profit come to; paying him out cannot collect money from him.",
-    "EXIT_PARTICIPANT_EXITED": "This investor was paid out and removed on {day}; what he put in and took can no longer change."
+    "EXIT_PARTICIPANT_EXITED": "This investor was paid out and removed on {day}; what he put in and took can no longer change.",
+    "STOCK_DAMAGE_QTY_NOT_POSITIVE": "Say how many units were damaged: a whole number more than zero.",
+    "STOCK_DAMAGE_QTY_NOT_WHOLE": "{qty} is not a whole number of units.",
+    "STOCK_DAMAGE_MORE_THAN_ON_SHELF": "Only {available} of {product} are on the shelf to mark damaged; {requested} was asked for.",
+    "STOCK_DAMAGE_BEFORE_RECEIVED": "The damage is dated {day}, before this batch was received on {received}.",
+    "STOCK_DAMAGE_ALREADY_UNDONE": "This damage has already been undone.",
+    "STOCK_DAMAGE_REASON_REQUIRED": "Say why the damage is being undone.",
+    "SETTLEMENT_STALE_WRITE_OFFS": "Goods were written off, or a write-off undone, after this settlement was calculated. Calculate it again.",
+    "LEG_COST_LOCKED_DAMAGED": "Goods of cycle {cycle} were marked damaged in storage at the current cost, so this leg’s cost can no longer be recalculated. Undo the damage first, or record a late or corrected charge as a cycle expense."
   },
   "requests": {
     "tabs": {
@@ -2247,7 +2259,8 @@
       "LENDER_FINANCING": "Friend's payment",
       "LENDER_REPAYMENT": "Repayment to a friend",
       "STOCK_TRANSFER": "Leftovers moved between cycles",
-      "SAMPLES_ORDER": "Samples order"
+      "SAMPLES_ORDER": "Samples order",
+      "STOCK_DAMAGE": "Damaged in storage"
     },
     "auditAction": {
       "PROFIT_DRAW": "Profit taken",
@@ -2323,7 +2336,8 @@
       "AssistantChat": "Assistant chat",
       "CustomerBranch": "Customer branch",
       "PartnerAccountMovement": "Partner account entry",
-      "HandoverFreightPayment": "Freight payment"
+      "HandoverFreightPayment": "Freight payment",
+      "StockDamage": "Damaged in storage"
     },
     "dateField": {
       "PROFIT_DRAWN": "The date profit was taken",
@@ -2347,7 +2361,8 @@
       "CAPITAL_TAKEN_BACK": "The date capital was taken back",
       "MONEY_TAKEN": "The date money was taken from a cycle",
       "FREIGHT_PAID": "The date freight was paid",
-      "INVESTOR_EXITED": "The date an investor was paid out"
+      "INVESTOR_EXITED": "The date an investor was paid out",
+      "STOCK_DAMAGED": "The date goods were found damaged"
     },
     "country": {
       "CN": "China",
@@ -2438,7 +2453,8 @@
     "moved": "To another cycle",
     "fromCycle": "From <code>cycle</code>",
     "fromCycleUnits": "{units} units — {onShelf} on the shelf, {sold} sold",
-    "fromCycleMovedOn": "{count} moved on to another cycle"
+    "fromCycleMovedOn": "{count} moved on to another cycle",
+    "damagedInStorage": "{count} damaged in storage"
   },
   "shipment": {
     "title": "Shipment",
@@ -2874,7 +2890,9 @@
     "branchName": "Nasr City",
     "branchAddress": "12 Street 9, Mokattam, Cairo",
     "chooseBranch": "Choose a branch",
-    "investorName": "Ahmad Mahmoud"
+    "investorName": "Ahmad Mahmoud",
+    "damageNote": "Dropped from the shelf",
+    "damageUndoReason": "Counted again: they were fine"
   },
   "fxRates": {
     "title": "Exchange rates",
@@ -3439,5 +3457,39 @@
     "paymentRecorded": "Payment recorded",
     "paymentFailed": "Could not record the payment.",
     "amountRequired": "Say how much was paid."
+  },
+  "damages": {
+    "title": "Damaged in storage",
+    "markDamaged": "Mark damaged",
+    "markTitle": "Mark damaged",
+    "markHint": "Units that broke on the shelf come off the stock. Their landed cost is a loss of this cycle; no money moves.",
+    "qty": "Units damaged",
+    "onShelf": "{count} on the shelf",
+    "damagedOn": "Found on",
+    "note": "Note",
+    "cost": "Loss",
+    "costLine": "{qty} × {unit} = {total}",
+    "save": "Mark damaged",
+    "saved": "Marked damaged",
+    "saveFailed": "The damage was not recorded.",
+    "qtyRequired": "Say how many units were damaged.",
+    "qtyNotWhole": "Units are whole: type a whole number.",
+    "qtyTooMany": "Only {count} are on the shelf.",
+    "undo": "Undo",
+    "undoTitle": "Undo the damage",
+    "undoHint": "The units go back on the shelf of the same batch and the loss is taken off the cycle.",
+    "reason": "Why",
+    "reasonRequired": "Say why the damage is being undone.",
+    "undoDone": "Damage undone",
+    "undoFailed": "The damage was not undone.",
+    "undone": "Undone",
+    "byNote": "By {name} · {note}",
+    "by": "By {name}",
+    "undoneBy": "Undone by {name}: {reason}",
+    "line": "{product} × {qty}",
+    "total": "Total damaged",
+    "movementMarked": "Damaged in storage",
+    "movementUndone": "Damage undone",
+    "markBatch": "Mark {product} damaged"
   }
 }

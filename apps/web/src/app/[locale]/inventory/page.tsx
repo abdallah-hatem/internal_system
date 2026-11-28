@@ -86,6 +86,7 @@ function InventoryPageContent() {
   const t = useTranslations('inventory');
   const tc = useTranslations('common');
   const td = useTranslations('dashboard');
+  const tdm = useTranslations('damages');
   const locale = useLocale();
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   // "Receive stock" replaced a dialog that asked for product IDs typed by hand
@@ -450,7 +451,9 @@ function InventoryPageContent() {
                                    <span className={`px-1.5 py-0.5 rounded-full font-medium ${
                                     mov.movementType === 'RECEIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                                   }`}>
-                                    {codeLabel('movementType', mov.movementType)}
+                                    {mov.referenceType === 'STOCK_DAMAGE'
+                                      ? tdm(Number(mov.qtyDelta) < 0 ? 'movementMarked' : 'movementUndone')
+                                      : codeLabel('movementType', mov.movementType)}
                                   </span>
                                   <span>{mov.qtyDelta}</span>
                                   <span className="text-gray-500">{formatDate(mov.occurredAt)}</span>

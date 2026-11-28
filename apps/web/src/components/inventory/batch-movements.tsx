@@ -103,6 +103,7 @@ export const FIRST_MOVEMENTS = 10;
 
 function useMovementParts() {
   const t = useTranslations('inventory');
+  const td = useTranslations('damages');
   const codeLabel = useCodeLabel();
   const { formatDate, formatTime } = useDateFormat();
   const { formatNumber } = useNumberFormat();
@@ -119,7 +120,10 @@ function useMovementParts() {
         >
           <MovementIcon mov={mov} />
           <span data-testid="movement-label" className="min-w-0 break-words">
-            {codeLabel('movementType', mov.movementType)}
+            {/* Units damaged in storage and their undo say so (§3, 2026-11-28), not "Written off" / "Adjustment". */}
+            {mov.referenceType === 'STOCK_DAMAGE'
+              ? td(Number(mov.qtyDelta) < 0 ? 'movementMarked' : 'movementUndone')
+              : codeLabel('movementType', mov.movementType)}
           </span>
         </span>
         <bdi dir="ltr" className={cn('font-medium tabular-nums', qty >= 0 ? 'text-success' : 'text-destructive')}>

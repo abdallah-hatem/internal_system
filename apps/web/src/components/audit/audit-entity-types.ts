@@ -15,7 +15,7 @@ export const AUDIT_ENTITY_TYPES = [
   'ImportCycle', 'CycleParticipant', 'PurchaseOrder', 'PurchaseOrderItem', 'SupplierRefund',
   'ShippingLeg', 'ShipmentDeparture', 'ShipmentHandover', 'HandoverFreightPayment', 'ShipmentDelivery', 'ShipmentLoss',
   // Stock
-  'InventoryBatch', 'StockTransfer',
+  'InventoryBatch', 'StockTransfer', 'StockDamage',
   // Money
   'FinancialTransaction', 'Settlement', 'Lender', 'LenderFinancing', 'LenderRepayment', 'LenderPlan',
   'CurrencyRate', 'PartnerAccountMovement', 'ProfitDraw',

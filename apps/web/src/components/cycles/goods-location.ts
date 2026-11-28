@@ -51,6 +51,11 @@ export interface GoodsBuckets {
   /** Units of this cycle's batches that have left the shelf through a sale. */
   sold: number;
   lost: number;
+  /**
+   * Part of `lost`: units of this cycle's batches damaged in storage and
+   * written off (§3, 2026-11-28) — received, then lost on the shelf.
+   */
+  damaged: number;
   /** Leftovers moved to another cycle at their cost (§8, L5), by transfers that stand. */
   moved: number;
 }
@@ -97,6 +102,8 @@ export interface LocationBatch {
   remainingQty: number | string;
   /** Set on a batch another cycle moved in (§8, L5): not this cycle's own order. */
   transferredFromBatchId?: string | null;
+  /** Units of it damaged in storage that stand (§3, 2026-11-28). */
+  damagedQty?: number | string;
 }
 
 /** The parts of `GET /cycles/:id/transfers` this reads. */
@@ -107,13 +114,13 @@ export interface LocationTransfer {
   lines: { sourceBatchId: string; destBatchId: string | null; qty: number | string }[];
 }
 
-const PLACES = ['ordered', 'inChina', 'toUae', 'inUae', 'toEgypt', 'inEgypt', 'notCheckedIn', 'sold', 'lost', 'moved'] as const;
+const PLACES = ['ordered', 'inChina', 'toUae', 'inUae', 'toEgypt', 'inEgypt', 'notCheckedIn', 'sold', 'lost', 'damaged', 'moved'] as const;
 
 /** Whole thousandths — the precision quantities are stored at — so sums stay exact. */
 const milli = (v: unknown) => Math.round(num(v) * 1000);
 const fromMilli = (m: number) => m / 1000;
 const zero = (): GoodsBuckets => ({
-  ordered: 0, inChina: 0, toUae: 0, inUae: 0, toEgypt: 0, inEgypt: 0, notCheckedIn: 0, sold: 0, lost: 0, moved: 0,
+  ordered: 0, inChina: 0, toUae: 0, inUae: 0, toEgypt: 0, inEgypt: 0, notCheckedIn: 0, sold: 0, lost: 0, damaged: 0, moved: 0,
 });
 
 /** The places in milli-units, then the same in units. */
@@ -179,24 +186,31 @@ export function locateGoods(input: {
   // takes units off `remainingQty`; a cancelled sale or a return to stock puts
   // them back; a move to another cycle takes them off too, and is `moved`.
   // Batches moved in from another cycle are not this cycle's order.
+  // Damaged in storage takes units off `remainingQty` too, and is not a sale.
   const soldByProduct = new Map<string, number>();
   const movedByProduct = new Map<string, number>();
+  const damagedByProduct = new Map<string, number>();
   for (const batch of input.batches) {
     if (batch.transferredFromBatchId) continue;
     const moved = batch.id ? (movedOutOf.get(batch.id) ?? 0) : 0;
-    const sold = Math.max(0, milli(batch.receivedQty) - milli(batch.remainingQty) - moved);
+    const damaged = milli(batch.damagedQty ?? 0);
+    const sold = Math.max(0, milli(batch.receivedQty) - milli(batch.remainingQty) - moved - damaged);
     soldByProduct.set(batch.productId, (soldByProduct.get(batch.productId) ?? 0) + sold);
     movedByProduct.set(batch.productId, (movedByProduct.get(batch.productId) ?? 0) + moved);
+    damagedByProduct.set(batch.productId, (damagedByProduct.get(batch.productId) ?? 0) + damaged);
   }
 
   const products: ProductLocation[] = [];
   const totals = zero();
   for (const [productId, p] of byProduct) {
     const moved = Math.min(p.received, movedByProduct.get(productId) ?? 0);
-    const sold = Math.min(p.received - moved, soldByProduct.get(productId) ?? 0);
+    const damaged = Math.min(p.received - moved, damagedByProduct.get(productId) ?? 0);
+    const sold = Math.min(p.received - moved - damaged, soldByProduct.get(productId) ?? 0);
     p.b.sold = sold;
     p.b.moved = moved;
-    p.b.inEgypt = p.received - sold - moved + p.b.notCheckedIn;
+    p.b.damaged = damaged;
+    p.b.lost += damaged;
+    p.b.inEgypt = p.received - sold - moved - damaged + p.b.notCheckedIn;
 
     // Whatever no leg accounts for has not been put on one: it is still where
     // the cycle starts. With every leg recorded this is zero.
@@ -224,10 +238,12 @@ export function locateGoods(input: {
       const dest = l.destBatchId ? batchById.get(l.destBatchId) : undefined;
       const onShelf = dest ? Math.min(units, milli(dest.remainingQty)) : 0;
       const movedOn = dest?.id ? Math.min(units - onShelf, movedOutOf.get(dest.id) ?? 0) : 0;
+      // Damaged here in storage is not sold here (§3, 2026-11-28).
+      const damaged = dest ? Math.min(units - onShelf - movedOn, milli(dest.damagedQty ?? 0)) : 0;
       f.units += units;
       f.onShelf += onShelf;
       f.movedOn += movedOn;
-      f.sold += Math.max(0, units - onShelf - movedOn);
+      f.sold += Math.max(0, units - onShelf - movedOn - damaged);
     }
     from.set(t.fromCycle.id, f);
   }

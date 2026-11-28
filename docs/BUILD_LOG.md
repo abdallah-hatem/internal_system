@@ -5,6 +5,17 @@ feature by feature at the owner's word, each on its own branch, merged and shipp
 Goal (current, 2026-10-27): the "Next up" list below, top first.
 
 ## Current stage
+- **2026-11-28 — goods damaged in storage (owner, CYC-2026-0001), on `feature/mark-damaged`, PR to `dev`, not
+  merged:** migration `20261128100000_stock_damages` (additive). `StockDamagesService` (`modules/inventory/`):
+  `POST /inventory/batches/:id/damages`, `POST /inventory/damages/:id/undo` (core partners), `GET
+  /cycles/:id/damages`; rules in `common/stock-damage.ts`. The loss is a third part of `cycleWriteOffsEgp`
+  (`damagedInStorage`), so settlement, Take money, partners, exit preview, dashboard and Analytics read it; its own cost
+  line / P&L line / What made a bar row. Draft settlement goes stale (`SETTLEMENT_STALE_WRITE_OFFS`), leg re-cost
+  locked (`LEG_COST_LOCKED_DAMAGED`), a damaged moved-in batch blocks the transfer undo, check-data 12.96–12.991.
+  Web: Mark damaged + Damaged in storage list (`components/cycles/cycle-damages.tsx`), movements, Where the goods are
+  (inside Lost), EN/AR. Also fixes the schema drift dev's CI has had since the investor-exit migration (RESTRICT on
+  `profit_draws.exit_participant_id`). Tests: `stock-damage.spec.ts`, `stock-damages.db.spec.ts` (TC-DMG-NN, the blind
+  scenarios), controller roles, breakdown. BUSINESS_LOGIC §3, §8, §2.
 - **2026-11-27 — a temporary investor paid out and removed (owner, CYC-2026-0001's two investors), on
   `feature/investor-exit`, PR to `dev`, not merged:** migration `20261127100000_investor_exit` (exit columns on
   `cycle_participants`, `exit_participant_id` on `profit_draws`, additive). `GET/POST

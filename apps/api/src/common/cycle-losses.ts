@@ -1,5 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; a loss in EGP must not become a float
 import { Prisma } from '@prisma/client';
+import { damagedInStorageEgp } from './stock-damage';
 
 /**
  * The losses `cycleLossesEgp` sums, as a filter: one definition for the sum
@@ -102,22 +103,31 @@ export async function samplesWrittenOffEgp(
 }
 
 /**
- * Everything a cycle wrote off — goods lost on the way and samples written
- * off — apart and together. Settlement, the dashboard, the P&L and the cycle
- * comparison all subtract `total`; the parts are what the payout's lines and
- * the P&L's expense lines show.
+ * Everything a cycle wrote off — goods lost on the way, samples written off
+ * and goods damaged in storage (§3, 2026-11-28) — apart and together.
+ * Settlement, Take money, the partners' figures, the dashboard, the P&L and
+ * the cycle comparison all subtract `total`; the parts are what the payout's
+ * lines and the P&L's expense lines show, each under its own label.
+ *
+ * A damage is dated by the day entered (`damagedOn`, a date column), so it is
+ * windowed by `days`; the other two by the instant they were recorded
+ * (`window`). Analytics passes both for the same period.
  */
 export async function cycleWriteOffsEgp(
   db: Parameters<typeof cycleLossesEgp>[0] &
-    Parameters<typeof samplesWrittenOffEgp>[0],
+    Parameters<typeof samplesWrittenOffEgp>[0] &
+    Parameters<typeof damagedInStorageEgp>[0],
   cycleId: string | null,
   window?: { gte?: Date; lt?: Date },
+  days?: { gte?: Date; lte?: Date },
 ) {
   const lostOnTheWay = await cycleLossesEgp(db, cycleId, window);
   const samplesWrittenOff = await samplesWrittenOffEgp(db, cycleId, window);
+  const damagedInStorage = await damagedInStorageEgp(db, cycleId, days);
   return {
     lostOnTheWay,
     samplesWrittenOff,
-    total: lostOnTheWay.add(samplesWrittenOff),
+    damagedInStorage,
+    total: lostOnTheWay.add(samplesWrittenOff).add(damagedInStorage),
   };
 }

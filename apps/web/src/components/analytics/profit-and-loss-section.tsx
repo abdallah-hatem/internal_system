@@ -80,6 +80,8 @@ export const TOP_CATEGORIES = 4;
 const LOSSES_CATEGORY = 'goods_lost';
 /** Samples the shops kept or lost (§4, samples at shops): named here too (API `SAMPLES_WRITTEN_OFF_CATEGORY`). */
 const SAMPLES_WRITTEN_OFF_CATEGORY = 'samples_written_off';
+/** Goods damaged in storage (§3, 2026-11-28): named here too (API `DAMAGED_IN_STORAGE_CATEGORY`). */
+const DAMAGED_IN_STORAGE_CATEGORY = 'damaged_in_storage';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** Last day of a month; month is 1-12 and may overflow into the next year. */
@@ -264,7 +266,9 @@ export function ProfitAndLossSection() {
                 ? t('pnl.goodsLost')
                 : c === SAMPLES_WRITTEN_OFF_CATEGORY
                   ? t('pnl.samplesWrittenOff')
-                  : codeLabel('ledgerCategory', c)
+                  : c === DAMAGED_IN_STORAGE_CATEGORY
+                    ? t('pnl.damagedInStorage')
+                    : codeLabel('ledgerCategory', c)
             }
           />
         </div>

@@ -35,6 +35,10 @@ import {
   samplesWrittenOffWhere,
   shipmentLossWhere,
 } from '../../common/cycle-losses';
+import {
+  DAMAGED_IN_STORAGE_CATEGORY,
+  stockDamageWhere,
+} from '../../common/stock-damage';
 import { cycleUnitsAtShops } from '../../common/samples-out';
 import { SAMPLES_WRITTEN_OFF_CATEGORY } from '../../common/samples';
 import {
@@ -110,6 +114,11 @@ export interface ProfitFigures {
    * (§4, samples at shops, 2026-10-18), on the day they were written off.
    */
   samplesWrittenOff: Prisma.Decimal;
+  /**
+   * The part of operatingExpenses that is goods damaged in storage (§3,
+   * 2026-11-28), on the day the damage was dated.
+   */
+  damagedInStorage: Prisma.Decimal;
   recovered: Prisma.Decimal;
   otherIncome: Prisma.Decimal;
   exchangeDiff: Prisma.Decimal;
@@ -123,6 +132,7 @@ export type ProfitLine =
   | 'operating'
   | 'losses'
   | 'samples'
+  | 'damaged'
   | 'recovered'
   | 'otherIncome'
   | 'exchangeDiff';
@@ -153,6 +163,7 @@ export type ProfitSource =
   | { kind: 'ledger'; id: string }
   | { kind: 'loss'; id: string }
   | { kind: 'samples'; orderId: string }
+  | { kind: 'damaged'; id: string }
   | { kind: 'repayment'; id: string };
 
 type LedgerRowLike = {
@@ -179,18 +190,23 @@ export function figuresOf(parts: readonly ProfitPart[]): ProfitFigures {
     operating: zero(),
     losses: zero(),
     samples: zero(),
+    damaged: zero(),
     recovered: zero(),
     otherIncome: zero(),
     exchangeDiff: zero(),
   };
   for (const p of parts) sum[p.line] = sum[p.line].add(p.amount);
-  const operatingExpenses = sum.operating.add(sum.losses).add(sum.samples);
+  const operatingExpenses = sum.operating
+    .add(sum.losses)
+    .add(sum.samples)
+    .add(sum.damaged);
   return {
     revenue: sum.revenue,
     cogs: sum.cogs,
     operatingExpenses,
     losses: sum.losses,
     samplesWrittenOff: sum.samples,
+    damagedInStorage: sum.damaged,
     recovered: sum.recovered,
     otherIncome: sum.otherIncome,
     exchangeDiff: sum.exchangeDiff,
@@ -592,10 +608,27 @@ export class AnalyticsService {
           { kind: 'samples', orderId: a.saleItem.saleOrderId },
         );
       }
+      // Goods damaged in storage (§3, 2026-11-28), on the day entered. An
+      // undone damage is in no period (the one filter).
+      for (const d of await this.prisma.stockDamage.findMany({
+        where: stockDamageWhere(null, days),
+        select: { id: true, damagedOn: true, costEgp: true },
+      })) {
+        add('damaged', dateColumnDay(d.damagedOn), d.costEgp, undefined, {
+          kind: 'damaged',
+          id: d.id,
+        });
+      }
     } else {
-      const writeOffs = await cycleWriteOffsEgp(this.prisma, null, instants);
+      const writeOffs = await cycleWriteOffsEgp(
+        this.prisma,
+        null,
+        instants,
+        days,
+      );
       add('losses', null, writeOffs.lostOnTheWay);
       add('samples', null, writeOffs.samplesWrittenOff);
+      add('damaged', null, writeOffs.damagedInStorage);
     }
 
     // Repaying friends at a moved rate (§18): a cost or a gain of the cycles,
@@ -715,6 +748,10 @@ export class AnalyticsService {
     // Samples written off: its own line, "Samples written off" (§4).
     if (!figures.samplesWrittenOff.isZero()) {
       byCategory.set(SAMPLES_WRITTEN_OFF_CATEGORY, figures.samplesWrittenOff);
+    }
+    // Goods damaged in storage: its own line, "Damaged in storage" (§3).
+    if (!figures.damagedInStorage.isZero()) {
+      byCategory.set(DAMAGED_IN_STORAGE_CATEGORY, figures.damagedInStorage);
     }
     const expensesByCategory = [...byCategory.entries()]
       .filter(([, amount]) => !amount.isZero())
@@ -861,6 +898,26 @@ export class AnalyticsService {
     const lossIds = expenses.rows
       .filter((r) => r.kind === 'loss')
       .map((r) => r.id);
+    const damageIds = expenses.rows
+      .filter((r) => r.kind === 'damaged')
+      .map((r) => r.id);
+    const damageInfo = damageIds.length
+      ? await this.prisma.stockDamage.findMany({
+          where: { id: { in: damageIds } },
+          select: {
+            id: true,
+            qty: true,
+            note: true,
+            batch: {
+              select: {
+                cycle: { select: { id: true, code: true } },
+                product: { select: { name: true, sku: true } },
+              },
+            },
+          },
+        })
+      : [];
+    const damagesById = new Map(damageInfo.map((d) => [d.id, d]));
     const [orderInfo, ledgerInfo, lossInfo, repaymentInfo] = await Promise.all([
       orderIds.length
         ? this.prisma.saleOrder.findMany({
@@ -1009,6 +1066,8 @@ export class AnalyticsService {
         totals: { amountEgp: money(sums.expenses.amountEgp) },
         rows: expenses.rows.map((r) => {
           const loss = r.kind === 'loss' ? lossesById.get(r.id) : undefined;
+          const damage =
+            r.kind === 'damaged' ? damagesById.get(r.id) : undefined;
           return {
             kind: r.kind,
             id: r.id,
@@ -1024,6 +1083,14 @@ export class AnalyticsService {
                   product: loss.purchaseOrderItem.product.name,
                   leg: loss.leg.sequence,
                   cycle: loss.leg.cycle,
+                }
+              : null,
+            damage: damage
+              ? {
+                  qty: Number(damage.qty),
+                  note: damage.note,
+                  product: damage.batch.product.name,
+                  cycle: damage.batch.cycle,
                 }
               : null,
           };

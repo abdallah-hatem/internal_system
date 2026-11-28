@@ -49,6 +49,7 @@ const REL: Record<string, Record<string, Rel>> = {
     saleItemAllocations: many('saleItemAllocation', 'inventoryBatchId'),
     returnItems: many('returnItem', 'batchId'),
     priceAdjustmentItems: many('priceAdjustmentItem', 'inventoryBatchId'),
+    damages: many('stockDamage', 'batchId'),
   },
   settlement: {
     cycle: one('importCycle', 'cycleId'),
